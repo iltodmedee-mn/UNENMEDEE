@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 
-import { cleanTitle, htmlFragmentToText, MIN_ARTICLE_CHARS } from "../extractor";
+import { cleanTitle, htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
 import { politeFetch } from "../http";
 import type { ScrapedItem } from "../types";
 
@@ -31,7 +31,7 @@ export function parsePoliceList(html: string): PoliceListItem[] {
     const href = $(el).attr("href") ?? "";
     if (!/^\/a\/\d+$/.test(href)) return;
     const url = ORIGIN + href;
-    const title = cleanTitle($(el).find(".title").text());
+    const title = plainTitle($(el).find(".title").text());
     if (!title || seen.has(url)) return;
     seen.add(url);
     const d = ($(el).find("img").attr("src") ?? "").match(/\/image\/(\d{4})\/(\d{2})\/(\d{2})\//);

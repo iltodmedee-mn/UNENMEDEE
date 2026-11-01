@@ -65,8 +65,17 @@ export function sameSite(host: string, sourceDomain: string): boolean {
   return h === d || h.endsWith(`.${d}`);
 }
 
+/** decodeURIComponent that never throws: one link with a broken "%E0%A4" escape threw and lost the whole listing. */
+export function safeDecode(s: string): string {
+  try {
+    return decodeURIComponent(s);
+  } catch {
+    return s;
+  }
+}
+
 export function scoreLink(url: URL, text: string): number {
-  const path = decodeURIComponent(url.pathname + url.search);
+  const path = safeDecode(url.pathname + url.search);
   if (FILE_EXT.test(path) || NON_ARTICLE.test(path)) return 0;
   const queryId = QUERY_ID.test(url.search);
   // "?page=3" is pagination, unless the id is in the query too ("mn.php?page=40&news=1633").
@@ -182,7 +191,7 @@ export function harvestSectionLinks(html: string, pageUrl: string, sourceDomain:
     url.hash = "";
     if (url.toString() === base.toString()) return;
     const text = $(el).text().replace(/\s+/g, " ").trim();
-    const path = decodeURIComponent(url.pathname);
+    const path = safeDecode(url.pathname);
     const score = (SECTION_PATH.test(path) ? 2 : 0) + (SECTION_TEXT.test(text) && text.length <= 40 ? 2 : 0) + (/^\/(home|news)\/?$/i.test(path) ? 1 : 0);
     if (score >= 2) found.set(url.toString(), Math.max(score, found.get(url.toString()) ?? 0));
   });
@@ -198,7 +207,10 @@ export function harvestSectionLinks(html: string, pageUrl: string, sourceDomain:
  * `/wp-json/` answers 404.
  */
 export function wordPressApiBase(html: string, pageUrl: string): string {
-  const m = html.match(/<link[^>]+rel=["']https:\/\/api\.w\.org\/["'][^>]*href=["']([^"']+)["']/i) ?? html.match(/<link[^>]+href=["']([^"']+)["'][^>]*rel=["']https:\/\/api\.w\.org\/["']/i);
+  // Attribute runs are bounded: a page full of "<link" without ">" made each try scan to the end.
+  const m =
+    html.match(/<link[^>]{1,2000}?rel=["']https:\/\/api\.w\.org\/["'][^>]{0,2000}?href=["']([^"']{1,2000})["']/i) ??
+    html.match(/<link[^>]{1,2000}?href=["']([^"']{1,2000})["'][^>]{0,2000}?rel=["']https:\/\/api\.w\.org\/["']/i);
   const origin = new URL(pageUrl).origin;
   if (!m) return `${origin}/wp-json/`;
   try {

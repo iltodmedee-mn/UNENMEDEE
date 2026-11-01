@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 
-import { cleanTitle, htmlFragmentToText, MIN_ARTICLE_CHARS } from "../extractor";
+import { htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
 import { politeFetch } from "../http";
 import type { ScrapedItem } from "../types";
 
@@ -29,7 +29,7 @@ export function parseZasagFeed(xml: string): ScrapedItem[] {
       const date = new Date(item.find("pubDate").text().trim());
       return {
         url: `https://mongolia.gov.mn/news/view/${id}`,
-        title: cleanTitle(decode(item.find("title").text())),
+        title: plainTitle(decode(item.find("title").text())),
         text,
         publishedAt: Number.isNaN(date.getTime()) ? null : date,
       };

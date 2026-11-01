@@ -5,6 +5,7 @@ import { contentHash, normalizeText } from "@/lib/text";
 
 import { isFutureDate } from "./dates";
 import { chooseTitle } from "./titles";
+import { safeDecode } from "./links";
 
 export interface ExtractedArticle {
   title: string;
@@ -20,7 +21,8 @@ export const MIN_ARTICLE_CHARS = 200;
 const silentConsole = new VirtualConsole();
 
 /** Opening tag of a script, style, SVG or frame block. */
-const HEAVY_OPEN = /<(script|style|noscript|svg|iframe)\b[^>]*>/gi;
+// The attribute run is bounded: unclosed "<script" openings each scanned to the end of the page.
+const HEAVY_OPEN = /<(script|style|noscript|svg|iframe)\b[^>]{0,4000}>/gi;
 
 /** One linear pass: each block runs to its own closing tag in any spelling ("</script >", "</SCRIPT foo>"). */
 function stripHeavyOnce(html: string): string {
@@ -69,6 +71,15 @@ export function stripHeavyTags(html: string): string {
 }
 
 /** Strip " – Site name" / " | Site name" suffixes from <title>. */
+/**
+ * A headline from an API or a feed (WordPress `title.rendered`, RSS, parliament.mn, legalinfo.mn):
+ * already the headline, so only whitespace is normalised. cleanTitle's "Site | Headline" split is
+ * for <title> only: on "Сайд Б.Бат - Хууль баталлаа" it kept half of a real headline.
+ */
+export function plainTitle(title: string): string {
+  return normalizeText(title).replace(/\s+/g, " ").trim();
+}
+
 export function cleanTitle(title: string): string {
   const t = normalizeText(title).replace(/\s+/g, " ");
   const parts = t.split(/\s+[|–—-]\s+/);
@@ -286,7 +297,7 @@ export function extractPublishedDate(doc: Document, url: string, text: string, h
   if (blobDate) return blobDate;
   const time = timeElementDate(doc, headline);
   if (time) return time;
-  const fromUrl = decodeURIComponent(url).match(/\/(20\d{2})\/(\d{1,2})\/(\d{1,2})\//);
+  const fromUrl = safeDecode(url).match(/\/(20\d{2})\/(\d{1,2})\/(\d{1,2})\//);
   if (fromUrl) {
     const d = validDate(+fromUrl[1], +fromUrl[2], +fromUrl[3]);
     if (d) return d;
@@ -309,8 +320,12 @@ export function extractArticle(html: string, url: string): ExtractedArticle | nu
   // puts it first: with two parts, the shorter one is the site.
   const titleParts = doc.title.split(/\s*[|–—]\s*|\s+-\s+/).filter((p) => p.trim());
   const siteParts = titleParts.length === 2 ? [titleParts[0].length < titleParts[1].length ? titleParts[0] : titleParts[1]] : titleParts.slice(1);
-  const siteNames = [doc.querySelector('meta[property="og:site_name"]')?.getAttribute("content"), ...siteParts];
   const h1 = [...doc.querySelectorAll("article h1, main h1, h1")].map((h) => h.textContent ?? "").find((t) => t.trim().length > 0);
+  // Some CMSs fill og:site_name with the article's own headline: taken as the site's name, it made
+  // the real headline look generic and the title fell back to the first sentence.
+  const ogSite = doc.querySelector('meta[property="og:site_name"]')?.getAttribute("content");
+  const sameAsHeadline = (v: string | null | undefined) => Boolean(v) && [ogTitle, h1].some((t) => t && plainTitle(t) === plainTitle(v!));
+  const siteNames = [sameAsHeadline(ogSite) ? null : ogSite, ...siteParts];
   const parsed = new Readability(doc.cloneNode(true) as Document, { charThreshold: 100 }).parse();
 
   const text = normalizeText(parsed?.textContent ?? "");

@@ -21,6 +21,10 @@ const SECTION_WORDS = new Set(
     "нүүр хуудас",
     "эхлэл",
     "дэлгэрэнгүй",
+    // Headings sites reuse for every post of a kind: the first sentence says which one it is.
+    "цахим уулзалт",
+    "тендерийн урилга",
+    "тендер шалгаруулалтын урилга",
     "home",
     "news",
     "read",
@@ -173,7 +177,9 @@ export function unshoutTitle(title: string): string {
   const upper = title.match(UPPER)?.length ?? 0;
   // "_" separates the words of a hashtag ("#ХАМТЫН_СЭТГЭЛ_ХАЛУУН"): one shouted tag is several words.
   const words = title.split(/[\s_]+/).filter((w) => (w.match(LETTER)?.length ?? 0) >= 2).length;
-  if (letters < 12 || words < 3 || upper / letters < 0.7) return title;
+  // Two shouted words are a shouted headline too ("ХУРАЛ БОЛНО" stayed in capitals on the feed);
+  // one word alone is usually an abbreviation or a name.
+  if (letters < 8 || words < 2 || upper / letters < 0.7) return title;
 
   let out = title.replace(/[\p{L}\d]+/gu, (w: string, at: number, s: string) => {
     if (ACRONYMS.has(w) || /\d/.test(w) || /^[A-Z]+$/.test(w)) return w;

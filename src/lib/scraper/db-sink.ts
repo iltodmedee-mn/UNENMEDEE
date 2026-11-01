@@ -27,6 +27,7 @@ const SHARED_DATE_MIN_DAYS = 30;
 
 export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
   const maxAgeDays = Math.max(options.maxAgeDays ?? MAX_AGE_DAYS, MAX_AGE_DAYS);
+  const claimed = new Set<string>();
   return {
     async filterNewUrls(urls) {
       if (urls.length === 0) return new Set();
@@ -42,6 +43,11 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
     async save(source: SourceRef, item: ScrapedItem) {
       // Hash the full cleaned text BEFORE any LLM call (CLAUDE.md rule #2).
       const hash = contentHash(item.text);
+      // Claimed for this run before the database check: two URLs of one page saved by concurrent
+      // requests both passed the check and were both stored (#1379/#1380, 0.45 s apart), and the
+      // AI analysed the same text twice.
+      if (claimed.has(hash)) return "duplicate";
+      claimed.add(hash);
       const [dup, deletedDup] = await Promise.all([
         db.select({ id: articles.id }).from(articles).where(eq(articles.contentHash, hash)).limit(1),
         db.select({ url: seenUrls.originalUrl }).from(seenUrls).where(eq(seenUrls.contentHash, hash)).limit(1),

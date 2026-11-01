@@ -3,7 +3,8 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { extractMntAmounts, extractTenderMeta, amountToNumber, hasTenderSignals } from "@/lib/scraper/adapters/tender";
-import { cleanTitle, extractArticle, htmlFragmentToText } from "@/lib/scraper/extractor";
+import { cleanTitle, extractArticle, htmlFragmentToText, plainTitle } from "@/lib/scraper/extractor";
+import { safeDecode } from "@/lib/scraper/links";
 import { contentHash, normalizeText, slugify, truncate } from "@/lib/text";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
@@ -109,3 +110,20 @@ describe("stripHeavyTags", () => {
     assert.ok(performance.now() - t0 < 300, `took ${performance.now() - t0} ms`);
   });
 });
+
+describe("titles from feeds and og:site_name", () => {
+  it("keeps an API headline whole and never mistakes the headline for the site's name", () => {
+    assert.equal(plainTitle("  Сайд Б.Бат - Хууль баталлаа \n"), "Сайд Б.Бат - Хууль баталлаа");
+    const html = `<html><head><title>Засгийн газар шинэ тогтоол баталлаа</title>
+      <meta property="og:title" content="Засгийн газар шинэ тогтоол баталлаа">
+      <meta property="og:site_name" content="Засгийн газар шинэ тогтоол баталлаа"></head>
+      <body><article><h1>Засгийн газар шинэ тогтоол баталлаа</h1><p>${"Засгийн газрын хуралдаанаар шинэ тогтоол баталж, хэрэгжүүлэх ажлыг эхлүүллээ. ".repeat(8)}</p></article></body></html>`;
+    assert.equal(extractArticle(html, "https://example.gov.mn/news/1")?.title, "Засгийн газар шинэ тогтоол баталлаа");
+  });
+
+  it("does not lose a listing to a broken percent escape", () => {
+    assert.equal(safeDecode("/news/%E0%A4%A"), "/news/%E0%A4%A");
+    assert.equal(safeDecode("/%D0%BC%D1%8D%D0%B4%D1%8D%D1%8D"), "/мэдээ");
+  });
+});
+

@@ -98,3 +98,23 @@ describe("getRobots", () => {
     assert.equal(policy.unavailable, "robots.txt answered HTTP 503");
   });
 });
+
+describe("robots.txt user-agent groups", () => {
+  it("applies a group only when it names our product token as a whole", () => {
+    const policy = parseRobots(`User-agent: bot
+Disallow: /
+
+User-agent: *
+Disallow: /admin`);
+    assert.equal(policy.isAllowed("/news/1"), true, "a group for 'bot' is someone else's");
+    assert.equal(policy.isAllowed("/admin"), false);
+    const ours = parseRobots(`User-agent: IlTodBot/1.0
+Disallow: /private
+
+User-agent: *
+Disallow: /`);
+    assert.equal(ours.isAllowed("/news/1"), true);
+    assert.equal(ours.isAllowed("/private/x"), false);
+  });
+});
+

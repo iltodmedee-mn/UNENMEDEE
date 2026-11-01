@@ -1,6 +1,6 @@
 import * as cheerio from "cheerio";
 
-import { cleanTitle, htmlFragmentToText, MIN_ARTICLE_CHARS } from "../extractor";
+import { htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
 import { politeFetch } from "../http";
 import type { ScrapedItem } from "../types";
 
@@ -45,7 +45,7 @@ export function parseLegalinfoList(html: string): LegalAct[] {
     // The list is the site's markup: only legalinfo.mn's own detail pages are followed.
     const url = new URL(href, "https://legalinfo.mn");
     if (url.protocol !== "https:" || url.hostname !== "legalinfo.mn") return;
-    acts.push({ url: url.toString(), title: cleanTitle(node.text()), issuer: issuer || null, addedAt: current });
+    acts.push({ url: url.toString(), title: plainTitle(node.text()), issuer: issuer || null, addedAt: current });
   });
   return acts;
 }
