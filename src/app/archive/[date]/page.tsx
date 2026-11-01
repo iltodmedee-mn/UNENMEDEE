@@ -165,7 +165,10 @@ async function DayView({ params }: { params: PageProps<"/archive/[date]">["param
   );
 }
 
-export default function ArchiveDayPage(props: PageProps<"/archive/[date]">) {
+export default async function ArchiveDayPage(props: PageProps<"/archive/[date]">) {
+  // Checked before anything streams: an invalid or empty day is a real 404 (see the article page).
+  const date = parseArchiveDate((await props.params).date);
+  if (!date || (await getDayArchive(date)).stories.length === 0) notFound();
   return (
     <Suspense fallback={<FeedSkeleton />}>
       <DayView params={props.params} />

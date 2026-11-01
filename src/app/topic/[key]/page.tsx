@@ -60,7 +60,9 @@ async function TopicFeed({ params }: { params: PageProps<"/topic/[key]">["params
   );
 }
 
-export default function TopicPage(props: PageProps<"/topic/[key]">) {
+export default async function TopicPage(props: PageProps<"/topic/[key]">) {
+  // Checked before anything streams, so an unknown topic is a real 404 (see the article page).
+  if (!filterFrom((await props.params).key)) notFound();
   return (
     <Suspense fallback={<div className="mx-auto h-[32rem] w-full max-w-2xl animate-pulse rounded-2xl bg-secondary" />}>
       <TopicFeed params={props.params} />

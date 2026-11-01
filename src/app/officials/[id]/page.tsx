@@ -311,7 +311,10 @@ async function Profile({ params }: { params: PageProps<"/officials/[id]">["param
   );
 }
 
-export default function PoliticianPage(props: PageProps<"/officials/[id]">) {
+export default async function PoliticianPage(props: PageProps<"/officials/[id]">) {
+  // Checked before anything streams, so an unknown member is a real 404 (see the article page).
+  const id = parseRouteId((await props.params).id);
+  if (!id || !(await getPolitician(id))) notFound();
   return (
     <Suspense fallback={<div className="h-96 animate-pulse rounded-3xl bg-secondary" />}>
       <Profile params={props.params} />

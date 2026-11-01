@@ -118,7 +118,9 @@ async function PlaceView({ params }: { params: PageProps<"/place/[slug]">["param
   );
 }
 
-export default function PlacePage(props: PageProps<"/place/[slug]">) {
+export default async function PlacePage(props: PageProps<"/place/[slug]">) {
+  // Checked before anything streams, so an unknown place is a real 404 (see the article page).
+  if (!findPlace((await props.params).slug)) notFound();
   return (
     <Suspense fallback={<div className="mx-auto h-[32rem] w-full max-w-2xl animate-pulse rounded-2xl bg-secondary" />}>
       <PlaceView params={props.params} />

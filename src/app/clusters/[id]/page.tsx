@@ -20,7 +20,8 @@ export async function generateMetadata({ params }: PageProps<"/clusters/[id]">):
   const { id } = await params;
   const parsed = parseRouteId(id);
   const data = parsed ? await getCluster(parsed) : null;
-  return { title: data?.cluster.title ?? "Кластер", alternates: { canonical: `/clusters/${id}` } };
+  // The canonical is the number itself: "/clusters/007" was a second, self-canonical page.
+  return { title: data?.cluster.title ?? "Кластер", alternates: { canonical: `/clusters/${parsed ?? id}` } };
 }
 
 async function ClusterView({ params }: { params: PageProps<"/clusters/[id]">["params"] }) {
@@ -48,7 +49,10 @@ async function ClusterView({ params }: { params: PageProps<"/clusters/[id]">["pa
   );
 }
 
-export default function ClusterPage(props: PageProps<"/clusters/[id]">) {
+export default async function ClusterPage(props: PageProps<"/clusters/[id]">) {
+  // Checked before anything streams, so a missing cluster is a real 404 (see the article page).
+  const id = parseRouteId((await props.params).id);
+  if (!id || !(await getCluster(id))) notFound();
   return (
     <Suspense fallback={<FeedSkeleton count={3} />}>
       <ClusterView params={props.params} />
