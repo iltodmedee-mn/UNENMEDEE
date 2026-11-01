@@ -105,12 +105,22 @@ describe("database retention (db:prune)", () => {
     }
   });
 
+  it("never cuts an edited body", async () => {
+    const { pruneBodies } = await import("@/lib/retention");
+    await db.execute(sql`insert into articles (source_id, title, slug, original_url, content_hash, clean_content, published_at, created_at, edited_at)
+      values (${sourceId}, 'Засварласан', 'edited-old', 'https://yam.gov.mn/edited-old', md5('edited-old'), repeat('ө', 3000), now() - interval '400 days', now() - interval '400 days', now() - interval '300 days')`);
+    await pruneBodies(db, 180);
+    const [r] = await rows(sql`select length(clean_content)::int as len, content_pruned_at from articles where original_url = 'https://yam.gov.mn/edited-old'`);
+    assert.equal(r.len, 3000);
+    assert.equal(r.content_pruned_at, null);
+  });
+
   it("cuts old bodies in batches", async () => {
     const { BATCH, EXCERPT_CHARS, pruneBodies } = await import("@/lib/retention");
     await db.execute(sql`insert into articles (source_id, title, slug, original_url, content_hash, clean_content, published_at, created_at)
       select ${sourceId}, 'Бөөн ' || g, 'bulk-' || g, 'https://yam.gov.mn/bulk/' || g, md5(g::text), repeat('ү', 2000), now() - interval '200 days', now() - interval '200 days'
       from generate_series(1, ${BATCH + 3}) as g`);
-    const before = Number((await one(sql`select count(*)::int as n from articles where content_pruned_at is null and created_at < now() - interval '180 days' and length(clean_content) > ${EXCERPT_CHARS}`)).n);
+    const before = Number((await one(sql`select count(*)::int as n from articles where content_pruned_at is null and edited_at is null and created_at < now() - interval '180 days' and length(clean_content) > ${EXCERPT_CHARS}`)).n);
     assert.equal(await pruneBodies(db, 180, true), before);
     assert.equal(await pruneBodies(db, 180), before, "more than one batch");
     const [r] = await rows(sql`select max(length(clean_content))::int as len, count(*)::int as n from articles where original_url like 'https://yam.gov.mn/bulk/%' and content_pruned_at is not null`);

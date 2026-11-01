@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
+import { allPages, checkCompany } from "@/lib/officials/companies-sync";
 import { bareName, type CompanyCheck, declaredCompanies, dueKeys, exactMatches, isOrgName, orgKey, parsePayers, parseSuppliers, searchQueries } from "@/lib/officials/companies";
 
 const fixture = (f: string) => JSON.parse(readFileSync(`tests/fixtures/shilendans/${f}`, "utf8")) as unknown;
@@ -77,3 +78,34 @@ describe("Шилэн данс lookups", () => {
     assert.deepEqual(dueKeys(wanted, { a: at("2026-10-20"), b: at("2026-08-01"), c: at("2026-09-01") }, now), ["d", "b", "c"]);
   });
 });
+
+describe("Шилэн данс lookup reads every page", () => {
+  const supplier = (name: string, register: string) => ({ name, register, amount: 1_000_000, count: 3 });
+  const page = (content: unknown[], n: number, total: number) => ({ content, number: n, totalPages: total, last: n + 1 >= total });
+
+  it("finds a second company with the same name on page 2 and links neither", async () => {
+    const get = async (path: string) =>
+      path.startsWith("getBeltgenNiiluulegch")
+        ? path.includes("page=0")
+          ? page([supplier("Алтан Тэвш ХХК", "1111111"), ...Array.from({ length: 49 }, (_, i) => supplier(`Өөр ${i} ХХК`, `9${i}`))], 0, 2)
+          : page([supplier("Алтан тэвш ХХК", "2222222")], 1, 2)
+        : page([], 0, 1);
+    const c = await checkCompany("Алтан Тэвш ХХК", "2026-11-01", new Date("2026-11-01T00:00:00Z"), get);
+    assert.equal(c.status, "ambiguous");
+  });
+
+  it("refuses to decide on a list longer than it reads", async () => {
+    await assert.rejects(allPages((p) => `x?page=${p}`, 2, async () => ({ content: [1], last: false, totalPages: 9 })));
+  });
+});
+
+describe("organisation names", () => {
+  it("reads 'сан' and 'банк' as words, not as the end of a person's name", () => {
+    assert.equal(isOrgName("Г.Отгонсан"), false);
+    assert.equal(isOrgName("Б.Батсан"), false);
+    assert.equal(isOrgName("Хүний хөгжил сан"), true);
+    assert.equal(isOrgName("Хаан банк"), true);
+    assert.equal(isOrgName("Төрийн банк ХХК"), true);
+  });
+});
+

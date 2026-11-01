@@ -48,6 +48,10 @@ export function suspectUnitYears(rows: { year: number; totalAssets: number | nul
   if (valued.length < 2) return [];
   const totals = valued.map((r) => r.totalAssets).sort((a, b) => a - b);
   if (valued.length === 2) return totals[1] > totals[0] * UNIT_GAP ? valued.map((r) => r.year) : [];
+  // An even split (two filings at one scale, two at the other): the upper median used to win, so
+  // the lower pair was called the error although nobody can tell which pair is off. All of them.
+  const half = totals.length / 2;
+  if (Number.isInteger(half) && totals[half] > totals[half - 1] * UNIT_GAP && totals[half - 1] * UNIT_GAP >= totals[0] && totals.at(-1)! <= totals[half] * UNIT_GAP) return valued.map((r) => r.year);
   const median = totals[Math.floor(totals.length / 2)];
   return valued.filter((r) => r.totalAssets > median * UNIT_GAP || r.totalAssets < median / UNIT_GAP).map((r) => r.year);
 }
@@ -62,12 +66,15 @@ export function declarationFlags(rows: DeclarationLike[], hiddenYears: number[] 
   const sorted = [...rows].sort((a, b) => a.year - b.year);
   const suspect = new Set(suspectUnitYears(sorted));
   const flags: Flag[] = [];
-  if (suspect.size === 2 && sorted.filter((r) => r.totalAssets !== null).length === 2) {
-    const [a, b] = [...suspect].sort();
+  const valuedCount = sorted.filter((r) => r.totalAssets !== null && r.totalAssets >= MIN_COMPARABLE).length;
+  if (suspect.size >= 2 && suspect.size === valuedCount) {
+    // Every filing is in doubt (two filings far apart, or an even split): one neutral note.
+    const years = [...suspect].sort((x, y) => x - y);
+    const list = years.length === 2 ? `${years[0]} ба ${years[1]}` : `${years.slice(0, -1).join(", ")} ба ${years.at(-1)}`;
     flags.push({
-      year: b,
+      year: years.at(-1)!,
       kind: "unit_suspect",
-      text: `${a} ба ${b} оны нийт дүн хоорондоо ${UNIT_GAP} дахинаас их зөрүүтэй: эх мэдүүлэгт нэгжийн (мянган ₮ / ₮) алдаа байж болзошгүй тул хувийн өөрчлөлтийг тооцоолоогүй. Эх мэдүүлгийг ХАСХОМ-оос шалгана уу.`,
+      text: `${list} оны нийт дүн хоорондоо ${UNIT_GAP} дахинаас их зөрүүтэй: эх мэдүүлэгт нэгжийн (мянган ₮ / ₮) алдаа байж болзошгүй тул хувийн өөрчлөлтийг тооцоолоогүй. Эх мэдүүлгийг ХАСХОМ-оос шалгана уу.`,
     });
   } else {
     for (const y of suspect) {

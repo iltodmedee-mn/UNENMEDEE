@@ -61,7 +61,8 @@ export async function databaseMb(db: DB): Promise<number> {
 }
 
 const bodyWhere = (days: number) =>
-  sql`content_pruned_at is null and coalesce(published_at, created_at) < now() - make_interval(days => ${days}) and length(clean_content) > ${EXCERPT_CHARS}`;
+  // Never an edited body: that text is the editor's work, not a copy of the source page.
+  sql`content_pruned_at is null and edited_at is null and coalesce(published_at, created_at) < now() - make_interval(days => ${days}) and length(clean_content) > ${EXCERPT_CHARS}`;
 
 /** Cuts article bodies older than `days` to an excerpt (title, summary, facts, link and hash stay). */
 export async function pruneBodies(db: DB, days: number, dryRun = false): Promise<number> {

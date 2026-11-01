@@ -51,5 +51,8 @@ export async function fetchAuditOpinions(perOpinion = 10): Promise<AuditSnapshot
     totals[opinion] = parsed.total;
     reports.push(...parsed.reports.slice(0, perOpinion));
   }
+  // A changed page reads as "no reports": throw, so the previous snapshot stays instead of a page
+  // saying audit.mn has no adverse opinions.
+  if (reports.length === 0 && Object.values(totals).every((t) => t === null)) throw new Error("audit.mn: no reports or totals parsed (page layout changed?)");
   return { totals, reports };
 }

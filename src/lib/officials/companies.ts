@@ -11,9 +11,11 @@ import { z } from "zod";
  */
 
 /** Words that make a declared name an organisation rather than a private person. */
-const ORG = /(^|[\s"«»“”(])(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|LLC|LTD|INC|JSC)([\s"«»“”).,]|$)|банк|bank|сан(\s|$)|хоршоо|групп|корпораци|компани|нөхөрлөл|fund/i;
+// "сан" (fund) only as a word of its own: a private lender whose name ends in it ("Г.Отгонсан")
+// read as an organisation, so a person was shown and looked up.
+const ORG = /(^|[\s"«»“”(])(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|LLC|LTD|INC|JSC)([\s"«»“”).,]|$)|(?<!\p{L})банк|bank|(?<!\p{L})сан(?!\p{L})|хоршоо|групп|корпораци|компани|нөхөрлөл|fund/iu;
 /** Organisations we list but do not look up: banks and funds lend to everyone, and every citizen holds Erdenes Tavantolgoi shares. */
-const NOT_A_SUPPLIER = /банк|bank|ббсб|хадгаламж|зээлийн хоршоо|сан(\s|$)|fund|эрдэнэс\s*тавантолгой/i;
+const NOT_A_SUPPLIER = /(?<!\p{L})банк|bank|ббсб|хадгаламж|зээлийн хоршоо|(?<!\p{L})сан(?!\p{L})|fund|эрдэнэс\s*тавантолгой/iu;
 const LEGAL_FORM = /(^|\s)(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|LLC|LTD|INC|JSC)(?=\s|$)/gi;
 
 export const isOrgName = (name: string): boolean => ORG.test(name);

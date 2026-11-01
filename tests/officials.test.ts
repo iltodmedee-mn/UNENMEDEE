@@ -95,6 +95,17 @@ describe("neutral declaration flags", () => {
       { year: 2025, totalAssets: 324_000_000_000, ...base },
     ];
     assert.deepEqual(suspectUnitYears(three), [2025]);
+    // Two filings at each scale: nobody can tell which pair is off, so all four are in doubt.
+    const split = [
+      { year: 2022, totalAssets: 300_000_000 },
+      { year: 2023, totalAssets: 320_000_000 },
+      { year: 2024, totalAssets: 310_000_000_000 },
+      { year: 2025, totalAssets: 330_000_000_000 },
+    ];
+    assert.deepEqual(suspectUnitYears(split), [2022, 2023, 2024, 2025]);
+    const note = declarationFlags(split.map((r) => ({ ...r, totalIncome: null, totalLiabilities: null })) as never).filter((f) => f.kind === "unit_suspect");
+    assert.equal(note.length, 1);
+    assert.match(note[0].text, /2022, 2023, 2024 ба 2025/);
     assert.deepEqual(declarationFlags(three).map((f) => [f.year, f.kind]), [[2025, "unit_suspect"]]);
     assert.deepEqual(suspectUnitYears([{ year: 2024, totalAssets: null }, { year: 2025, totalAssets: 5_000_000_000 }]), []);
   });
