@@ -45,6 +45,12 @@ export interface ClusterDoc {
   summary: string;
   entities: ExtractedEntities | null;
   clusterId: number | null;
+  /**
+   * Publication time (found time for undated rows). Two stories more than CLUSTER_WINDOW_DAYS
+   * apart are never one event: two job notices posted 14 days apart by different agencies
+   * (#91 / #1372, Oct 2026) were joined because the window was on the time we found them.
+   */
+  at?: Date | null;
 }
 
 function entityKeys(e: ExtractedEntities | null): Set<string> {
@@ -85,16 +91,29 @@ export function similarity(a: ClusterDoc, b: ClusterDoc): number {
   const score = Math.max(shingleScore, 0.7 * stemScore + 0.3 * entityScore);
   const ha = new Set(stems(a.title));
   const hb = new Set(stems(b.title));
-  if (Math.min(ha.size, hb.size) < MIN_HEADLINE_STEMS || stemScore < SAME_HEADLINE_BODY) return score;
+  if (Math.min(ha.size, hb.size) < MIN_HEADLINE_STEMS) return score;
+  // The body is the summaries alone: with the headlines (counted twice) in it, two identical
+  // generic headlines passed the body condition by themselves.
+  const body = jaccard(new Set(stems(a.summary)), new Set(stems(b.summary)));
+  // And both name a common entity when both have any: "Төрийн жинхэнэ албан хаагчийг шилжүүлэх …
+  // зар" from two agencies share a headline and boilerplate, not a person or an organisation.
+  const sharedEntity = ea.size === 0 || eb.size === 0 || [...ea].some((k) => eb.has(k));
+  if (body < SAME_HEADLINE_BODY || !sharedEntity) return score;
   const headline = jaccard(ha, hb);
   return headline >= SAME_HEADLINE ? Math.max(score, 0.6 * headline) : score;
+}
+
+/** True when both times are known and further apart than the cluster window. */
+export function outsideWindow(a: Date | null | undefined, b: Date | null | undefined): boolean {
+  if (!a || !b) return false;
+  return Math.abs(a.getTime() - b.getTime()) > CLUSTER_WINDOW_DAYS * 86_400_000;
 }
 
 /** Best match at or above the threshold, or null. */
 export function findBestMatch(doc: ClusterDoc, candidates: ClusterDoc[]): { doc: ClusterDoc; score: number } | null {
   let best: { doc: ClusterDoc; score: number } | null = null;
   for (const c of candidates) {
-    if (c.id === doc.id) continue;
+    if (c.id === doc.id || outsideWindow(doc.at, c.at)) continue;
     const score = similarity(doc, c);
     if (score >= CLUSTER_THRESHOLD && (!best || score > best.score)) best = { doc: c, score };
   }

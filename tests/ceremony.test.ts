@@ -50,6 +50,17 @@ describe("ceremonial headlines", () => {
     for (const t of NEWS) assert.ok(!isCeremonial(t), t);
   });
 
+  it("reads decision words as words, not inside other words or agency names", () => {
+    for (const t of [
+      "Аймгийн Засаг дарга 5 дугаар цэцэрлэгийн багш нартай уулзлаа",
+      "Сайд Говь-Алтай аймагт томилолтоор ажиллалаа",
+      "Нийгмийн даатгалын ерөнхий газрын дарга иргэдтэй уулзлаа",
+      "Онцгой байдлын ерөнхий газрын дарга Японы элчин сайдыг хүлээн авч уулзлаа",
+    ])
+      assert.ok(isCeremonial(t), t);
+    for (const t of ["Үндсэн хуулийн цэцийн хуралдаан боллоо", "Ерөнхий сайд шинэ сайдыг томиллоо", "Даатгалын шимтгэлийн хувь өөрчлөгдөх талаар уулзалт боллоо"]) assert.ok(!isCeremonial(t), t);
+  });
+
   it("caps only ceremonial scores and keeps null", () => {
     assert.equal(capImportance(CEREMONIAL[0], 85), CEREMONY_MAX);
     assert.equal(capImportance(CEREMONIAL[0], 10), 10);

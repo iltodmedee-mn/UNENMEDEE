@@ -9,7 +9,13 @@ import { estimateCostUsd, GEMINI_BILLED_MODEL, geminiIsFree, getPrice, isTextMod
 import { parseJsonLoose } from "./schemas";
 
 export type Tier = "tier1" | "tier2";
-export type Purpose = "tier1" | "tier2" | "cluster" | "admin" | "digest" | "topic" | "reader" | "video";
+/**
+ * What a call was for, stored in ai_usage_logs.purpose. Admin re-analysis logs its two calls as
+ * "admin_tier1" / "admin_tier2" (it used to log both as "admin", so the article page showed the
+ * old summary model, or the admin's Tier-1 model as the deep analysis). "admin" stays for the
+ * admin's URL/filter tools.
+ */
+export type Purpose = "tier1" | "tier2" | "cluster" | "admin" | "admin_tier1" | "admin_tier2" | "digest" | "topic" | "reader" | "video";
 
 export interface UsageRecord {
   provider: AIProvider;
@@ -334,8 +340,22 @@ const noopLogger: UsageLogger = async () => {};
  * (429) and invalid JSON do not count: they are the next provider's or the repair retry's job.
  */
 export const PROVIDER_TRIP = 2;
-const tripped = new Map<AIProvider, number>();
+/**
+ * A trip lasts this long: a long run (a recluster, a backfill, the admin server) gets a provider
+ * back after its outage instead of leaving it skipped for hours.
+ */
+export const TRIP_RESET_MS = 30 * 60_000;
+const tripped = new Map<AIProvider, { n: number; at: number }>();
 export const resetProviderTrips = () => tripped.clear();
+function tripCount(provider: AIProvider): number {
+  const t = tripped.get(provider);
+  if (!t) return 0;
+  if (Date.now() - t.at > TRIP_RESET_MS) {
+    tripped.delete(provider);
+    return 0;
+  }
+  return t.n;
+}
 const isTransportFailure = (err: unknown, message: string) =>
   !(err instanceof SchemaError || err instanceof SyntaxError || /no JSON object/.test(message)) && !isRetryableRateLimit(err) && !isRequestSpecific(err);
 
@@ -350,7 +370,16 @@ const isTransportFailure = (err: unknown, message: string) =>
 export function isRequestSpecific(err: unknown): boolean {
   const status = err instanceof GeminiError || err instanceof OpenAI.APIError ? err.status : undefined;
   if (status !== 400 && status !== 413 && status !== 422) return false;
-  return !isRetiredModel(err);
+  return !isRetiredModel(err) && !isBadKey(err);
+}
+
+/**
+ * Gemini answers a wrong or expired key with 400 "API key not valid" (not 401): counted as a
+ * request-specific 400 it never tripped, and every call tried the dead key first.
+ */
+const BAD_KEY = /api[ _-]?key[ _-]?(not valid|invalid|expired)|API_KEY_INVALID|invalid api[ _-]?key|key expired/i;
+export function isBadKey(err: unknown): boolean {
+  return err instanceof Error && BAD_KEY.test(err.message);
 }
 
 const RETIRED_MODEL = /decommission|deprecat|no longer (available|supported)|model.{0,40}(not found|does not exist|not exist|unknown|invalid)|(unknown|invalid) model|no endpoints/i;
@@ -384,7 +413,7 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
 
   const attempts: string[] = [];
   for (const [index, p] of chain.entries()) {
-    const trips = tripped.get(p.provider) ?? 0;
+    const trips = tripCount(p.provider);
     if (trips >= PROVIDER_TRIP) {
       attempts.push(`${p.provider}/${p.model}: skipped (${trips} failures this run)`);
       continue;
@@ -425,8 +454,8 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         const message = err instanceof Error ? err.message : String(err);
         attempts.push(`${p.provider}/${p.model}: ${message.slice(0, 200)}`);
         if (isTransportFailure(err, message)) {
-          const n = (tripped.get(p.provider) ?? 0) + 1;
-          tripped.set(p.provider, n);
+          const n = tripCount(p.provider) + 1;
+          tripped.set(p.provider, { n, at: Date.now() });
           // Visible in the workflow log: a call that returns no tokens is not in ai_usage_logs.
           // Calls already in flight can push n past the limit: print it capped.
           console.warn(`[ai] ${p.provider}/${p.model} failed (${Math.min(n, PROVIDER_TRIP)}/${PROVIDER_TRIP}${n >= PROVIDER_TRIP ? ", skipped for the rest of this run" : ""}): ${message.slice(0, 160)}`);
@@ -448,7 +477,9 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         if (isRetryableRateLimit(err) && attempt === 0) {
           // Free-tier per-minute quota. Another $0 provider next in line: switch now.
           // Only paid ones left: wait once and retry this free one instead of paying.
-          if (chain.slice(index + 1).some((next) => getPrice(next.provider).input === 0 && getPrice(next.provider).output === 0)) break;
+          // A tripped provider later in the chain is not "another free one": it would be skipped,
+          // and the call would fall through to the paid providers without waiting for this one.
+          if (chain.slice(index + 1).some((next) => getPrice(next.provider).input === 0 && getPrice(next.provider).output === 0 && tripCount(next.provider) < PROVIDER_TRIP)) break;
           await new Promise((r) => setTimeout(r, Number(process.env.AI_RATE_LIMIT_WAIT_MS ?? 20_000)));
           continue;
         }

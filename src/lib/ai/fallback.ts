@@ -33,7 +33,11 @@ const SKIPPED = /skipped \(/;
  * exact "Invalid JSON" wording parked, so a reply cut off at "position 523" blocked the queue.
  */
 export function shouldPark(attempts: string[]): boolean {
-  const answered = attempts.filter((a) => !SKIPPED.test(a));
+  // A bad reply whose repair never ran (the budget stopped the retry) says little about the
+  // article: one cut-off reply and a spent daily cap parked it for good.
+  const provider = (a: string) => a.slice(0, a.indexOf(":"));
+  const unrepaired = new Set(attempts.filter((a) => /retry skipped \(/.test(a)).map(provider));
+  const answered = attempts.filter((a) => !SKIPPED.test(a) && !unrepaired.has(provider(a)));
   const bad = answered.filter((a) => BAD_OUTPUT.test(a)).length;
   return bad >= 2 || (bad >= 1 && bad === answered.length);
 }

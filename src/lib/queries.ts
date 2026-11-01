@@ -573,8 +573,8 @@ export async function getArticleBySlug(slug: string): Promise<ArticleDetail | nu
         sourceStatus: articles.sourceStatus,
         sourceChangedAt: articles.sourceChangedAt,
         sourceDiff: articles.sourceDiff,
-        tier1Model: modelUsed(["tier1"]),
-        tier2Model: modelUsed(["tier2", "admin"]),
+        tier1Model: modelUsed(["tier1", "admin_tier1"]),
+        tier2Model: modelUsed(["tier2", "admin_tier2"]),
       })
       .from(articles)
       .innerJoin(sources, eq(articles.sourceId, sources.id))

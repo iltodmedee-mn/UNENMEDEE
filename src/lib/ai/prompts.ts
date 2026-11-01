@@ -1,3 +1,4 @@
+import { ubDateKey } from "@/lib/archive";
 import type { ScrapeMeta } from "@/lib/types";
 import { truncate } from "@/lib/text";
 
@@ -24,7 +25,13 @@ export const DATA_GUARD = `
 const DATA_TAG = /<\s*\/?\s*(article_text|news_list|prior_analysis)\b[^>]*>/gi;
 
 export function wrap(tag: "article_text" | "news_list" | "prior_analysis", text: string): string {
-  return `<${tag}>\n${text.replace(DATA_TAG, "")}\n</${tag}>`;
+  // Until nothing changes: one pass turned "<article_<article_text>text>" into a real tag.
+  let clean = text;
+  for (let prev = ""; prev !== clean; ) {
+    prev = clean;
+    clean = clean.replace(DATA_TAG, "");
+  }
+  return `<${tag}>\n${clean}\n</${tag}>`;
 }
 
 export interface ArticleForAI {
@@ -118,7 +125,7 @@ function formatMeta(meta?: ScrapeMeta | null): string {
 function header(a: ArticleForAI): string {
   return `Эх сурвалж: ${a.sourceName} (${a.sourceDomain})
 Холбоос: ${a.url}
-Огноо: ${a.publishedAt ? a.publishedAt.toISOString().slice(0, 10) : "тодорхойгүй"}`;
+Огноо: ${a.publishedAt ? ubDateKey(a.publishedAt.getTime()) : "тодорхойгүй"}`;
 }
 
 function scraped(a: ArticleForAI, maxChars: number): string {
@@ -216,7 +223,7 @@ export interface DigestCandidate {
 export function digestMessages(candidates: DigestCandidate[], periodLabel: string, pick: number) {
   const list = candidates
     .map((c) => {
-      const date = c.publishedAt ? c.publishedAt.toISOString().slice(0, 10) : "—";
+      const date = c.publishedAt ? ubDateKey(c.publishedAt.getTime()) : "—";
       const extra = [
         c.amounts.length ? `дүн: ${c.amounts.slice(0, 3).join(", ")}` : null,
         c.riskScore >= 65 ? `эрсдэл ${c.riskScore}` : null,

@@ -133,7 +133,7 @@ export async function pruneSeenUrls(db: DB, dryRun = false): Promise<number> {
  */
 export async function deleteOldUsageLogs(db: DB, dryRun = false): Promise<number> {
   const where = sql`created_at < now() - make_interval(months => ${LOG_KEEP_MONTHS})
-    and not (success and article_id is not null and purpose in ('tier1', 'tier2'))`;
+    and not (success and article_id is not null and purpose in ('tier1', 'tier2', 'admin_tier1', 'admin_tier2'))`;
   if (dryRun) return countOf(db, sql`select count(*)::int as n from ai_usage_logs where ${where}`);
   return batched(async () => (await run(db, sql`delete from ai_usage_logs where id in (select id from ai_usage_logs where ${where} limit ${BATCH}) returning 1`)).length);
 }

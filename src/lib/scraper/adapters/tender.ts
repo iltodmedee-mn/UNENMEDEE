@@ -10,9 +10,10 @@ import type { ScrapeMeta } from "@/lib/types";
  */
 
 // Starts only where a number starts (lookbehind): tried from inside a long digit run, the
-// unanchored pattern backtracked quadratically on text with no currency word after it.
+// unanchored pattern backtracked quadratically on text with no currency word after it. "төг" is
+// the abbreviation only as a whole word ("төг." or "төг"), not the start of "төгсөгч", "төгс".
 const AMOUNT =
-  /(?<![\d.,])(\d{1,3}(?:[ ,. ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(их наяд|тэрбум|сая|мянга(?:н)?)?\s*(?:төгрөг|₮|төг\.?)/gi;
+  /(?<![\d.,])(\d{1,3}(?:[ ,. ]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)\s*(их наяд|тэрбум|сая|мянга(?:н)?)?\s*(?:төгрөг|₮|төг(?:\.|(?!\p{L})))/giu;
 
 /** Finds MNT amounts and returns them as human-readable strings ("4.5 тэрбум ₮"). */
 export function extractMntAmounts(text: string, max = 10): string[] {
@@ -36,7 +37,8 @@ export function amountToNumber(amount: string): number | null {
   let raw = m[1].trim();
   const multiplier = { "их наяд": 1e12, тэрбум: 1e9, сая: 1e6, мянга: 1e3 }[m[2]?.toLowerCase() ?? ""] ?? 1;
   if (multiplier > 1) {
-    raw = raw.replace(/\s/g, "").replace(",", ".");
+    // "2,500 сая" is 2 500 million (comma + 3 digits = thousands); "12,5 тэрбум" is 12.5.
+    raw = raw.replace(/\s/g, "").replace(/,(?=\d{3}(?!\d))/g, "").replace(",", ".");
   } else {
     raw = raw.replace(/[ ,.](?=\d{3}\b)/g, "").replace(",", ".");
   }

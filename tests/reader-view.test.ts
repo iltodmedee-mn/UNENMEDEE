@@ -56,6 +56,26 @@ describe("reader view grounding", () => {
     assert.equal(cleanImpact("ямар нэг текст", digits), null);
   });
 
+  it("matches whole numbers and amounts, not digits hidden inside other numbers", () => {
+    const src = "Төсөв 15,000,000 төгрөг, нийт 1,500,000,000 төгрөг. 500 өрх 2026 онд хамрагдана.";
+    // The old digit-substring check accepted these: "5" is inside "2026", "50" inside "500".
+    assert.ok(!numbersGrounded("5 өрх хамрагдана", src));
+    assert.ok(!numbersGrounded("50 өрх хамрагдана", src));
+    assert.ok(numbersGrounded("500 өрх хамрагдана", src));
+    assert.ok(numbersGrounded("15 сая төгрөг", src));
+    assert.ok(numbersGrounded("1.5 тэрбум төгрөг", src));
+    assert.ok(numbersGrounded("1,5 тэрбум төгрөг", src));
+    assert.ok(!numbersGrounded("2 тэрбум төгрөг", src));
+    assert.ok(numbersGrounded("15,000,000 төгрөг", "Төсөв 15 сая төгрөг"));
+  });
+
+  it("dates the source by the Ulaanbaatar day", () => {
+    // 2026-10-19 17:30 UTC is 2026-10-20 01:30 in Ulaanbaatar.
+    const src = groundingSource("Гарчиг", "Текст", new Date("2026-10-19T17:30:00Z"));
+    assert.ok(numbersGrounded("20-нд", src));
+    assert.ok(!numbersGrounded("19-нд", src));
+  });
+
   it("parses the Tier-1 fields loosely and never fails the answer because of them", () => {
     const base = { tldr_summary: "Тэтгэврийн хэмжээ нэмэгдэнэ. Хөгжлийн бэрхшээлтэй иргэд хамрагдана.", facts: [], spin_detected: "", neutrality_score: 80, entities: {}, risk_score: 5, risk_reason: "" };
     const none = Tier1Schema.parse(base);
@@ -72,6 +92,9 @@ describe("reader view grounding", () => {
     assert.equal(ok.title, "Тэтгэвэр 11-р сарын 1-нээс ₮600,000 болно");
     assert.equal(ok.impact?.who, "Хөгжлийн бэрхшээлтэй иргэд");
     assert.deepEqual(readerViewFor(item, { title: "Тэтгэвэр ₮1,000,000 болно" }), { title: null, impact: null });
+    // Another story's answer under this id (the model shifted its list by one): dropped.
+    const shifted = readerViewFor(item, { title: "Улаанбаатарын агаарын бохирдол буурлаа", who: "Нийслэлийн оршин суугчид", change: "Агаарын чанар сайжирна", when: null, action: null });
+    assert.deepEqual(shifted, { title: null, impact: null });
     assert.equal(sourceDigits("600, 000 ба 4 500"), "600000 ба 4500");
   });
 });

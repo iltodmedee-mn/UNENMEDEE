@@ -1,3 +1,4 @@
+import { ubDateKey } from "@/lib/archive";
 import type { ReaderImpact } from "@/lib/types";
 
 /**
@@ -19,13 +20,41 @@ const LIMITS: Record<keyof ReaderImpact, number> = { who: 70, change: 220, when:
 /** Placeholders models write instead of null. */
 const EMPTY = /^(null|none|n\/a|үгүй|байхгүй|тодорхойгүй|мэдээлэлгүй|дурдаагүй|текстэд\s+(байхгүй|дурдаагүй|тодорхойгүй)|-|—|–)\.?$/i;
 
-/** "4 500", "1,250.5", "600,000" → digits only; a month number ("11-р сар", "11 сарын") is not checked. */
-function numbersIn(text: string): string[] {
-  const out: string[] = [];
-  for (const m of text.matchAll(/\d(?:[\d\s,.'\u00a0\u202f]*\d)?/g)) {
+const NUMBER = /\d(?:[\d\s,.'\u00a0\u202f]*\d)?/g;
+const SCALES: [RegExp, number][] = [
+  [/^\s*их\s+наяд/i, 1e12],
+  [/^\s*наяд/i, 1e12],
+  [/^\s*тэрбум/i, 1e9],
+  [/^\s*сая/i, 1e6],
+  [/^\s*мянга/i, 1e3],
+];
+
+interface NumberToken {
+  /** Digits only, leading zeros dropped: "600,000" → "600000", "06" → "6", "40.4" → "404". */
+  digits: string;
+  /** The value with its scale word: "1.5 тэрбум" → 1.5e9, "600,000" → 600000. */
+  value: number;
+  /** Followed by a scale word (мянга, сая, тэрбум, их наяд). */
+  scaled: boolean;
+}
+
+/** "1,250.5" → 1250.5, "600,000" → 600000, "2,5" → 2.5, "4 500" → 4500. */
+function parseNumber(raw: string): number {
+  const s = raw.replace(/[\s'\u00a0\u202f]/g, "");
+  if (/^\d{1,3}([.,]\d{3})+$/.test(s)) return Number(s.replace(/[.,]/g, ""));
+  const last = Math.max(s.lastIndexOf("."), s.lastIndexOf(","));
+  if (last < 0) return Number(s);
+  return Number(`${s.slice(0, last).replace(/[.,]/g, "")}.${s.slice(last + 1)}`);
+}
+
+/** Every number in `text`; a month number ("11-р сар", "11 сарын") only when `months` is set. */
+function numberTokens(text: string, months: boolean): NumberToken[] {
+  const out: NumberToken[] = [];
+  for (const m of text.matchAll(NUMBER)) {
     const after = text.slice(m.index + m[0].length, m.index + m[0].length + 14);
-    if (/^\s*-?\s*(р|дүгээр|дугаар|дүгээр)?\s*сар/i.test(after) && Number(m[0]) <= 12) continue;
-    out.push(m[0].replace(/\D/g, ""));
+    if (!months && /^\s*-?\s*(р|дүгээр|дугаар|дүгээр)?\s*сар/i.test(after) && Number(m[0]) <= 12) continue;
+    const scale = SCALES.find(([re]) => re.test(after))?.[1];
+    out.push({ digits: m[0].replace(/\D/g, "").replace(/^0+(?=\d)/, ""), value: parseNumber(m[0]) * (scale ?? 1), scaled: scale !== undefined });
   }
   return out;
 }
@@ -35,9 +64,19 @@ export function sourceDigits(source: string): string {
   return source.replace(/(?<=\d)[\s,.'\u00a0\u202f]{1,2}(?=\d)/g, "");
 }
 
-/** Every number in `text` appears in the source (as written, or with separators removed). */
-export function numbersGrounded(text: string, digits: string | null): boolean {
-  return digits === null || numbersIn(text).every((n) => digits.includes(n));
+/**
+ * Every number in `text` is a number the source prints: the same whole number ("5" is not found
+ * inside "2026", "50" not inside "500", as the old digit-substring check allowed), or, written
+ * with a scale word on either side, within 5 % of an amount in the source ("15 сая" for
+ * "15,000,000 төгрөг", "1.5 тэрбум" for "1,500,000,000", "15,000,000" for "15 сая"). `source` null = no check (the zod schema's shape pass).
+ */
+export function numbersGrounded(text: string, source: string | null): boolean {
+  if (source === null) return true;
+  const own = numberTokens(source, true);
+  const digits = new Set(own.map((t) => t.digits));
+  return numberTokens(text, false).every(
+    (n) => digits.has(n.digits) || own.some((t) => (n.scaled || t.scaled) && t.value >= 1000 && Math.abs(n.value - t.value) <= 0.05 * t.value),
+  );
 }
 
 function clean(raw: unknown, max: number): string | null {
@@ -82,7 +121,10 @@ export function cleanImpact(raw: unknown, digits: string | null): ReaderImpact |
   return impact;
 }
 
-/** The source a Tier-1 answer is checked against: headline, text and the publication date. */
+/**
+ * The source a Tier-1 answer is checked against: headline, text and the publication date as an
+ * Ulaanbaatar day (a story published at 01:00 Ulaanbaatar time is the previous day in UTC).
+ */
 export function groundingSource(title: string, text: string, publishedAt: Date | null): string {
-  return sourceDigits(`${title}\n${text}\n${publishedAt ? publishedAt.toISOString().slice(0, 10) : ""}`);
+  return `${title}\n${text}\n${publishedAt ? ubDateKey(publishedAt.getTime()) : ""}`;
 }

@@ -78,6 +78,10 @@ describe("tender extraction", () => {
     const amounts = extractMntAmounts(text);
     assert.deepEqual(amounts, ["4,500,000,000 ₮", "1.2 тэрбум ₮", "350 сая ₮"]);
     assert.equal(amountToNumber("1.2 тэрбум ₮"), 1.2e9);
+    assert.equal(amountToNumber("2,500 сая ₮"), 2.5e9);
+    assert.equal(amountToNumber("12,5 тэрбум ₮"), 12.5e9);
+    // "төг" counts only as a whole word: "1 200 000 төгсөгч" is people, not money.
+    assert.deepEqual(extractMntAmounts("1 200 000 төгсөгч ажилд орсон, 2 500 000 төг. олгоно"), ["2 500 000 ₮"]);
     assert.equal(amountToNumber("4,500,000,000 ₮"), 4.5e9);
     assert.equal(amountToNumber("350 сая ₮"), 3.5e8);
     assert.deepEqual(extractMntAmounts("5 төгрөг"), [], "tiny bare amounts are noise");
