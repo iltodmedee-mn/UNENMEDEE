@@ -233,7 +233,7 @@ function filterCondition(filter: FeedFilter): SQL | undefined {
 
 export async function getFeed(filter: FeedFilter, limit = 30): Promise<ArticleListItem[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("news");
   cacheTag("articles");
   return safe("getFeed", [], async () => {
     const rows = await getDb()
@@ -260,7 +260,7 @@ export async function getFeed(filter: FeedFilter, limit = 30): Promise<ArticleLi
  */
 export async function getTopicNeighbours(filter: FeedFilter, excludeId: number, clusterId: number | null, limit = 5): Promise<ArticleListItem[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("articles");
   return safe("getTopicNeighbours", [], async () => {
     const rows = await getDb()
@@ -288,7 +288,7 @@ export async function getTopicNeighbours(filter: FeedFilter, excludeId: number, 
  */
 export async function getPlaceFeed(domains: string[], limit = 40): Promise<ArticleListItem[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("news");
   cacheTag("articles");
   if (domains.length === 0) return [];
   return safe("getPlaceFeed", [], async () => {
@@ -319,7 +319,7 @@ const UB_DAY = sql<string>`to_char((${articles.publishedAt} at time zone 'UTC') 
  */
 export async function getDayArchive(date: string): Promise<DayArchive> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("articles");
   return safe("getDayArchive", { stories: [], prev: null, next: null }, async () => {
     const db = getDb();
@@ -353,7 +353,7 @@ export interface ArchiveDay {
 /** Days of the last `days` with published stories, newest first (/archive, sitemap, feed footers). */
 export async function getArchiveDays(days = 60): Promise<ArchiveDay[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("articles");
   return safe("getArchiveDays", [], async () => {
     const rows = await getDb()
@@ -380,7 +380,7 @@ export interface SourceHub {
 /** One source's page (/source/<domain>): the source and its newest published stories. */
 export async function getSourceHub(domain: string, limit = 40): Promise<{ source: SourceHub; stories: ArticleListItem[] } | null> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("articles");
   const seed = SOURCE_SEEDS.find((s) => s.domain === domain);
   const fallback = seed ? { source: { name: seed.name, domain: seed.domain, category: seed.category, isActive: true }, stories: [] } : null;
@@ -427,7 +427,7 @@ export interface ClusterListItem {
 
 export async function getClusters(limit = 30, sinceDays?: number): Promise<ClusterListItem[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("clusters");
   return safe("getClusters", [], async () => {
     const db = getDb();
@@ -466,7 +466,7 @@ export async function getClusters(limit = 30, sinceDays?: number): Promise<Clust
 
 export async function getCluster(id: number) {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("clusters", `cluster-${id}`);
   return safe("getCluster", null, async () => {
     const db = getDb();
@@ -658,7 +658,7 @@ export async function getSitemapSlugs(limit = 45_000): Promise<{ slug: string; l
 /** `indexableOnly` leaves thin pages out (the Google News sitemap); RSS readers get everything. */
 export async function getSitemapArticles(limit = 1000, indexableOnly = false): Promise<SitemapArticle[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("news");
   cacheTag("articles");
   return safe("getSitemapArticles", [], async () => {
     const rows = await getDb()
@@ -713,7 +713,7 @@ export interface SiteStats {
 
 export async function getSiteStats(): Promise<SiteStats> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("articles", "sources", "ai");
   const fallback: SiteStats = { activeSources: SOURCE_SEEDS.length, articles: 0, analyzed: 0, flagged: 0, clusters: 0, aiCostThisMonthUsd: 0, lastArticleAt: null, todayArticles: 0 };
   return safe("getSiteStats", fallback, async () => {
@@ -775,7 +775,7 @@ export interface SourceHealth {
 
 export async function getSources(): Promise<SourceHealth[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("sources");
   const fallback: SourceHealth[] = SOURCE_SEEDS.map((s, i) => ({
     id: i + 1,
@@ -833,7 +833,7 @@ export interface TransparencyData {
 
 export async function getTransparency(): Promise<TransparencyData> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("ai", "ledger");
   const empty: TransparencyData = { dailySpend: [], byProvider: [], ledger: [], totals: { costUsd: 0, calls: 0, tokens: 0 } };
   return safe("getTransparency", empty, async () => {
@@ -929,7 +929,7 @@ export interface DigestView {
  */
 export async function getDigests(kind: "12h" | "30d", limit = 10, withStories = false): Promise<DigestView[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("news");
   cacheTag("digests");
   return safe("getDigests", [], async () => {
     const db = getDb();
@@ -1211,7 +1211,7 @@ export interface SearchResults {
 /** /search: published articles (title + AI summary, prefix match) and MPs by name. */
 export async function search(q: string): Promise<SearchResults> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("news");
   cacheTag("articles", "officials");
   const query = toPrefixQuery(q);
   const empty: SearchResults = { articles: [], politicians: [] };
@@ -1260,7 +1260,7 @@ export async function getAttendance(): Promise<{ highlight: AttendanceHighlight;
 /** /laws: newest legal acts registered on legalinfo.mn (laws, resolutions, orders) with their AI summaries. */
 export async function getLegalActs(limit = 40): Promise<ArticleListItem[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   cacheTag("articles");
   return safe("getLegalActs", [], async () => {
     const rows = await getDb()

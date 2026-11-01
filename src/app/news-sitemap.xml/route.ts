@@ -9,7 +9,7 @@ import { absoluteUrl, SITE_NAME, xmlEscape } from "@/lib/site";
  */
 async function recentNews(): Promise<SitemapArticle[]> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("news");
   cacheTag("articles");
   const cutoff = Date.now() - 2 * 86_400_000;
   return (await getSitemapArticles(1000, true)).filter((a) => !a.dateUnknown && a.publishedAt && a.publishedAt.getTime() >= cutoff);

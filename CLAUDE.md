@@ -10,7 +10,7 @@ We are building a 100% transparent, open-source investigative news and public da
 
 ## 2. Tech Stack
 - **Framework:** Next.js 16 (App Router, Turbopack, React 19.3, Server Actions), TypeScript strict mode.
-  - `cacheComponents: true` and `partialPrefetching: true` are ON. Cache DB reads with `'use cache'` + `cacheLife(...)` + `cacheTag(...)` (see `src/lib/queries`). Anything reading `cookies()`, `headers()`, `searchParams` or `params` must sit inside `<Suspense>`.
+  - `cacheComponents: true` and `partialPrefetching: true` are ON. Cache DB reads with `'use cache'` + `cacheLife(...)` + `cacheTag(...)` (see `src/lib/queries`). Lifetimes: the custom `news` profile (`next.config.ts`, revalidate 30 min) for feeds, digests, search and the news sitemap, `hours` or longer for everything else; never the built-in `minutes`: a page revalidates as often as its shortest entry, and the header's `minutes` stats re-rendered every visited page once a minute (Nov 2026: 306 K ISR writes against Hobby's 200 K, Active CPU 2 h 50 min of 4 h). Anything reading `cookies()`, `headers()`, `searchParams` or `params` must sit inside `<Suspense>`.
   - Dynamic routes must return at least one entry from `generateStaticParams` (we use a placeholder and `notFound()` it).
   - Route guarding uses `src/proxy.ts` (Next 16 renamed `middleware.ts` to `proxy.ts`).
   - Lint with `eslint .` (`next lint` no longer exists).

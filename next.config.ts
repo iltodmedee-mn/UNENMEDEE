@@ -12,6 +12,13 @@ const nextConfig: NextConfig = {
     "/*": ["node_modules/sharp/**", "node_modules/@img/**"],
   },
   cacheComponents: true,
+  // Cache lifetimes (Nov 2026: the built-in "minutes" profile, read by the header on every page,
+  // re-rendered every visited page once a minute: 306 K ISR writes against Hobby's 200 K). The
+  // pipeline adds news at most every 30 minutes, so feeds refresh every 30 minutes and everything
+  // else hourly ("hours").
+  cacheLife: {
+    news: { stale: 300, revalidate: 1800, expire: 86_400 },
+  },
   partialPrefetching: true,
   async headers() {
     return [
