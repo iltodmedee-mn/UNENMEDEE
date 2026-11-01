@@ -41,7 +41,7 @@ import { analyseAudio, MAX_BYTES, renderVideo } from "@/lib/video/render";
 import { sceneHtml } from "@/lib/video/scene-html";
 import { dueSlot, kindsFor, type VideoSlot } from "@/lib/video/schedule";
 import { buildTimeline, plausibleTake, sentenceStarts, speechBounds, type Timeline } from "@/lib/video/timing";
-import { CreditsRefused, speakElevenLabs } from "@/lib/video/elevenlabs";
+import { CreditsRefused, elevenLabsFromEnv, speakElevenLabs } from "@/lib/video/elevenlabs";
 import { speak } from "@/lib/video/tts";
 
 /** The MP4 is kept this long for the platforms to fetch it from /reel, then cleared. */
@@ -64,7 +64,7 @@ async function main() {
   if (!hasDatabase()) throw new Error("DATABASE_URL is not set");
   // A dry run may go through a proxy that adds the key itself (local previews).
   const apiKey = process.env.GEMINI_API_KEY?.trim() ?? "";
-  const elevenKey = process.env.ELEVENLABS_API_KEY?.trim() ?? "";
+  const { key: elevenKey, voice: elevenVoice } = elevenLabsFromEnv(process.env);
   if (!apiKey && !elevenKey && !dry) throw new Error("Neither ELEVENLABS_API_KEY nor GEMINI_API_KEY is set: the narration needs one");
   const db = getDb();
 
@@ -104,9 +104,10 @@ async function main() {
   const guard = dbBudgetGuard(db);
   const log = dry ? consoleUsageLogger : dbUsageLogger(db);
   let voiced: { wav: Buffer; starts: number[] | null } | null = null;
+  if (!elevenKey) console.log("::notice::No ElevenLabs key reached this step (repository secret ELEVENLABS_API_KEY): Gemini voices this video.");
   if (elevenKey) {
     try {
-      const out = await speakElevenLabs({ says: job.says, apiKey: elevenKey, guard, log });
+      const out = await speakElevenLabs({ says: job.says, apiKey: elevenKey, guard, log, voice: elevenVoice });
       console.log(`   🎙 ElevenLabs (${out.plan.reason})`);
       voiced = out;
     } catch (err) {

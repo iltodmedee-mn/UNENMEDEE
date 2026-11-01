@@ -81,6 +81,8 @@ jobs:
           GEMINI_TTS_VOICE: ${{ vars.GEMINI_TTS_VOICE }}
           # The voice: ElevenLabs (the owner's monthly plan, paced to last the month), else Gemini.
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          # A secret by this name may hold the API key ("sk_…") or a voice id; make-video.ts tells them apart.
+          ELEVENLABS_SECRET_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_RESERVE_CHARS: ${{ vars.ELEVENLABS_RESERVE_CHARS }}
           ELEVENLABS_PLAN_USD: ${{ vars.ELEVENLABS_PLAN_USD }}

@@ -60,7 +60,8 @@ jobs:
       ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
       # Only whether the video voice key exists (a boolean, not the secret): the video step needs
       # ElevenLabs or Gemini, and a step cannot see its own env in its `if`.
-      HAS_ELEVENLABS: ${{ secrets.ELEVENLABS_API_KEY != '' }}
+      # The owner's key was saved as the secret ELEVENLABS_VOICE_ID (Nov 1 2026): either name counts.
+      HAS_ELEVENLABS: ${{ (secrets.ELEVENLABS_API_KEY || secrets.ELEVENLABS_VOICE_ID) != '' }}
       # Paid (optional). Capped by the budget variables below.
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
@@ -267,6 +268,8 @@ jobs:
           GEMINI_TTS_VOICE: ${{ vars.GEMINI_TTS_VOICE }}
           # The voice: ElevenLabs (the owner's monthly plan, paced to last the month), else Gemini.
           ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          # A secret by this name may hold the API key ("sk_…") or a voice id; make-video.ts tells them apart.
+          ELEVENLABS_SECRET_VOICE_ID: ${{ secrets.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_VOICE_ID: ${{ vars.ELEVENLABS_VOICE_ID }}
           ELEVENLABS_RESERVE_CHARS: ${{ vars.ELEVENLABS_RESERVE_CHARS }}
           ELEVENLABS_PLAN_USD: ${{ vars.ELEVENLABS_PLAN_USD }}
