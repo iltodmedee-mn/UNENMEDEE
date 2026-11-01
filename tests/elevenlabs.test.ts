@@ -110,6 +110,11 @@ describe("elevenLabsFromEnv", () => {
     assert.equal(elevenLabsFromEnv({ ELEVENLABS_API_KEY: KEY, ELEVENLABS_VOICE_ID: "cgSgspJ2msm6clMCkdW9" }).voice, "cgSgspJ2msm6clMCkdW9");
     assert.equal(elevenLabsFromEnv({ ELEVENLABS_API_KEY: KEY, ELEVENLABS_SECRET_VOICE_ID: "TX3LPaxmHKxFdv7VOQHJ" }).voice, "TX3LPaxmHKxFdv7VOQHJ");
   });
+  it("a long value of another format is tried as a key; ElevenLabs' answer decides", () => {
+    const other = "a".repeat(32) + "0".repeat(32);
+    assert.equal(elevenLabsFromEnv({ ELEVENLABS_SECRET_VOICE_ID: other }).key, other);
+    assert.equal(elevenLabsFromEnv({ ELEVENLABS_SECRET_VOICE_ID: "EXAVITQu4vr4xnSDxMaL" }).key, "");
+  });
   it("no key at all: empty, so Gemini voices the video", () => {
     assert.equal(elevenLabsFromEnv({}).key, "");
   });

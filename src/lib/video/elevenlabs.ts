@@ -24,6 +24,12 @@ export const ELEVENLABS_MODEL = process.env.ELEVENLABS_MODEL?.trim() || "eleven_
 export const ELEVENLABS_VOICE = "EXAVITQu4vr4xnSDxMaL";
 
 const isApiKey = (v: string) => /^sk_[A-Za-z0-9]{20,}$/.test(v);
+/**
+ * Not the "sk_…" shape but long enough to be a key of another format (the owner's secret was 64
+ * characters, Nov 1 2026): tried as a key, and ElevenLabs' own answer to the subscription call
+ * decides (a 401 falls back to Gemini with a warning).
+ */
+const maybeApiKey = (v: string) => v.length >= 30 && v.length <= 128 && /^[A-Za-z0-9_-]+$/.test(v) && !isVoiceId(v);
 const isVoiceId = (v: string) => /^[A-Za-z0-9]{16,32}$/.test(v);
 
 /** A pasted secret as the key itself: quotes, spaces, line breaks and a "xi-api-key:" label removed. */
@@ -53,7 +59,8 @@ export function describeSecret(v: string | undefined): string {
  */
 export function elevenLabsFromEnv(env: Record<string, string | undefined>): { key: string; voice: string } {
   const own = cleanSecret(env.ELEVENLABS_API_KEY);
-  const key = own || [env.ELEVENLABS_SECRET_VOICE_ID, env.ELEVENLABS_VOICE_ID].map(cleanSecret).find(isApiKey) || "";
+  const others = [env.ELEVENLABS_SECRET_VOICE_ID, env.ELEVENLABS_VOICE_ID].map(cleanSecret);
+  const key = own || others.find(isApiKey) || others.find(maybeApiKey) || "";
   const voice = [env.ELEVENLABS_VOICE_ID, env.ELEVENLABS_SECRET_VOICE_ID].map(cleanSecret).find(isVoiceId) || ELEVENLABS_VOICE;
   return { key, voice };
 }
@@ -158,7 +165,7 @@ export async function speakElevenLabs(opts: {
 
   const subRes = await doFetch(`${API}/v1/user/subscription`, { headers, signal: AbortSignal.timeout(30_000) });
   // 401/403 here usually means the key was made without the "User: Read" permission.
-  if (!subRes.ok) throw new SpeechError(`ElevenLabs subscription ${subRes.status}${subRes.status === 401 || subRes.status === 403 ? " (give the API key the User: Read permission)" : ""}`);
+  if (!subRes.ok) throw new SpeechError(`ElevenLabs subscription ${subRes.status}${subRes.status === 401 || subRes.status === 403 ? " (ElevenLabs refused the key: a wrong or revoked key, or one without the User: Read permission; put the sk_… key in the ELEVENLABS_API_KEY secret)" : ""}`);
   const sub = (await subRes.json()) as Subscription;
   const plan = creditPlan(sub, text.length, opts.now);
   if (!plan.ok) throw new CreditsRefused(`ElevenLabs credits: ${plan.reason}`);
