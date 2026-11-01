@@ -110,7 +110,10 @@ async function SourceView({ params }: { params: PageProps<"/source/[domain]">["p
   );
 }
 
-export default function SourcePage(props: PageProps<"/source/[domain]">) {
+export default async function SourcePage(props: PageProps<"/source/[domain]">) {
+  // Checked before anything streams, so an unknown source is a real 404 (see the article page).
+  const domain = domainParam((await props.params).domain);
+  if (!domain || !(await getSourceHub(domain))) notFound();
   return (
     <Suspense fallback={<FeedSkeleton />}>
       <SourceView params={props.params} />

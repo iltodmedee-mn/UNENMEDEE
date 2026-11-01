@@ -202,9 +202,11 @@ async function DirectionView({
   );
 }
 
-export default function DirectionPage(
+export default async function DirectionPage(
   props: PageProps<"/promises/[direction]">,
 ) {
+  // Checked before anything streams, so an unknown direction is a real 404 (see the article page).
+  if (!lookup((await props.params).direction)) notFound();
   return (
     <Suspense
       fallback={

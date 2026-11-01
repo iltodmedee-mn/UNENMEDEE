@@ -358,7 +358,10 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
   );
 }
 
-export default function ArticlePage(props: PageProps<"/article/[slug]">) {
+export default async function ArticlePage(props: PageProps<"/article/[slug]">) {
+  // A missing story is a real 404: checked before anything streams. Inside <Suspense> the 200 was
+  // already sent (soft 404 + noindex), and every made-up slug cost a render and an ISR write.
+  if (!(await getArticleBySlug((await props.params).slug))) notFound();
   return (
     <Suspense fallback={<div className="mx-auto h-96 w-full max-w-[45rem] animate-pulse rounded-2xl bg-secondary" />}>
       <ArticleView params={props.params} />

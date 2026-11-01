@@ -16,6 +16,8 @@ export async function GET(request: Request) {
   if (canonical) return Response.redirect(new URL(canonical, url), 308);
   const v = url.searchParams.get("v") ?? "";
   if (!/^\d{1,9}$/.test(v) || !hasDatabase()) return new Response("Not found", { status: 404 });
+  // One URL per video: "v=0001" was another CDN key, so each spelling read the 3 MB file again.
+  if (String(Number(v)) !== v) return Response.redirect(new URL(`/reel?v=${Number(v)}`, url), 308);
   const [row] = await getDb()
     .select({ mp4: videos.mp4 })
     .from(videos)
