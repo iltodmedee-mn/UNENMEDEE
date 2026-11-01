@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { unlimitedGuard } from "@/lib/ai/limits";
 import type { UsageRecord } from "@/lib/ai/router";
-import { alignmentStarts, creditPlan, creditUsd, CreditsRefused, elevenLabsFromEnv, speakElevenLabs, type Subscription } from "@/lib/video/elevenlabs";
+import { alignmentStarts, creditPlan, creditUsd, CreditsRefused, describeSecret, elevenLabsFromEnv, speakElevenLabs, type Subscription } from "@/lib/video/elevenlabs";
 
 const NOW = new Date("2026-10-31T12:00:00Z");
 const reset = (days: number) => Math.round(NOW.getTime() / 1000 + days * 86_400);
@@ -112,5 +112,18 @@ describe("elevenLabsFromEnv", () => {
   });
   it("no key at all: empty, so Gemini voices the video", () => {
     assert.equal(elevenLabsFromEnv({}).key, "");
+  });
+});
+
+describe("pasted secrets", () => {
+  const KEY = "sk_" + "a1b2c3d4".repeat(6);
+  it("strip quotes, spaces, line breaks and a label", () => {
+    for (const v of [`"${KEY}"`, ` ${KEY}\n`, `xi-api-key: ${KEY}`, `'${KEY}'`]) assert.equal(elevenLabsFromEnv({ ELEVENLABS_SECRET_VOICE_ID: v }).key, KEY, v);
+  });
+  it("describe a secret by its shape only", () => {
+    assert.equal(describeSecret(undefined), "empty");
+    assert.equal(describeSecret(KEY), `a key (sk_…, ${KEY.length} chars)`);
+    assert.equal(describeSecret("EXAVITQu4vr4xnSDxMaL"), "a voice id (20 chars)");
+    assert.ok(!describeSecret("zzzz-secret-value-9").includes("secret-value"));
   });
 });
