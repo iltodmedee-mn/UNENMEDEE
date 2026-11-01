@@ -19,3 +19,36 @@ export function outcomeUnknown(err: unknown): boolean {
   if (!e) return false;
   return e.name === "UnknownOutcomeError" || e.name === "TimeoutError" || e.name === "AbortError" || /^(UND_ERR_|ECONNRESET|ETIMEDOUT|EPIPE)/.test(e.cause?.code ?? "") || e.cause?.name === "SocketError";
 }
+
+/** Graph API codes that mean "something went wrong on our side, try again" (is_transient). */
+const TRANSIENT_GRAPH_CODES = new Set([1, 2, -1]);
+
+/**
+ * True when a failed *publish* call may still have published: a 5xx from the platform, or a Graph
+ * error it marks as transient (codes 1, 2, -1). Read from the error's `status` / `code` or from
+ * our clients' "<Platform> <status>: … (code <n>)" messages.
+ */
+export function maybePublished(err: unknown): boolean {
+  const e = err as { status?: unknown; code?: unknown; message?: unknown } | null;
+  if (!e) return false;
+  const message = typeof e.message === "string" ? e.message : "";
+  const status = typeof e.status === "number" ? e.status : Number(message.match(/^\w+ (\d{3})\b/)?.[1] ?? NaN);
+  const code = typeof e.code === "number" ? e.code : Number(message.match(/\(code (-?\d+)\)/)?.[1] ?? NaN);
+  return status >= 500 || TRANSIENT_GRAPH_CODES.has(code);
+}
+
+/**
+ * Runs the call that makes a post public. A 5xx or transient Graph error there used to free the
+ * reservation, and the next run posted the same story again when the first had gone out: it is
+ * an unknown outcome instead (kept for a manual check, never retried). Container creation and
+ * status reads stay outside, so their failures can still be retried.
+ */
+export async function publishStep<T>(fn: () => Promise<T>): Promise<T> {
+  try {
+    return await fn();
+  } catch (err) {
+    if (maybePublished(err)) throw new UnknownOutcomeError(`publish answer lost: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300));
+    throw err;
+  }
+}
+

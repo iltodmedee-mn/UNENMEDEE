@@ -235,12 +235,15 @@ async function post(db: Db, p: Platform, kind: "digest" | "article" | "quiz" | "
 }
 
 async function postDigest(db: Db, p: Platform) {
-  const [d] = await db
-    .select()
+  // The newest edition only: filtering on "not posted" first made a run after the newest was
+  // out post the previous (older) edition instead, so a platform got two editions back to back.
+  const [newest] = await db
+    .select({ id: digests.id })
     .from(digests)
-    .where(and(gte(digests.createdAt, new Date(Date.now() - 12 * 3_600_000)), notPosted(p.name, "digest", digests.id)))
+    .where(gte(digests.createdAt, new Date(Date.now() - 12 * 3_600_000)))
     .orderBy(desc(digests.createdAt))
     .limit(1);
+  const [d] = newest ? await db.select().from(digests).where(and(eq(digests.id, newest.id), notPosted(p.name, "digest", digests.id))) : [];
   if (!d || d.items.length === 0) return console.log(`📘 ${p.name}: no new digest edition to post.`);
   await post(db, p, "digest", d.id, p.digest(d));
 }

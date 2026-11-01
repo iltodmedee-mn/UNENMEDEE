@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { articlePost, digestPost, FacebookError, publishToPage, resolveFacebookPage } from "@/lib/social/facebook";
-import { publishTelegram, telegramArticlePost } from "@/lib/social/telegram";
+import { fitTelegram, publishTelegram, telegramArticlePost } from "@/lib/social/telegram";
 import { discordArticlePost, discordChannelId, discordDigestPost, discordMessage, discordQuizPost, meter, publishDiscord } from "@/lib/social/discord";
 import { makeQuiz, maskAmounts } from "@/lib/social/quiz";
 import { formatShare, perPersonLine, perPersonShare } from "@/lib/per-person";
@@ -154,6 +154,19 @@ describe("telegram channel", () => {
     assert.ok(String(calls[0].body.caption).length <= 1024);
   });
 
+  it("keeps the link and hashtags when a long caption is cut, counting characters", () => {
+    const text = `⚡ Гарчиг\n\n${"Урт хураангуй өгүүлбэр. ".repeat(80)}\n\n🔗 https://iltodmedee.mn/article/a-b\n#ИлТодМэдээ #Монгол`;
+    const out = fitTelegram(text, 1024);
+    assert.ok(out.length <= 1024, String(out.length));
+    assert.ok(out.endsWith("🔗 https://iltodmedee.mn/article/a-b\n#ИлТодМэдээ #Монгол"));
+    assert.ok(out.length > 900, "characters, not UTF-8 bytes");
+  });
+
+  it("a 5xx from Telegram after sending is an unknown outcome, never a refusal", async () => {
+    const f = (async () => new Response(JSON.stringify({ ok: false, description: "Internal Server Error" }), { status: 502 })) as unknown as typeof fetch;
+    await assert.rejects(publishTelegram({ token: "123:SECRET", chatId: "@x", post: { text: "t", link: "l" }, fetchImpl: f }), (e: Error) => e.name === "UnknownOutcomeError");
+  });
+
   it("never echoes the token in an error", async () => {
     const f = (async () => new Response(JSON.stringify({ ok: false, description: "Unauthorized: bot123:SECRET" }), { status: 401 })) as unknown as typeof fetch;
     await assert.rejects(publishTelegram({ token: "123:SECRET", chatId: "@x", post: { text: "t", link: "l" }, fetchImpl: f }), (e: Error) => !e.message.includes("SECRET") && e.message.includes("401"));
@@ -278,5 +291,18 @@ describe("token refresh severity", () => {
     assert.equal(refreshSeverity(daysAgo(8), now), "warning");
     assert.equal(refreshSeverity(daysAgo(44), now), "warning");
     assert.equal(refreshSeverity(daysAgo(46), now), "error");
+  });
+});
+
+describe("publish outcome", () => {
+  it("treats a 5xx or a transient Graph error on the publish call as maybe published", async () => {
+    const { maybePublished, publishStep } = await import("@/lib/social/outcome");
+    assert.ok(maybePublished(new Error("Threads 500: An unexpected error has occurred (code 2)")));
+    assert.ok(maybePublished(new Error("Instagram 400: Please retry your request later (code 1)")));
+    assert.ok(maybePublished(Object.assign(new Error("x"), { status: 503 })));
+    assert.ok(!maybePublished(new Error("Instagram 400: Invalid parameter (code 100)")));
+    assert.ok(!maybePublished(Object.assign(new Error("x"), { status: 403, code: 200 })));
+    await assert.rejects(publishStep(async () => { throw new Error("Threads 502: Bad Gateway (code ?)"); }), (e: Error) => e.name === "UnknownOutcomeError");
+    await assert.rejects(publishStep(async () => { throw new Error("Threads 400: bad (code 100)"); }), (e: Error) => e.name === "Error");
   });
 });

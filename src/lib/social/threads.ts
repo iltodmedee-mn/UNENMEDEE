@@ -12,6 +12,7 @@ import { PRODUCTION_URL } from "@/lib/site";
 
 import type { ArticleForPost, DigestForPost } from "./facebook";
 import { hashtags } from "./hashtags";
+import { publishStep } from "./outcome";
 
 export const THREADS_API = "https://graph.threads.com";
 export const THREADS_SETTINGS_KEY = "threads";
@@ -110,6 +111,6 @@ export async function publishThreads(opts: { token: string; post: ThreadsPost; f
     if (i >= checks - 1) throw new Error(`Threads container not finished after ${i + 1} checks (${String(s.status ?? "?")})`);
     await sleep(wait);
   }
-  const published = await call(f, `${THREADS_API}/v1.0/me/threads_publish`, { method: "POST", body: new URLSearchParams({ creation_id: id, access_token: token }) });
+  const published = await publishStep(() => call(f, `${THREADS_API}/v1.0/me/threads_publish`, { method: "POST", body: new URLSearchParams({ creation_id: id, access_token: token }) }));
   return String(published.id ?? id);
 }
