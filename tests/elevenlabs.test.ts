@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { unlimitedGuard } from "@/lib/ai/limits";
 import type { UsageRecord } from "@/lib/ai/router";
-import { alignmentStarts, creditPlan, creditUsd, CreditsRefused, speakElevenLabs, type Subscription } from "@/lib/video/elevenlabs";
+import { alignmentStarts, creditPlan, creditUsd, CreditsRefused, elevenLabsFromEnv, speakElevenLabs, type Subscription } from "@/lib/video/elevenlabs";
 
 const NOW = new Date("2026-10-31T12:00:00Z");
 const reset = (days: number) => Math.round(NOW.getTime() / 1000 + days * 86_400);
@@ -95,5 +95,22 @@ describe("speakElevenLabs", () => {
     const { calls, fetchImpl } = fake(39_990);
     await assert.rejects(speakElevenLabs({ says, apiKey: "k", guard: unlimitedGuard, log: async () => {}, fetchImpl, now: NOW }), CreditsRefused);
     assert.equal(calls.length, 1);
+  });
+});
+
+describe("elevenLabsFromEnv", () => {
+  const KEY = "sk_" + "a1b2c3d4".repeat(6);
+  it("reads the key from ELEVENLABS_API_KEY", () => {
+    assert.deepEqual(elevenLabsFromEnv({ ELEVENLABS_API_KEY: KEY }), { key: KEY, voice: "EXAVITQu4vr4xnSDxMaL" });
+  });
+  it("finds a key saved under the voice-id secret, and never uses it as the voice", () => {
+    assert.deepEqual(elevenLabsFromEnv({ ELEVENLABS_SECRET_VOICE_ID: KEY }), { key: KEY, voice: "EXAVITQu4vr4xnSDxMaL" });
+  });
+  it("uses a real voice id from the variable or the secret", () => {
+    assert.equal(elevenLabsFromEnv({ ELEVENLABS_API_KEY: KEY, ELEVENLABS_VOICE_ID: "cgSgspJ2msm6clMCkdW9" }).voice, "cgSgspJ2msm6clMCkdW9");
+    assert.equal(elevenLabsFromEnv({ ELEVENLABS_API_KEY: KEY, ELEVENLABS_SECRET_VOICE_ID: "TX3LPaxmHKxFdv7VOQHJ" }).voice, "TX3LPaxmHKxFdv7VOQHJ");
+  });
+  it("no key at all: empty, so Gemini voices the video", () => {
+    assert.equal(elevenLabsFromEnv({}).key, "");
   });
 });

@@ -21,7 +21,23 @@ import { pcmToWav, SpeechError } from "./tts";
 
 export const ELEVENLABS_MODEL = process.env.ELEVENLABS_MODEL?.trim() || "eleven_v4";
 /** "Sarah": the owner chose her among the Mongolian samples (Oct 2026). */
-export const ELEVENLABS_VOICE = process.env.ELEVENLABS_VOICE_ID?.trim() || "EXAVITQu4vr4xnSDxMaL";
+export const ELEVENLABS_VOICE = "EXAVITQu4vr4xnSDxMaL";
+
+const isApiKey = (v: string) => /^sk_[A-Za-z0-9]{20,}$/.test(v);
+const isVoiceId = (v: string) => /^[A-Za-z0-9]{16,32}$/.test(v);
+
+/**
+ * The key and the voice from the environment. The key is ELEVENLABS_API_KEY, or the secret
+ * ELEVENLABS_VOICE_ID when that holds a key ("sk_…"): the owner saved the key under that name
+ * (Nov 1 2026) and every video fell back to Gemini without a word. A voice id comes from the
+ * repository variable ELEVENLABS_VOICE_ID or that secret; anything else keeps Sarah.
+ */
+export function elevenLabsFromEnv(env: Record<string, string | undefined>): { key: string; voice: string } {
+  const candidates = [env.ELEVENLABS_API_KEY, env.ELEVENLABS_SECRET_VOICE_ID, env.ELEVENLABS_VOICE_ID].map((v) => v?.trim() ?? "");
+  const key = env.ELEVENLABS_API_KEY?.trim() || candidates.find(isApiKey) || "";
+  const voice = [env.ELEVENLABS_VOICE_ID, env.ELEVENLABS_SECRET_VOICE_ID].map((v) => v?.trim() ?? "").find(isVoiceId) || ELEVENLABS_VOICE;
+  return { key, voice };
+}
 /** One money video and one price video a day (`VIDEO_SLOTS`). */
 export const VIDEOS_PER_DAY = 2;
 
