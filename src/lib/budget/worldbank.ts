@@ -26,5 +26,8 @@ export function parseWorldBank(json: unknown): TaxShareSnapshot {
 export async function fetchTaxShare(): Promise<TaxShareSnapshot> {
   const res = await politeFetch(WB_TAX_URL, { headers: { accept: "application/json" } });
   if (!res.ok) throw new Error(`World Bank API returned HTTP ${res.status}`);
-  return parseWorldBank(await res.json());
+  const snap = parseWorldBank(await res.json());
+  // An empty series would replace a good snapshot with an empty chart: keep the old one.
+  if (snap.series.length === 0) throw new Error("World Bank API: no values in the answer");
+  return snap;
 }

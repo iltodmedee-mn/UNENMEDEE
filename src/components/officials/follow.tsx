@@ -7,7 +7,8 @@ import { useEffect, useMemo } from "react";
 import { setFollows } from "@/app/push-actions";
 import { usePwa } from "@/components/pwa/use-pwa";
 import { useLocalStorage } from "@/lib/local-store";
-import { allAreas, AREA_KEY, constituencyAreas, FOLLOW_KEY, MAX_FOLLOWS, parseFollows } from "@/lib/officials/follow";
+import { AREA_KEY, FOLLOW_KEY, MAX_FOLLOWS, parseFollows } from "@/lib/officials/follow";
+import { PLACES, placeMatchesConstituency } from "@/lib/places";
 import type { PoliticianSummary } from "@/lib/queries";
 import { cx } from "@/utils/cx";
 
@@ -67,11 +68,17 @@ export function FollowToggle({ id, name, className }: { id: number; name: string
 
 /** "Миний гишүүн": pick your aimag/district, see and follow the MPs elected there. */
 export function MyMps({ people }: { people: PoliticianSummary[] }) {
-  const areas = useMemo(() => allAreas(people.map((p) => p.constituency)), [people]);
-  const [area, setArea] = useLocalStorage(AREA_KEY, "");
+  // The places of /place (21 aimags, the capital, its 9 districts) that elect at least one member,
+  // matched like the place pages (placeMatchesConstituency): the bare constituency words made
+  // "Сүхбаатар" one option for both the aimag and the district, listing both areas' members.
+  const places = useMemo(() => PLACES.filter((pl) => people.some((p) => placeMatchesConstituency(pl, p.constituency))), [people]);
+  const [stored, setArea] = useLocalStorage(AREA_KEY, "");
+  // Older choices were the bare area word: read it as that place's slug (aimag first).
+  const place = places.find((pl) => pl.slug === stored) ?? places.find((pl) => pl.name === stored);
+  const area = place?.slug ?? "";
   const { follows, toggle, setAll } = useFollows();
   useSyncFollows(follows);
-  const mine = people.filter((p) => area && constituencyAreas(p.constituency).includes(area));
+  const mine = place ? people.filter((p) => placeMatchesConstituency(place, p.constituency)) : [];
   const followed = people.filter((p) => follows.includes(p.id));
   const listOnly = people.filter((p) => !p.constituency).length;
 
@@ -87,9 +94,10 @@ export function MyMps({ people }: { people: PoliticianSummary[] }) {
         <span className="text-sm font-semibold text-primary">Би амьдардаг:</span>
         <select value={area} onChange={(e) => setArea(e.target.value)} className="rounded-lg bg-primary px-3 py-2.5 text-md text-primary ring-1 ring-line-strong ring-inset">
           <option value="">— аймаг, дүүрэг сонгох —</option>
-          {areas.map((a) => (
-            <option key={a} value={a}>
-              {a}
+          {places.map((pl) => (
+            <option key={pl.slug} value={pl.slug}>
+              {pl.name}
+              {pl.kind === "district" ? " дүүрэг" : pl.kind === "aimag" ? " аймаг" : ""}
             </option>
           ))}
         </select>

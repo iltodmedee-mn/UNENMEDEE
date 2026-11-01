@@ -10,7 +10,8 @@ const STAGE_KEYS = new Set(STAGES.map((s) => s.key));
 const BUDGET_KINDS = new Set(Object.keys(BUDGET_KIND_LABEL));
 
 /** Words that would turn a fact into a verdict. The page quotes bodies and budgets, never judges. */
-const VERDICT = /үрсэн|алдсан|авлига|хулгай|луйвар|цаасан дээр|худал|хуурсан|завшсан|зальж/i;
+// Stems, so every inflection is caught: "авлигын", "завшиж", "үрэн таран", "хулгайлсан".
+const VERDICT = /үрсэн|үрэн\s*тар|алдсан|авлиг|хулгай|луйвар|цаасан дээр|худал|хуурсан|завш|зальж/i;
 
 function texts(p: (typeof PROJECTS)[number]): string[] {
   return [p.name, p.summary, p.announced.act, p.planned?.note ?? "", p.stage.basis, ...p.budgets.map((b) => b.note ?? ""), ...p.events.map((e) => e.text), ...p.people.map((x) => `${x.role} ${x.name}`)];
