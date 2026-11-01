@@ -304,7 +304,9 @@ async function moneyJob(db: DB, prices: PricesSnapshot | null): Promise<Job | nu
           sql`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false) = false`,
           sql`${title} ~ '[0-9]'`,
           sql`jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0`,
-          sql`not exists (select 1 from ${videos} where ${videos.key} = 'money:' || ${articles.id})`,
+          // One video per story: an "ЧАМД ХАМААТАЙ ЮУ?" video already made from it counts too
+          // (only money: keys were checked, so the same story could become a second video).
+          sql`not exists (select 1 from ${videos} where ${videos.key} in ('money:' || ${articles.id}, 'impact:' || ${articles.id}))`,
         ),
       )
       .orderBy(desc(articles.importanceScore), desc(articles.publishedAt))

@@ -13,6 +13,7 @@ import { PRODUCTION_URL } from "@/lib/site";
 import type { ArticleForPost, DigestForPost } from "./facebook";
 import { hashtags } from "./hashtags";
 import { factShareLine, impactLines, keyFacts } from "./story-lines";
+import { publishStep } from "./outcome";
 
 export const INSTAGRAM_API = "https://graph.instagram.com";
 export const INSTAGRAM_VERSION = process.env.IG_GRAPH_VERSION || "v26.0";
@@ -135,7 +136,7 @@ export async function publishInstagram(opts: { token: string; post: InstagramPos
   }
   for (let attempt = 1; ; attempt++) {
     try {
-      const published = await call(f, `${base}/me/media_publish`, { method: "POST", body: new URLSearchParams({ creation_id: id, access_token: token }) });
+      const published = await publishStep(() => call(f, `${base}/me/media_publish`, { method: "POST", body: new URLSearchParams({ creation_id: id, access_token: token }) }));
       return String(published.id ?? id);
     } catch (err) {
       // FINISHED, yet the publish endpoint has not seen the container: a few more seconds, not a failure.
