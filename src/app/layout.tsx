@@ -40,8 +40,12 @@ export const metadata: Metadata = {
   category: "news",
   alternates: { types: { "application/rss+xml": [{ url: "/feed.xml", title: `${SITE_NAME} — шинэ мэдээ` }] } },
   robots: { index: true, follow: true, googleBot: { index: true, follow: true, "max-image-preview": "large", "max-snippet": -1, "max-video-preview": -1 } },
-  openGraph: { type: "website", locale: "mn_MN", siteName: SITE_NAME, title: SITE_TITLE, description: SITE_DESCRIPTION },
-  twitter: { card: "summary_large_image", title: SITE_TITLE, description: SITE_DESCRIPTION },
+  // No og:title / og:description here: a page without its own openGraph inherited the home
+  // page's title, so a shared /officials/46 or /prices showed "ИЛ ТОД МЭДЭЭ … шинэ мэдээ" in
+  // Messenger and Facebook. Without them, link previews fall back to the page's own <title> and
+  // description. Pages that set openGraph themselves (articles, topics, MPs…) are unaffected.
+  openGraph: { type: "website", locale: "mn_MN", siteName: SITE_NAME },
+  twitter: { card: "summary_large_image" },
   verification,
 };
 

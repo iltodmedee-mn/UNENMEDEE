@@ -16,7 +16,7 @@ import { termLabel, termOf } from "@/lib/officials/terms";
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
 import type { OfficialCompaniesSnapshot } from "@/lib/officials/companies";
 import { getAttendance, getIndicator, getPolitician, getPoliticianIds } from "@/lib/queries";
-import { jsonLd, parseRouteId } from "@/lib/site";
+import { jsonLd, parseRouteId, SITE_NAME } from "@/lib/site";
 import { breadcrumbLd, personLd } from "@/lib/structured-data";
 
 export async function generateStaticParams() {
@@ -30,11 +30,18 @@ export async function generateMetadata({ params }: PageProps<"/officials/[id]">)
   const data = parsed ? await getPolitician(parsed) : null;
   if (!data) return { title: "Олдсонгүй", robots: { index: false } };
   const p = data.politician;
+  // People search the short form ("Д.Ганмаа хөрөнгө"); the full name follows in brackets.
+  const title = `${p.shortName} (${p.fullName}) — хөрөнгө, орлого, ирц`;
+  const description = `${p.party ?? ""} УИХ-ын гишүүн ${p.shortName}-ийн Авлигатай тэмцэх газарт гаргасан хөрөнгө, орлогын мэдүүлэг жил бүрээр, мэдээнд дурдагдсан байдал.`.trim();
+  const url = `/officials/${p.id}`;
   return {
-    // People search the short form ("Д.Ганмаа хөрөнгө"); the full name follows in brackets.
-    title: `${p.shortName} (${p.fullName}) — хөрөнгө, орлого, ирц`,
-    description: `${p.party ?? ""} УИХ-ын гишүүн ${p.shortName}-ийн Авлигатай тэмцэх газарт гаргасан хөрөнгө, орлогын мэдүүлэг жил бүрээр, мэдээнд дурдагдсан байдал.`,
-    alternates: { canonical: `/officials/${p.id}` },
+    title,
+    description,
+    alternates: { canonical: url },
+    // Without its own openGraph a shared profile showed the site's title and card (Messenger,
+    // Facebook, Discord read og:*, not <title>); the image is ./opengraph-image.tsx.
+    openGraph: { type: "profile", url, title, description, siteName: SITE_NAME, locale: "mn_MN" },
+    twitter: { card: "summary_large_image", title, description },
   };
 }
 
