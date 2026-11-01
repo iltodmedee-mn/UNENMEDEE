@@ -20,7 +20,7 @@ import { FEED_QUIET_HOURS, hoursSince } from "@/lib/stale";
 /** Hours since the newest feed story, from a cached clock (the header is on every static page). */
 async function quietHours(lastArticleAt: string | null): Promise<number> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("hours");
   return hoursSince(lastArticleAt, new Date());
 }
 

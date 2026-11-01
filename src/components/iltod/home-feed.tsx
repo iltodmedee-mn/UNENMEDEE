@@ -31,7 +31,7 @@ const WEEKDAYS = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пү�
  */
 async function todayMn(): Promise<string> {
   "use cache";
-  cacheLife("minutes");
+  cacheLife("news");
   const ub = new Date(Date.now() + 8 * 3_600_000);
   return `${WEEKDAYS[ub.getUTCDay()]}, ${ub.getUTCMonth() + 1}-р сарын ${ub.getUTCDate()}`;
 }
