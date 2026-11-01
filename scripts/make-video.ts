@@ -41,7 +41,7 @@ import { analyseAudio, MAX_BYTES, renderVideo } from "@/lib/video/render";
 import { sceneHtml } from "@/lib/video/scene-html";
 import { dueSlot, kindsFor, type VideoSlot } from "@/lib/video/schedule";
 import { buildTimeline, plausibleTake, sentenceStarts, speechBounds, type Timeline } from "@/lib/video/timing";
-import { CreditsRefused, elevenLabsFromEnv, speakElevenLabs } from "@/lib/video/elevenlabs";
+import { CreditsRefused, describeSecret, elevenLabsFromEnv, speakElevenLabs } from "@/lib/video/elevenlabs";
 import { speak } from "@/lib/video/tts";
 
 /** The MP4 is kept this long for the platforms to fetch it from /reel, then cleared. */
@@ -104,7 +104,11 @@ async function main() {
   const guard = dbBudgetGuard(db);
   const log = dry ? consoleUsageLogger : dbUsageLogger(db);
   let voiced: { wav: Buffer; starts: number[] | null } | null = null;
-  if (!elevenKey) console.log("::notice::No ElevenLabs key reached this step (repository secret ELEVENLABS_API_KEY): Gemini voices this video.");
+  if (!elevenKey) {
+    // Only the shape of each secret, never its content.
+    const shapes = `ELEVENLABS_API_KEY: ${describeSecret(process.env.ELEVENLABS_API_KEY)}; secret ELEVENLABS_VOICE_ID: ${describeSecret(process.env.ELEVENLABS_SECRET_VOICE_ID)}`;
+    console.log(`::notice::No ElevenLabs key (a key starts with "sk_") reached this step (${shapes}): Gemini voices this video.`);
+  }
   if (elevenKey) {
     try {
       const out = await speakElevenLabs({ says: job.says, apiKey: elevenKey, guard, log, voice: elevenVoice });

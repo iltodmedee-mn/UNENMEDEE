@@ -26,16 +26,35 @@ export const ELEVENLABS_VOICE = "EXAVITQu4vr4xnSDxMaL";
 const isApiKey = (v: string) => /^sk_[A-Za-z0-9]{20,}$/.test(v);
 const isVoiceId = (v: string) => /^[A-Za-z0-9]{16,32}$/.test(v);
 
+/** A pasted secret as the key itself: quotes, spaces, line breaks and a "xi-api-key:" label removed. */
+export function cleanSecret(v: string | undefined): string {
+  return (v ?? "").replace(/^\s*xi-api-key\s*[:=]\s*/i, "").replace(/["'`\s]/g, "");
+}
+
+/**
+ * What a secret looks like, for the log, never its content: "empty", "a key (sk_…, N chars)",
+ * "a voice id (N chars)" or "something else (N chars, starts with a letter|digit|symbol)".
+ */
+export function describeSecret(v: string | undefined): string {
+  const c = cleanSecret(v);
+  if (!c) return "empty";
+  if (isApiKey(c)) return `a key (sk_…, ${c.length} chars)`;
+  if (isVoiceId(c)) return `a voice id (${c.length} chars)`;
+  const first = /[A-Za-z]/.test(c[0]) ? "a letter" : /\d/.test(c[0]) ? "a digit" : "a symbol";
+  return `something else (${c.length} chars, starts with ${first})`;
+}
+
 /**
  * The key and the voice from the environment. The key is ELEVENLABS_API_KEY, or the secret
  * ELEVENLABS_VOICE_ID when that holds a key ("sk_…"): the owner saved the key under that name
- * (Nov 1 2026) and every video fell back to Gemini without a word. A voice id comes from the
- * repository variable ELEVENLABS_VOICE_ID or that secret; anything else keeps Sarah.
+ * (Nov 1 2026) and every video fell back to Gemini without a word. Pasted extras (quotes, spaces,
+ * a "xi-api-key:" label) are removed. A voice id comes from the repository variable
+ * ELEVENLABS_VOICE_ID or that secret; anything else keeps Sarah.
  */
 export function elevenLabsFromEnv(env: Record<string, string | undefined>): { key: string; voice: string } {
-  const candidates = [env.ELEVENLABS_API_KEY, env.ELEVENLABS_SECRET_VOICE_ID, env.ELEVENLABS_VOICE_ID].map((v) => v?.trim() ?? "");
-  const key = env.ELEVENLABS_API_KEY?.trim() || candidates.find(isApiKey) || "";
-  const voice = [env.ELEVENLABS_VOICE_ID, env.ELEVENLABS_SECRET_VOICE_ID].map((v) => v?.trim() ?? "").find(isVoiceId) || ELEVENLABS_VOICE;
+  const own = cleanSecret(env.ELEVENLABS_API_KEY);
+  const key = own || [env.ELEVENLABS_SECRET_VOICE_ID, env.ELEVENLABS_VOICE_ID].map(cleanSecret).find(isApiKey) || "";
+  const voice = [env.ELEVENLABS_VOICE_ID, env.ELEVENLABS_SECRET_VOICE_ID].map(cleanSecret).find(isVoiceId) || ELEVENLABS_VOICE;
   return { key, voice };
 }
 /** One money video and one price video a day (`VIDEO_SLOTS`). */
