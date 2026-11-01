@@ -80,10 +80,11 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="mn" className={`${inter.variable} ${interDisplay.variable} ${mono.variable} h-full scroll-smooth antialiased`} suppressHydrationWarning>
+    <html lang="mn" className={`${inter.variable} ${interDisplay.variable} ${mono.variable} h-full motion-safe:scroll-smooth antialiased`} data-scroll-behavior="smooth" suppressHydrationWarning>
       <head>
         {/* Before the first paint: hide the first-visit intro for readers who dismissed it (no layout shift). */}
-        <script dangerouslySetInnerHTML={{ __html: "try{localStorage.getItem('iltod-intro')&&(document.documentElement.dataset.intro='seen')}catch(e){}" }} />
+        {/* …and apply the reader's text size before the first paint (the toggle only set it after hydration: a full reflow on every load). */}
+        <script dangerouslySetInnerHTML={{ __html: "try{var d=document.documentElement;localStorage.getItem('iltod-intro')&&(d.dataset.intro='seen');var t=localStorage.getItem('iltod-text-size');(t==='lg'||t==='xl')&&(d.dataset.textSize=t)}catch(e){}" }} />
         {/* Chrome's install offer can fire before any chunk runs (a fast, service-worker-controlled
             load): keep it for use-pwa.ts, or the install strip never appears on Android. */}
         <script dangerouslySetInnerHTML={{ __html: "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__iltodBip=e});addEventListener('appinstalled',function(){window.__iltodBip=null})" }} />

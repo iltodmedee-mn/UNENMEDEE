@@ -12,6 +12,12 @@ interface NavItem {
   label: string;
 }
 
+/**
+ * Pages whose client code includes the chart library (recharts): a prefetch from the header on
+ * every page view downloaded it (the same problem §6c fixed for /data).
+ */
+const NO_PREFETCH = new Set(["/budget", "/data", "/transparency", "/prices"]);
+
 /** Always visible in the desktop bar. */
 export const NAV_PRIMARY: NavItem[] = [
   { href: "/", label: "Нүүр" },
@@ -72,7 +78,7 @@ function NavList({ className, onNavigate, pathname, skipHome, more }: NavProps &
   const link = (item: NavItem) => {
     const active = isActive(item.href, pathname);
     return (
-      <Link key={item.href} href={item.href} onClick={onNavigate} aria-current={active ? "page" : undefined} className={linkClass(active)}>
+      <Link key={item.href} href={item.href} prefetch={NO_PREFETCH.has(item.href) ? false : undefined} onClick={onNavigate} aria-current={active ? "page" : undefined} className={linkClass(active)}>
         {item.label}
       </Link>
     );
@@ -114,10 +120,16 @@ function NavMore({ pathname }: { pathname: string | null }) {
     setOpenOn(next ? here : null);
     if (focus) requestAnimationFrame(() => (focus === "first" ? links()[0] : links().at(-1))?.focus());
   };
+  // When the mouse opened the menu, the click that usually follows (150–400 ms later) must not
+  // toggle it shut again.
+  const hoverOpenedAt = useRef(0);
   const hover = (e: PointerEvent, next: boolean, ms: number) => {
     if (e.pointerType !== "mouse") return;
     clearTimeout(timer.current);
-    timer.current = setTimeout(() => setOpenOn(next ? here : null), ms);
+    timer.current = setTimeout(() => {
+      if (next) hoverOpenedAt.current = Date.now();
+      setOpenOn(next ? here : null);
+    }, ms);
   };
 
   useEffect(() => {
@@ -131,7 +143,10 @@ function NavMore({ pathname }: { pathname: string | null }) {
   useEffect(() => () => clearTimeout(timer.current), []);
 
   const onTriggerKey = (e: KeyboardEvent) => {
-    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+    if (e.key === "Escape" && open) {
+      e.preventDefault();
+      setOpen(false);
+    } else if (e.key === "ArrowDown" || e.key === "ArrowUp") {
       e.preventDefault();
       setOpen(true, e.key === "ArrowDown" ? "first" : "last");
     }
@@ -170,7 +185,10 @@ function NavMore({ pathname }: { pathname: string | null }) {
         aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
-        onClick={() => setOpen(!open)}
+        onClick={() => {
+          if (open && Date.now() - hoverOpenedAt.current < 700) return;
+          setOpen(!open);
+        }}
         onKeyDown={onTriggerKey}
         className={cx("flex cursor-pointer items-center gap-1 outline-focus-ring focus-visible:outline-2 focus-visible:outline-offset-2", linkClass(Boolean(current) || open))}
       >

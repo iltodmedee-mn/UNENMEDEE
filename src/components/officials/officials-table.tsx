@@ -103,6 +103,8 @@ export function OfficialsTable({ people }: { people: PoliticianSummary[] }) {
               <li key={p.id}>
                 <Link
                   href={`/officials/${p.id}`}
+                  // ~126 rows: prefetching every profile (and its chart code) as the list scrolls.
+                  prefetch={false}
                   className="grid grid-cols-[40px_1fr_auto] items-center gap-x-3 gap-y-1 py-3 transition hover:bg-primary_hover xl:grid-cols-[40px_1.6fr_1fr_1fr_0.8fr] xl:py-2.5"
                 >
                   {/* eslint-disable-next-line @next/next/no-img-element -- portraits come from parliament.mn */}

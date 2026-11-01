@@ -107,7 +107,9 @@ const StoryRow = memo(function StoryRow({ s, isRead, isOpen, lead, onOpen, onTog
             </p>
           )}
           <p className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1.5">
-            <span className="label-mono text-tertiary">
+            {/* TimeAgo swaps the server's full date for "7 цагийн өмнө" after hydration: with chips
+                after it, a narrow row re-wrapped (CLS), so on phones the label takes its own line. */}
+            <span className={cx("label-mono text-tertiary", (amount || share || s.clusterSize > 1 || s.pressCount > 0) && "basis-full sm:basis-auto")}>
               {s.dateUnknown ? (
                 // The page printed no date: say when we found it, so the row still tells the reader how fresh it is.
                 <span title="Эх хуудсанд нийтэлсэн огноо байхгүй: бидний олсон цаг">

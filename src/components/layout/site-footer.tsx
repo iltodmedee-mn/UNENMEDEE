@@ -33,34 +33,34 @@ export function SiteFooter() {
         </div>
         <div className="flex flex-col gap-2 text-sm">
           <p className="label-mono mb-1 text-tertiary">Шалгах боломжтой</p>
-          <Link className={footerLink} href="/about">
+          <Link className={footerLink} prefetch={false} href="/about">
             Бид хэн бэ
           </Link>
-          <Link className={footerLink} href="/transparency">
+          <Link className={footerLink} prefetch={false} href="/transparency">
             Зардлын тайлан (AI токен бүрээр)
           </Link>
-          <Link className={footerLink} href="/projects">
+          <Link className={footerLink} prefetch={false} href="/projects">
             Мега төслүүд: хэдэн жил, хэдэн төгрөг
           </Link>
-          <Link className={footerLink} href="/prices">
+          <Link className={footerLink} prefetch={false} href="/prices">
             Махны үнэ, бензиний үнэ 15 жилээр
           </Link>
-          <Link className={footerLink} href="/changes">
+          <Link className={footerLink} prefetch={false} href="/changes">
             Төрийн сайтын засвар, устгалт
           </Link>
-          <Link className={footerLink} href="/clusters">
+          <Link className={footerLink} prefetch={false} href="/clusters">
             Олон эх сурвалжид гарсан сэдвүүд
           </Link>
-          <Link className={footerLink} href="/archive">
+          <Link className={footerLink} prefetch={false} href="/archive">
             Архив
           </Link>
-          <Link className={footerLink} href="/sources">
+          <Link className={footerLink} prefetch={false} href="/sources">
             Хянаж буй бүх эх сурвалж
           </Link>
-          <Link className={footerLink} href="/method">
+          <Link className={footerLink} prefetch={false} href="/method">
             Арга зүй: AI яаж ажилладаг вэ
           </Link>
-          <Link className={footerLink} href="/privacy">
+          <Link className={footerLink} prefetch={false} href="/privacy">
             Нууцлалын бодлого
           </Link>
           <a className={footerLink} href={REPO_URL} target="_blank" rel="noreferrer">

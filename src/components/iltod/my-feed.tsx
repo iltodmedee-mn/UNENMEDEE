@@ -16,17 +16,19 @@ const MAX_STORIES = 40;
 /** Fetched lists are reused this long; a failed fetch only briefly (a PWA that was offline recovers). */
 const FRESH_MS = 5 * 60_000;
 const FAILED_MS = 30_000;
-const requests = new Map<string, { at: number; ttl: number; p: Promise<ArticleListItem[]> }>();
+/** null = the request failed (offline, server error): told apart from "no stories". */
+type FeedResult = ArticleListItem[] | null;
+const requests = new Map<string, { at: number; ttl: number; p: Promise<FeedResult> }>();
 
 /** "place:<slug>" is a followed aimag or district, anything else a topic key. */
 const feedUrl = (key: string) => (key.startsWith("place:") ? `/api/place-feed/${key.slice(6)}` : `/api/topic-feed/${key}`);
 
 /** One request per feed per few minutes; JSON dates come back as strings. */
-function topicFeed(key: string): Promise<ArticleListItem[]> {
+function topicFeed(key: string): Promise<FeedResult> {
   const now = Date.now();
   const cached = requests.get(key);
   if (cached && now - cached.at < cached.ttl) return cached.p;
-  const entry = { at: now, ttl: FRESH_MS, p: Promise.resolve<ArticleListItem[]>([]) };
+  const entry = { at: now, ttl: FRESH_MS, p: Promise.resolve<FeedResult>([]) };
   entry.p = fetch(feedUrl(key))
     .then((r) => {
       if (!r.ok) throw new Error(String(r.status));
@@ -35,7 +37,7 @@ function topicFeed(key: string): Promise<ArticleListItem[]> {
     .then((items) => items.map((s) => ({ ...s, publishedAt: s.publishedAt ? new Date(s.publishedAt) : null })))
     .catch(() => {
       entry.ttl = FAILED_MS;
-      return [];
+      return null;
     });
   requests.set(key, entry);
   return entry.p;
@@ -59,8 +61,8 @@ function merge(lists: ArticleListItem[][]): ArticleListItem[] {
 
 // use() needs the same promise on every render of the same keys: rebuilt only when a topic's
 // request was renewed (expired or failed).
-const keyPromises = new Map<string, { parts: Promise<ArticleListItem[]>[]; all: Promise<ArticleListItem[][]> }>();
-function feeds(keys: string[]): Promise<ArticleListItem[][]> {
+const keyPromises = new Map<string, { parts: Promise<FeedResult>[]; all: Promise<FeedResult[]> }>();
+function feeds(keys: string[]): Promise<FeedResult[]> {
   const id = keys.join(",");
   const parts = keys.map(topicFeed);
   const cached = keyPromises.get(id);
@@ -71,9 +73,23 @@ function feeds(keys: string[]): Promise<ArticleListItem[][]> {
 }
 
 function Stories({ keys }: { keys: string[] }) {
-  const stories = merge(use(feeds(keys)));
-  if (stories.length === 0) return <p className="py-10 text-center text-sm text-tertiary">Дагасан сэдэв, газруудад шинэ мэдээ алга байна.</p>;
-  return <StoryList stories={stories} />;
+  const results = use(feeds(keys));
+  const failed = results.filter((r) => r === null).length;
+  const stories = merge(results.filter((r): r is ArticleListItem[] => r !== null));
+  // A failed request is not "no news": say so, so an offline reader does not think the feed is empty.
+  const note =
+    failed > 0 ? (
+      <p role="status" className="text-sm text-tertiary">
+        {failed === results.length ? "Мэдээг ачаалж чадсангүй." : `${failed} урсгалыг ачаалж чадсангүй.`} Холболтоо шалгаад хуудсаа дахин ачаална уу.
+      </p>
+    ) : null;
+  if (stories.length === 0) return note ?? <p className="py-10 text-center text-sm text-tertiary">Дагасан сэдэв, газруудад шинэ мэдээ алга байна.</p>;
+  return (
+    <>
+      {note}
+      <StoryList stories={stories} />
+    </>
+  );
 }
 
 function TopicPicker({ follows }: { follows: string[] }) {
