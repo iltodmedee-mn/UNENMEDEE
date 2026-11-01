@@ -145,6 +145,21 @@ export function alignmentStarts(says: string[], alignment: Alignment | undefined
 export class CreditsRefused extends SpeechError {}
 
 /**
+ * Why ElevenLabs refused the subscription call, for the log. Its own status code names the case:
+ * the owner's secret held the 64-character key ID shown in the dashboard (400
+ * "api_key_id_used_as_api_key", Nov 1 2026), which is not the key; the key itself ("sk_…") is shown
+ * only once, when it is created or rotated. Never echoes the key.
+ */
+export function keyRefusal(status: number, body: unknown): string {
+  const detail = (body as { detail?: { status?: string; message?: string } | string } | null)?.detail;
+  const code = typeof detail === "object" && detail ? detail.status : undefined;
+  if (code === "api_key_id_used_as_api_key") return "the secret holds the key's ID, not the key: create or rotate a key in ElevenLabs and save the sk_… value shown then in the ELEVENLABS_API_KEY secret";
+  if (status === 401 || status === 403) return "ElevenLabs refused the key: a wrong or revoked key, or one without the User: Read permission; put the sk_… key in the ELEVENLABS_API_KEY secret";
+  const message = typeof detail === "string" ? detail : detail?.message;
+  return String(message ?? "no detail").replace(/\s+/g, " ").slice(0, 200);
+}
+
+/**
  * Speaks the sentences with ElevenLabs and returns a WAV plus the sentence starts. Throws
  * `CreditsRefused` when the month's pace says no (nothing is spent), `SpeechError` otherwise.
  */
@@ -164,8 +179,7 @@ export async function speakElevenLabs(opts: {
   const model = opts.model ?? ELEVENLABS_MODEL;
 
   const subRes = await doFetch(`${API}/v1/user/subscription`, { headers, signal: AbortSignal.timeout(30_000) });
-  // 401/403 here usually means the key was made without the "User: Read" permission.
-  if (!subRes.ok) throw new SpeechError(`ElevenLabs subscription ${subRes.status}${subRes.status === 401 || subRes.status === 403 ? " (ElevenLabs refused the key: a wrong or revoked key, or one without the User: Read permission; put the sk_… key in the ELEVENLABS_API_KEY secret)" : ""}`);
+  if (!subRes.ok) throw new SpeechError(`ElevenLabs subscription ${subRes.status}: ${keyRefusal(subRes.status, await subRes.json().catch(() => null))}`);
   const sub = (await subRes.json()) as Subscription;
   const plan = creditPlan(sub, text.length, opts.now);
   if (!plan.ok) throw new CreditsRefused(`ElevenLabs credits: ${plan.reason}`);

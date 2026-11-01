@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 
 import { unlimitedGuard } from "@/lib/ai/limits";
 import type { UsageRecord } from "@/lib/ai/router";
-import { alignmentStarts, creditPlan, creditUsd, CreditsRefused, describeSecret, elevenLabsFromEnv, speakElevenLabs, type Subscription } from "@/lib/video/elevenlabs";
+import { alignmentStarts, creditPlan, creditUsd, CreditsRefused, describeSecret, elevenLabsFromEnv, keyRefusal, speakElevenLabs, type Subscription } from "@/lib/video/elevenlabs";
 
 const NOW = new Date("2026-10-31T12:00:00Z");
 const reset = (days: number) => Math.round(NOW.getTime() / 1000 + days * 86_400);
@@ -117,6 +117,19 @@ describe("elevenLabsFromEnv", () => {
   });
   it("no key at all: empty, so Gemini voices the video", () => {
     assert.equal(elevenLabsFromEnv({}).key, "");
+  });
+});
+
+describe("keyRefusal", () => {
+  it("names a key ID saved instead of the key (ElevenLabs' own answer, Nov 2026)", () => {
+    const body = { detail: { type: "authentication_error", code: "invalid_api_key", status: "api_key_id_used_as_api_key", message: "API key ID used as API key" } };
+    assert.match(keyRefusal(400, body), /key's ID, not the key/);
+  });
+  it("401/403 point at the key and its permission", () => {
+    assert.match(keyRefusal(401, null), /User: Read/);
+  });
+  it("anything else passes ElevenLabs' message on, one line", () => {
+    assert.equal(keyRefusal(500, { detail: "busy\nnow" }), "busy now");
   });
 });
 

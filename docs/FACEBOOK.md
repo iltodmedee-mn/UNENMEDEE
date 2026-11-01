@@ -132,6 +132,9 @@ Messenger-тэй адил бот (AI-гүй, сайтын мэдээ, холбо
    Speech + User (read) хангалттай.
 2. GitHub → **Settings → Secrets and variables → Actions → New repository secret** → нэр `ELEVENLABS_API_KEY`,
    утга нь шинэ түлхүүр. Түлхүүрийг чат, файл, commit-д хэзээ ч бүү бич.
+   Утга нь заавал `sk_`-ээр эхэлнэ. API Keys жагсаалтад харагдах 64 тэмдэгттэй **ID** нь түлхүүр биш
+   (ElevenLabs үүнийг "API key ID used as API key" гэж буцаадаг). Түлхүүрийг зөвхөн үүсгэх эсвэл rotate
+   хийх үед нэг удаа харуулдаг, тэр үед нь хуулж авна.
 3. Сонголтоор (**Variables**): `ELEVENLABS_VOICE_ID` (өөр хоолой), `ELEVENLABS_RESERVE_CHARS` (өөртөө үлдээх кредит,
    анхдагч 10 000), `ELEVENLABS_PLAN_USD` (багцын үнэ, анхдагч 6; /transparency дээрх зардлыг тооцоход).
 
