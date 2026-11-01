@@ -32,5 +32,7 @@ describe("parking unprocessable articles", () => {
     assert.ok(!shouldPark(["groq/x: 429 rate limit", "gemini/y: 503 Service Unavailable", "nvidia/z: ECONNRESET"]));
     assert.ok(!shouldPark(["groq/x: 429 rate limit", "gemini/y: Unexpected end of JSON input", "nvidia/z: timeout"]), "one bad reply among outages is retried");
     assert.ok(!shouldPark([]));
+    // The repair was stopped by the budget: one cut-off reply is not enough to give up.
+    assert.ok(!shouldPark(["groq/x: Unexpected end of JSON input", "groq/x: retry skipped (limit: daily budget)", "gemini/y: 503 Service Unavailable"]));
   });
 });

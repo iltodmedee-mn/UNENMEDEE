@@ -5,7 +5,7 @@ import type { ReaderImpact } from "@/lib/types";
 
 import type { ChatMessage } from "./gemini";
 import { DATA_GUARD, wrap } from "./prompts";
-import { cleanImpact, cleanReaderTitle, sourceDigits } from "./reader-view";
+import { cleanImpact, cleanReaderTitle } from "./reader-view";
 
 /**
  * Plain headlines and "Танд хамаатай юу?" for articles analysed before Tier 1 wrote them
@@ -50,10 +50,29 @@ export interface ReaderView {
   impact: ReaderImpact | null;
 }
 
+/** 5-letter stems of the words of 5+ letters ("тэтгэврийн" → "тэтгэ"). */
+const stems5 = (text: string) => new Set((text.toLowerCase().match(/\p{L}{5,}/gu) ?? []).map((w) => w.slice(0, 5)));
+
+/**
+ * The answer is about this story: eight stories share one call, and a model that shifted its
+ * answers by one wrote story 4's headline under story 3's id. A headline or an impact that shares
+ * no word stem with the story's own headline, summary and facts is dropped.
+ */
+function aboutItem(answer: string, own: Set<string>): boolean {
+  return [...stems5(answer)].some((st) => own.has(st));
+}
+
 /** The model's answer for one item, grounded in that item's own text. */
 export function readerViewFor(item: ReaderItem, answer: unknown): ReaderView {
   if (!answer || typeof answer !== "object") return { title: null, impact: null };
   const a = answer as Record<string, unknown>;
-  const digits = sourceDigits(`${item.title}\n${item.summary}\n${item.facts.join("\n")}`);
-  return { title: cleanReaderTitle(a.title, item.title, digits), impact: cleanImpact(a, digits) };
+  const source = `${item.title}\n${item.summary}\n${item.facts.join("\n")}`;
+  const own = stems5(source);
+  const title = cleanReaderTitle(a.title, item.title, source);
+  const impact = cleanImpact(a, source);
+  const impactText = impact ? [impact.who, impact.change, impact.action].filter(Boolean).join(" ") : "";
+  return {
+    title: title && aboutItem(title, own) ? title : null,
+    impact: impact && aboutItem(impactText, own) ? impact : null,
+  };
 }

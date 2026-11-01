@@ -209,15 +209,32 @@ describe("clustering", () => {
 });
 
 describe("clustering on real same-story and different-story pairs (Oct 2026)", () => {
-  type Doc = Omit<ClusterDoc, "clusterId">;
+  type Doc = Omit<ClusterDoc, "clusterId" | "at"> & { at?: string };
   const pairs = JSON.parse(readFileSync(new URL("./fixtures/cluster-pairs.json", import.meta.url), "utf8")) as { same: [Doc, Doc][]; different: [Doc, Doc][] };
-  const doc = (d: Doc): ClusterDoc => ({ ...d, clusterId: null });
+  const doc = (d: Doc): ClusterDoc => ({ ...d, clusterId: null, at: d.at ? new Date(d.at) : null });
 
   it("joins the same story posted by two sites with the AI wording each summary differently", () => {
     for (const [a, b] of pairs.same) assert.ok(similarity(doc(a), doc(b)) >= CLUSTER_THRESHOLD, `#${a.id}/#${b.id}: ${similarity(doc(a), doc(b))}`);
   });
 
   it("keeps identical generic headlines about different events apart", () => {
-    for (const [a, b] of pairs.different) assert.ok(similarity(doc(a), doc(b)) < CLUSTER_THRESHOLD, `#${a.id}/#${b.id}: ${similarity(doc(a), doc(b))}`);
+    for (const [a, b] of pairs.different) {
+      // Kept apart by the score, or (#91/#1372: two agencies' job notices 14 days apart) by time.
+      const joined = findBestMatch(doc(a), [doc(b)]) !== null;
+      assert.ok(!joined, `#${a.id}/#${b.id}: ${similarity(doc(a), doc(b))}`);
+    }
+  });
+
+  it("needs a shared person or organisation and similar summaries for the same-headline channel", () => {
+    const [a, b] = pairs.different.find(([x]) => x.id === 91)!;
+    // Same headline, same window: still apart, because the agencies and the summaries differ.
+    assert.ok(similarity(doc(a), { ...doc(b), at: doc(a).at }) < CLUSTER_THRESHOLD);
+  });
+
+  it("never joins stories further apart than the cluster window", () => {
+    const [a, b] = pairs.same[0];
+    const far = new Date(Date.UTC(2026, 9, 1));
+    assert.ok(findBestMatch({ ...doc(a), at: far }, [{ ...doc(b), at: new Date(far.getTime() + 8 * 86_400_000) }]) === null);
+    assert.ok(findBestMatch({ ...doc(a), at: far }, [{ ...doc(b), at: new Date(far.getTime() + 6 * 86_400_000) }]) !== null);
   });
 });

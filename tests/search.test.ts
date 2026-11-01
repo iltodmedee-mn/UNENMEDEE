@@ -30,6 +30,11 @@ describe("₮ chips", () => {
     assert.equal(amountValue("1 250 000 ₮"), 1_250_000);
     assert.equal(largestAmount(["850 сая ₮", "1,2 тэрбум ₮", "3 000 000 ₮"]), "1,2 тэрбум ₮");
     assert.equal(largestAmount([]), undefined);
+    // Nothing in ₮: no ₮ chip at all (the first entry used to be shown).
+    assert.equal(largestAmount(["5 сая доллар"]), undefined);
+    // A comma before three digits groups thousands, also before a unit word.
+    assert.equal(amountValue("2,500 сая ₮"), 2_500_000_000);
+    assert.equal(amountValue("12,5 тэрбум ₮"), 12_500_000_000);
   });
 
   it("reads mixed separators, refuses foreign currency and amounts without digits", () => {

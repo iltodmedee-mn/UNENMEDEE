@@ -120,3 +120,23 @@ describe("digest final list", () => {
     assert.equal(finalItems([aiItem(1)], candidates, monthly).fromAI, true);
   });
 });
+
+describe("digest editor answer", () => {
+  it("drops a bad item instead of failing the edition, and never prints null", () => {
+    const r = DigestSchema.parse({
+      title: "Өглөөний тойм",
+      intro: "Өнөөдрийн хамгийн чухал мэдээнүүдийг товчлон хүргэж байна.",
+      items: [
+        { id: 3, headline: "Сайн гарчиг энд", why: null },
+        { id: "12a", headline: "Буруу дугаартай", why: "y" },
+        { id: "7", headline: "Өөр гарчиг энд", why: "Яагаад" },
+        { id: 8, headline: null, why: "z" },
+      ],
+    });
+    assert.deepEqual(r.items, [
+      { id: 3, headline: "Сайн гарчиг энд", why: "" },
+      { id: 7, headline: "Өөр гарчиг энд", why: "Яагаад" },
+    ]);
+  });
+});
+

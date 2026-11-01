@@ -92,7 +92,7 @@ export async function analyzeArticle(input: ArticleForAI, opts: AnalyzeOptions =
 
   const t1 = await callAIWithFallback({
     tier: "tier1",
-    purpose: opts.purpose ?? "tier1",
+    purpose: opts.purpose === "admin" ? "admin_tier1" : (opts.purpose ?? "tier1"),
     articleId: opts.articleId,
     messages: tier1Messages(input),
     schema: Tier1Schema,
@@ -120,7 +120,7 @@ export async function analyzeArticle(input: ArticleForAI, opts: AnalyzeOptions =
     try {
       const t2 = await callAIWithFallback({
         tier: "tier2",
-        purpose: opts.purpose === "admin" ? "admin" : "tier2",
+        purpose: opts.purpose === "admin" ? "admin_tier2" : "tier2",
         articleId: opts.articleId,
         messages: tier2Messages(input, tier1),
         schema: Tier2Schema,
@@ -213,10 +213,13 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
       entities: articles.extractedEntities,
       clusterId: articles.clusterId,
       sourceId: articles.sourceId,
+      publishedAt: articles.publishedAt,
     })
     .from(articles)
-    .where(and(isNotNull(articles.tldrSummary), eq(articles.isPublished, true), gte(articles.createdAt, since)))
-    .orderBy(desc(articles.createdAt));
+    // Publication time, not the time we found the row: a backfill or a slow source found an old
+    // notice "this week" and joined it to a new one (cluster 6, Oct 2026).
+    .where(and(isNotNull(articles.tldrSummary), eq(articles.isPublished, true), gte(articles.publishedAt, since)))
+    .orderBy(desc(articles.publishedAt));
 
   const toDoc = (r: (typeof pool)[number]): ClusterDoc => ({
     id: r.id,
@@ -224,6 +227,7 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
     summary: `${r.tldr ?? ""} ${(r.facts?.facts ?? []).join(" ")}`,
     entities: r.entities,
     clusterId: r.clusterId,
+    at: r.publishedAt,
   });
   const byId = new Map(pool.map((r) => [r.id, r]));
   const touched = new Set<number>();

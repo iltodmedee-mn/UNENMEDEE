@@ -86,18 +86,30 @@ export const ClusterSchema = z.object({
 
 export type ClusterResult = z.output<typeof ClusterSchema>;
 
+/** A model's text field: strings and numbers as written, anything else (null, objects) empty. */
+const plain = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : "");
+
+/**
+ * One editor item. Checked one by one: with `z.coerce.string()` a null "why" was printed as
+ * "null", and one item with an id like "12a" failed the whole edition (repair call, then the
+ * rule-based fallback) although nine items were fine. A bad item is dropped instead.
+ */
+const DigestItemSchema = z.object({
+  id: z.union([z.number(), z.string().regex(/^\s*\d+\s*$/)]).transform(Number).pipe(z.number().int().positive()),
+  headline: z.unknown().transform((v) => plain(v).slice(0, 240)).pipe(z.string().min(5)),
+  why: z.unknown().transform((v) => plain(v).slice(0, 600)),
+});
+
 export const DigestSchema = z.object({
-  title: z.coerce.string().transform((s) => s.trim().slice(0, 200)).refine((s) => s.length >= 5, "title is empty"),
-  intro: z.coerce.string().transform((s) => s.trim()).refine((s) => s.length >= 30, "intro is empty"),
+  title: z.unknown().transform((v) => plain(v).slice(0, 200)).refine((s) => s.length >= 5, "title is empty"),
+  intro: z.unknown().transform(plain).refine((s) => s.length >= 30, "intro is empty"),
   items: z
-    .array(
-      z.object({
-        id: z.coerce.number().int(),
-        headline: z.coerce.string().transform((s) => s.trim().slice(0, 240)),
-        why: z.coerce.string().transform((s) => s.trim().slice(0, 600)),
-      }),
-    )
-    .min(1),
+    .array(z.unknown())
+    .transform((list) => list.flatMap((item) => {
+      const r = DigestItemSchema.safeParse(item);
+      return r.success ? [r.data] : [];
+    }))
+    .refine((list) => list.length >= 1, "no usable items"),
 });
 
 export type DigestResult = z.output<typeof DigestSchema>;

@@ -104,7 +104,9 @@ function parseAmountNumber(raw: string, hasUnit: boolean): number {
   if (!sep) return Number(s);
   if (commas + dots > 1) return Number(s.split(sep).join("")); // 1.250.000
   const tail = s.length - s.indexOf(sep) - 1;
-  return Number(!hasUnit && tail === 3 ? s.replace(sep, "") : s.replace(sep, "."));
+  // A comma before exactly three digits groups thousands even before a unit word ("2,500 сая" =
+  // 2.5 тэрбум, not 2.5 сая); "12,5 тэрбум" and "1.250 тэрбум" read as decimals.
+  return Number(tail === 3 && (!hasUnit || sep === ",") ? s.replace(sep, "") : s.replace(sep, "."));
 }
 
 /** "12,5 тэрбум ₮" → 12 500 000 000 (best effort, null when unreadable or not in ₮). Mirrors amountToNumber in the scraper. */
@@ -117,12 +119,15 @@ export function amountValue(amount: string): number | null {
   return Number.isFinite(n) ? n * (AMOUNT_UNITS[unitWord ?? ""] ?? 1) : null;
 }
 
-/** The biggest of the extracted ₮ amounts (the chip on a story row), or the first when none parse. */
+/**
+ * The biggest of the extracted ₮ amounts (the chip on a story row), or undefined when none reads
+ * as ₮: the first entry used to be the fallback, so "5 сая доллар" got the ₮ chip.
+ */
 export function largestAmount(amounts: string[]): string | undefined {
   let best: { text: string; value: number } | undefined;
   for (const text of amounts) {
     const value = amountValue(text);
     if (value !== null && (!best || value > best.value)) best = { text, value };
   }
-  return best?.text ?? amounts[0];
+  return best?.text;
 }
