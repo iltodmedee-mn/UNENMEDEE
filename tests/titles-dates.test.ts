@@ -133,7 +133,10 @@ describe("shouting headlines", () => {
   });
   it("leaves normal and short titles alone", () => {
     assert.equal(unshoutTitle("АНУ: Крипто хөрөнгө холигч үйлчилгээнд тавих хяналт"), "АНУ: Крипто хөрөнгө холигч үйлчилгээнд тавих хяналт");
-    assert.equal(unshoutTitle("ХУРАЛ БОЛНО"), "ХУРАЛ БОЛНО");
+    assert.equal(unshoutTitle("ХУРАЛ БОЛНО"), "Хурал болно");
+    for (const t of ["Тендерийн урилга", "Цахим уулзалт | ТТХГ"]) assert.ok(isGenericTitle(t, ["ТТХГ"]), t);
+    assert.equal(unshoutTitle("МЭНДЧИЛГЭЭ"), "МЭНДЧИЛГЭЭ", "one word stays as written");
+    assert.equal(unshoutTitle("ОЮУ ТОЛГОЙ"), "Оюу Толгой");
   });
 });
 
@@ -216,6 +219,9 @@ describe("publishing undated pages", () => {
     assert.equal(publishDecision(null, "Хууль эрх зүйн хэлтэс нь яамны хууль тогтоомжийн хэрэгжилтийг хангах чиг үүрэгтэй. Хэлтсийн дарга, мэргэжилтнүүд.", now), false, "department page");
     assert.equal(publishDecision(null, "Монгол Улсын Засгийн газрын 2020-2024 оны үйл ажиллагааны хөтөлбөрийн хүрээнд авто зам, төмөр зам.", now), false, "old programme");
     assert.ok(isTimelessPage("Есөн гайхамшиг: Буйр нуур, Халхын гол, Хэрлэн мөрөн.", now));
+    // A target year is not the page's time: an old programme naming "2030 он хүртэл" stays hidden.
+    assert.equal(publishDecision(null, "2019 онд баталсан хөтөлбөр. 2030 он хүртэл авто замыг шинэчилнэ.", now), false, "target year");
+    assert.equal(newestYearMentioned(`${y} оноос ${y + 4} он хүртэл`, now), y);
   });
   it("still trusts a dated item inside the window", () => {
     assert.equal(publishDecision(new Date(now.getTime() - 3 * 86_400_000), "Текст.", now), null);

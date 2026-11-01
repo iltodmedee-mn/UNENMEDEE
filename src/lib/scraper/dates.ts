@@ -2,12 +2,17 @@
  * Pure date heuristics shared by the DB sink and the backfill script (no jsdom here).
  */
 
-/** Newest year (2000–2100) the text mentions, or null. */
-export function newestYearMentioned(text: string): number | null {
+/**
+ * Newest year the text mentions, up to next year in Ulaanbaatar, or null. A later year is a target
+ * ("2030 он хүртэл", "Алсын хараа 2050"), not the page's time: counted, a 2019 programme page
+ * looked current and reached the feed as today's news.
+ */
+export function newestYearMentioned(text: string, now = new Date()): number | null {
+  const last = ubYear(now) + 1;
   let max: number | null = null;
   for (const m of text.matchAll(/(?<!\d)(20\d{2})(?!\d)/g)) {
     const y = +m[1];
-    if (y <= 2100 && (max === null || y > max)) max = y;
+    if (y <= last && (max === null || y > max)) max = y;
   }
   return max;
 }
@@ -23,7 +28,7 @@ function hasFullDate(text: string): boolean {
  * past year in passing ("2011 онд") has no full date and is not judged.
  */
 export function looksOld(text: string, now = new Date()): boolean {
-  const year = newestYearMentioned(text);
+  const year = newestYearMentioned(text, now);
   return year !== null && year < ubYear(now) - 1 && hasFullDate(text);
 }
 
@@ -47,7 +52,7 @@ export function publishDecision(publishedAt: Date | null, text: string, now = ne
  * reached the crawler through section links and were filling the home page as "today's" stories.
  */
 export function isTimelessPage(text: string, now = new Date()): boolean {
-  const year = newestYearMentioned(text);
+  const year = newestYearMentioned(text, now);
   return year === null || year < ubYear(now) - 1;
 }
 

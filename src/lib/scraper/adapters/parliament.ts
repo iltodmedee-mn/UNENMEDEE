@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { cleanTitle, htmlFragmentToText, MIN_ARTICLE_CHARS } from "../extractor";
+import { htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
 import { politeFetch } from "../http";
 import type { ScrapedItem } from "../types";
 
@@ -39,7 +39,7 @@ export function parliamentArticleToScraped(a: ParliamentArticle): ScrapedItem | 
   const date = a.published_at ? new Date(a.published_at) : null;
   return {
     url: `https://parliament.mn/parliament-news/detail/${encodeURIComponent(a.slug)}`,
-    title: cleanTitle(a.title),
+    title: plainTitle(a.title),
     text,
     publishedAt: date && !Number.isNaN(date.getTime()) ? date : null,
   };

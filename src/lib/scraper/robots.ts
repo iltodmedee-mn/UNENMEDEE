@@ -116,7 +116,9 @@ export function parseRobots(text: string, agent: string = BOT_NAME): RobotsPolic
   }
 
   // Prefer groups naming our bot; otherwise merge every `*` group.
-  let selected = groups.filter((g) => g.agents.some((a) => a !== "*" && ua.includes(a)));
+  // RFC 9309: a group names our product token, compared as a whole token (case-insensitive). A
+  // substring match let "User-agent: bot" or "User-agent: i" groups meant for others apply to us.
+  let selected = groups.filter((g) => g.agents.some((a) => a === ua || a.startsWith(`${ua}/`)));
   if (selected.length === 0) selected = groups.filter((g) => g.agents.includes("*"));
   const rules = selected.flatMap((g) => g.rules);
   const delays = selected.map((g) => g.crawlDelay).filter((d): d is number => d !== undefined);

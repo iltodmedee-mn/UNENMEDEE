@@ -1,13 +1,14 @@
 import "./net-setup";
-import { CheerioCrawler, Configuration, gotScraping, log, PlaywrightCrawler } from "crawlee";
+import { CheerioCrawler, Configuration, gotScraping, log, LoggerText, type LogLevel, PlaywrightCrawler } from "crawlee";
 
 import { extractTenderMeta, hasTenderSignals } from "./adapters/tender";
-import { cleanTitle, extractArticle, htmlFragmentToText, MIN_ARTICLE_CHARS, parseDateValue } from "./extractor";
+import { extractArticle, htmlFragmentToText, MIN_ARTICLE_CHARS, parseDateValue, plainTitle } from "./extractor";
 import { findFeedUrl, harvestArticleLinks, harvestSectionLinks, isWordPress, parseFeed, sameSite, wordPressApiBase, wordPressPostsUrl, wordPressPostUrl } from "./links";
 import { oneLine } from "@/lib/log-safe";
 
 import { assertPublicHostLiteral, guardGotOptions, isPublicHost } from "./net-guard";
 import { getRobots, MAX_CRAWL_DELAY_MS, MIN_DOMAIN_DELAY_MS, type RobotsPolicy, USER_AGENT } from "./robots";
+import { isGenericTitle, looksLikeNavigation } from "./titles";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "./types";
 
 /** Storage hooks so the crawler works with the DB or in --dry-run mode. */
@@ -147,7 +148,9 @@ export function errorMessage(error: unknown): string {
   const inner = [e.cause, ...(e.errors ?? [])].find((x): x is Error & { code?: string } => x instanceof Error);
   const text = e.message.split("\n")[0].trim() || inner?.message.split("\n")[0].trim() || "";
   const code = e.code ?? inner?.code ?? (inner?.cause as { code?: string } | undefined)?.code;
-  return (code && !text.includes(code) ? `${code} ${text}` : text || e.name).trim().slice(0, 300);
+  // One line: the text reaches the Actions log and `last_error`, and a publisher's error page can
+  // put a line break (and a "::error::" workflow command) into it.
+  return oneLine((code && !text.includes(code) ? `${code} ${text}` : text || e.name).trim()).slice(0, 300);
 }
 
 /**
@@ -157,7 +160,19 @@ export function errorMessage(error: unknown): string {
  * Different domains run in parallel; each domain gets >= 8s between requests and
  * robots.txt is respected. One dead site never fails the batch.
  */
+/**
+ * Crawlee's warnings quote request errors, which can carry a publisher's text: each message is
+ * printed on one line, so nothing a site sends can start a "::error::" workflow command line.
+ */
+class OneLineLogger extends LoggerText {
+  override _log(level: LogLevel, message: string, data?: unknown, exception?: unknown, opts?: Record<string, unknown>): string {
+    const safe = exception instanceof Error ? Object.assign(new Error(oneLine(exception.message)), { name: exception.name, stack: undefined }) : exception;
+    return super._log(level, oneLine(message, 1000), data, safe, opts);
+  }
+}
+
 export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts: CrawlOptions): Promise<SourceRunResult[]> {
+  log.setOptions({ logger: new OneLineLogger() });
   log.setLevel(log.LEVELS.WARNING);
   const progress = opts.onProgress ?? (() => {});
   const deadline = Date.now() + opts.budgetMs;
@@ -195,14 +210,16 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   // (one site's 20 s used to slow all 122 domains to 20 s).
   const delayByHost = new Map(sources.map((s, i) => [new URL(s.urlPattern).hostname, domainDelayMs(policies[i])]));
   const lastRequestAt = new Map<string, number>();
+  // The slot is reserved before sleeping (like DomainThrottle): two concurrent requests to one
+  // host both read the same "last request" time, slept the same amount and fired together.
   const politeWait = async (url: string) => {
     const host = new URL(url).hostname;
     const want = delayByHost.get(host) ?? MIN_DOMAIN_DELAY_MS;
-    if (want > MIN_DOMAIN_DELAY_MS) {
-      const since = Date.now() - (lastRequestAt.get(host) ?? 0);
-      if (since < want) await sleep(want - since);
-    }
-    lastRequestAt.set(host, Date.now());
+    if (want <= MIN_DOMAIN_DELAY_MS) return; // Crawlee's sameDomainDelaySecs covers the 8 s floor
+    const now = Date.now();
+    const slot = Math.max(now, (lastRequestAt.get(host) ?? 0) + want);
+    lastRequestAt.set(host, slot);
+    if (slot > now) await sleep(slot - now);
   };
 
   // ---------------------------------------------------------------- shared logic
@@ -282,7 +299,12 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
           return handleFeed(state, data, html, add);
         case "ARTICLE": {
           const article = extractArticle(html, loadedUrl);
-          if (article) {
+          // A JavaScript site's article URL returns its shell over HTTP: the site's own title over
+          // the menu text. Stored, the URL was "known" and never read in the browser, so
+          // sport.gov.mn had no published story at all (Nov 2026 audit). The browser pass reads it;
+          // only a shell the browser also returns is stored (unpublished, by db-sink).
+          const shell = article && isGenericTitle(article.title, [state.source.name]) && looksLikeNavigation(article.text);
+          if (article && !(shell && mode === "http")) {
             await saveItem(state, { url, title: article.title, text: article.text, publishedAt: article.publishedAt });
           } else if (mode === "http") {
             state.queuedArticles -= 1; // give the slot back; the browser pass may fill it
@@ -504,7 +526,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
       const date = post.date_gmt ? new Date(`${post.date_gmt}Z`) : parseDateValue(post.date);
       await saveItem(state, {
         url: link,
-        title: cleanTitle(htmlFragmentToText(post.title?.rendered ?? "")) || text.slice(0, 100),
+        title: plainTitle(htmlFragmentToText(post.title?.rendered ?? "")) || text.slice(0, 100),
         text,
         publishedAt: date && !Number.isNaN(date.getTime()) ? date : null,
       });
@@ -536,6 +558,13 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   );
 
   const forBrowser = [...states.values()].filter((s) => s.needsBrowserListing || s.needsBrowserArticles.length);
+  // Without a browser this run (--no-browser after a failed Chromium install, or a launch error
+  // below) a JavaScript-only listing was not tried: it keeps its place instead of backing off as
+  // "listing reached but no articles were stored".
+  const keepJsSources = () => {
+    for (const s of forBrowser) if (keepsPlace(s)) s.completed = false;
+  };
+  if (!browserEnabled) keepJsSources();
   if (browserEnabled && forBrowser.length) {
     progress(`🖥  Rendering ${forBrowser.length} JavaScript-heavy source(s) in headless Chromium…`);
     try {
@@ -560,6 +589,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
       if (!ran) for (const s of forBrowser) if (keepsPlace(s)) s.completed = false;
     } catch (err) {
       for (const s of forBrowser) s.completed = true;
+      keepJsSources();
       progress(`  ✗ Browser pass unavailable: ${errorMessage(err)} (set CHROMIUM_EXECUTABLE_PATH or run \`npx playwright install chromium\`)`);
     }
   }
