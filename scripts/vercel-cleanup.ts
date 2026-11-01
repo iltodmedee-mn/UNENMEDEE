@@ -51,6 +51,9 @@ async function main() {
     if (!until) break;
   }
 
+  if (!current || !all.some((d) => d.uid === current)) {
+    console.log(`::warning::The deployment serving production (${current ?? "unknown"}) is not in the list: deleting nothing this run.`);
+  }
   const doomed = deploymentsToDelete(all, { keepProduction, currentProductionId: current });
   console.log(`🗂 ${all.length} deployment(s); keeping ${all.length - doomed.length}, deleting ${doomed.length}${values["dry-run"] ? " (dry run)" : ""}.`);
   let deleted = 0;

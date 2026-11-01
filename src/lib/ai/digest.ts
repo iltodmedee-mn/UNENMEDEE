@@ -333,19 +333,29 @@ export async function createDigest(db: DB, opts: DigestOptions): Promise<DigestR
     }
   }
 
-  const [digest] = await db
-    .insert(digests)
-    .values({
-      kind: plan.kind,
-      periodStart: plan.periodStart,
-      periodEnd: plan.periodEnd,
-      title,
-      intro,
-      items,
-      candidateCount: candidates.length,
-      generatedBy,
-      costUsd: costUsd.toFixed(6),
-    })
-    .returning();
-  return { status: "created", digest };
+  // The check at the top ran before a minute of model calls: the pipeline's due step and
+  // news-digest.yml (separate concurrency groups) could both pass it and publish two editions.
+  // Checked again under a per-kind lock, in the transaction that inserts.
+  return db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(hashtext(${`digest:${opts.kind}`}))`);
+    const [latest] = await tx.select({ createdAt: digests.createdAt }).from(digests).where(eq(digests.kind, opts.kind)).orderBy(desc(digests.createdAt)).limit(1);
+    if (!opts.force && latest && latest.createdAt.getTime() > (last?.createdAt.getTime() ?? 0) && now.getTime() - latest.createdAt.getTime() < minGapMs) {
+      return { status: "skipped" as const, reason: `another run created an edition at ${latest.createdAt.toISOString()}` };
+    }
+    const [digest] = await tx
+      .insert(digests)
+      .values({
+        kind: plan.kind,
+        periodStart: plan.periodStart,
+        periodEnd: plan.periodEnd,
+        title,
+        intro,
+        items,
+        candidateCount: candidates.length,
+        generatedBy,
+        costUsd: costUsd.toFixed(6),
+      })
+      .returning();
+    return { status: "created" as const, digest };
+  });
 }

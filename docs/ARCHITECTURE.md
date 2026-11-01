@@ -23,7 +23,7 @@ part is optional AI, capped at $3 a month.
 ```mermaid
 flowchart LR
   subgraph GH["GitHub Actions (cron)"]
-    S["scrape<br/>hourly"] --> A["ai:process"]
+    S["scrape<br/>every 30 min"] --> A["ai:process"]
     D["digest + data syncs<br/>08:07 / 20:07 UB"]
     O["officials:sync<br/>weekly"]
     W["watchdog daily<br/>keepalive daily"]
@@ -42,7 +42,7 @@ database is the only shared state between the two halves.
 
 | Job | Schedule | Script | Writes |
 |---|---|---|---|
-| News pipeline | hourly (two crons, :17 even hours and :47 odd hours; GitHub may skip some) | `scripts/run-scraper.ts`, `scripts/process-ai.ts` | `articles`, `clusters`, `ai_usage_logs` |
+| News pipeline | every 30 min (four crons: :17 and :32 on even UTC hours, :02 and :47 on odd ones; GitHub may skip some, and a pg_cron fallback dispatches the workflow after 60 min without a start, `docs/PIPELINE-FALLBACK.md`) | `scripts/run-scraper.ts`, `scripts/process-ai.ts` | `articles`, `clusters`, `ai_usage_logs` |
 | Digest + data | 08:07, 20:07 Ulaanbaatar | `digest`, `data:sync`, `macro:sync`, `budget:sync`, `db:prune` | `digests`, `open_datasets`, `indicator_snapshots` |
 | Officials | weekly | `officials:sync` | `politicians`, `asset_declarations` |
 | Source discovery | weekly | `sources:discover` | `sources` |

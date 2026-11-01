@@ -93,6 +93,15 @@ describe("database backup and restore", () => {
     assert.equal(r.n, again.articles, "upsert, no duplicates");
   });
 
+  it("restores all or nothing: a bad line at the end leaves no rows behind", async () => {
+    const { importLines } = await import("@/lib/backup");
+    const before = (await rowsOf(target, sql`select count(*)::int as n from app_settings where key = 'restore-atomic-probe'`))[0].n;
+    const probe = JSON.stringify({ t: "app_settings", r: { key: "restore-atomic-probe", value: "x", updatedAt: "2026-10-22T05:00:00.000Z" } });
+    await assert.rejects(importLines(target, [probe, '{"t":"articles"}']), /not a backup line/);
+    const after = (await rowsOf(target, sql`select count(*)::int as n from app_settings where key = 'restore-atomic-probe'`))[0].n;
+    assert.equal(after, before);
+  });
+
   it("restores only the tables asked for and refuses unknown ones", async () => {
     const { importLines } = await import("@/lib/backup");
     await target.update(schema.appSettings).set({ value: "changed" }).where(sql`key = 'vapid_private_key'`);

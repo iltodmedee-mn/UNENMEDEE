@@ -56,8 +56,10 @@ async function core(): Promise<CoreSnapshot> {
     (select count(*) from articles where is_published and summary_fallback and created_at > now() - interval '24 hours')::int as fallback_24h,
     (select coalesce(json_agg(generated_by), '[]'::json) from (select generated_by from digests where kind = '12h' order by created_at desc limit 4) d) as recent_digests,
     (select count(*) from (
-      select date_trunc('day', created_at + interval '8 hours') as day from ai_usage_logs
-      where created_at > now() - interval '7 days' group by 1 having sum(estimated_cost_usd) >= ${dailyUsd * 0.9}
+      -- The budget guard's own day: UTC, without the prepaid ElevenLabs plan (loadUsageSnapshot).
+      -- An Ulaanbaatar day with the voice credits counted reported days the cap never saw.
+      select date_trunc('day', created_at at time zone 'UTC') as day from ai_usage_logs
+      where created_at > now() - interval '7 days' and provider <> 'elevenlabs' group by 1 having sum(estimated_cost_usd) >= ${dailyUsd * 0.9}
     ) p)::int as paid_cap_days,
     extract(epoch from now() - (select max(source_checked_at) from articles)) / 3600 as hours_since_recheck`);
   const digests = typeof r.recent_digests === "string" ? JSON.parse(r.recent_digests) : r.recent_digests;
