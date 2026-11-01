@@ -25,9 +25,33 @@ export function isAllowedPushEndpoint(endpoint: string): boolean {
   }
 }
 
+/** Bytes of a base64url (or base64) string, or null when it is not one. */
+export function base64UrlBytes(value: string): Uint8Array | null {
+  if (!/^[A-Za-z0-9_\-+/]+={0,2}$/.test(value)) return null;
+  try {
+    return new Uint8Array(Buffer.from(value.replace(/-/g, "+").replace(/_/g, "/"), "base64"));
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The keys a browser hands out: p256dh is an uncompressed P-256 point (65 bytes, 0x04 first) and
+ * auth a 16-byte secret. Only the lengths were checked, so a stored junk key made web-push throw
+ * on every send, and that subscription was retried on every run.
+ */
+export const isP256dh = (v: string) => {
+  const b = base64UrlBytes(v);
+  return b !== null && b.length === 65 && b[0] === 0x04;
+};
+export const isAuthSecret = (v: string) => base64UrlBytes(v)?.length === 16;
+
 export const SubscriptionSchema = z.object({
   endpoint: z.string().max(1_000).refine(isAllowedPushEndpoint, "unsupported push service"),
-  keys: z.object({ p256dh: z.string().min(20).max(200), auth: z.string().min(8).max(100) }),
+  keys: z.object({
+    p256dh: z.string().min(20).max(200).refine(isP256dh, "invalid p256dh key"),
+    auth: z.string().min(8).max(100).refine(isAuthSecret, "invalid auth secret"),
+  }),
 });
 
 export type SubscriptionInput = z.infer<typeof SubscriptionSchema>;

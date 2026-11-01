@@ -19,6 +19,10 @@ describe("push subscriptions", () => {
     const ok = SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(87), auth: "a".repeat(22) } });
     assert.ok(ok.success);
     assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/x", keys: { p256dh: "short", auth: "x" } }).success, false);
+    // Long enough but not a P-256 point / 16-byte secret: refused (web-push threw on every send).
+    assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "A".repeat(87), auth: "a".repeat(22) } }).success, false);
+    assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(87), auth: "a".repeat(40) } }).success, false);
+    assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(86) + "!", auth: "a".repeat(22) } }).success, false);
   });
 });
 

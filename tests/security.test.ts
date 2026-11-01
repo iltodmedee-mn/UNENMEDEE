@@ -11,6 +11,8 @@ describe("SSRF guard", () => {
       assert.equal(isPrivateAddress(ip), true, ip);
     }
     for (const ip of ["8.8.8.8", "172.32.0.1", "202.131.0.1", "2606:4700:4700::1111"]) assert.equal(isPrivateAddress(ip), false, ip);
+    // Every spelling of a private IPv6 class is private (they used to be matched as text).
+    for (const ip of ["0:0:0:0:0:0:0:1", "0000::1", "0:0::1", "FD12:3456::1", "fe80:0:0::1", "FEBF::1", "fec0::1", "ff02::1"]) assert.equal(isPrivateAddress(ip), true, ip);
   });
 
   it("sees through every IPv6 spelling of an IPv4 host", () => {

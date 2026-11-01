@@ -23,6 +23,10 @@ export const Response = memo(
       // No image download button: AI text has no images, and the control's fallback opened
       // the image URL in a new tab with window.opener (tabnabbing). Local edit, see CLAUDE.md.
       controls={{ image: false }}
+      // No images at all: model text never needs one, and a reply carrying
+      // "![](https://tracker/x.png)" made every reader's browser fetch that URL (streamdown 2
+      // has no image allow-list). Local edit, see CLAUDE.md.
+      components={{ img: () => null }}
       {...props}
     />
   ),
