@@ -54,6 +54,7 @@ export async function ogImage({
   share,
   tone = "light",
   dot,
+  photo,
 }: {
   eyebrow: string;
   title: string;
@@ -65,6 +66,8 @@ export async function ogImage({
   tone?: "light" | "dark";
   /** The topic's colour for the eyebrow square. */
   dot?: string;
+  /** An official portrait as a data URI (MP profiles: parliament.mn's own photo), drawn round on the right. */
+  photo?: string | null;
 }) {
   const [data, [display, mono], markSrc] = await Promise.all([loadFonts(), loadCardFonts(), loadMark()]);
   const c = CARD[tone];
@@ -85,7 +88,15 @@ export async function ogImage({
             <span>{eyebrow.length > 44 ? `${eyebrow.slice(0, 43)}…` : eyebrow}</span>
           </div>
         </div>
-        <div style={{ display: "flex", fontFamily: DISPLAY_FAMILY, fontSize: size, lineHeight: 1.04, letterSpacing: -2 }}>{title.length > 140 ? `${title.slice(0, 137)}…` : title}</div>
+        <div style={{ display: "flex", alignItems: "center", gap: 48 }}>
+          <div style={{ display: "flex", flex: 1, fontFamily: DISPLAY_FAMILY, fontSize: photo ? Math.min(size, 62) : size, lineHeight: 1.04, letterSpacing: -2 }}>{title.length > 140 ? `${title.slice(0, 137)}…` : title}</div>
+          {photo && (
+            <div style={{ display: "flex", width: 270, height: 270, borderRadius: 135, overflow: "hidden", border: `6px solid ${c.line}`, flexShrink: 0 }}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img> */}
+              <img src={photo} width={270} height={360} style={{ width: 270, height: 360 }} alt="" />
+            </div>
+          )}
+        </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: `1px solid ${c.line}`, paddingTop: 22 }}>
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             {amount && <div style={{ display: "flex", background: SIGNAL, color: SIGNAL_INK, fontFamily: MONO_FAMILY, fontSize: 22, padding: "8px 14px", borderRadius: 6 }}>{amount}</div>}
