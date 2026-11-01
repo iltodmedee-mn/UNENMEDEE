@@ -124,7 +124,7 @@ export function FilterChat() {
       tldr: r.tldr ?? "",
       facts: r.facts ?? [],
       spin: r.spin ?? "",
-      neutrality: r.neutrality ?? 0,
+      neutrality: r.neutrality ?? null,
       riskScore: r.riskScore ?? 0,
       amounts: r.amounts ?? [],
       deepMarkdown: r.deepMarkdown ?? null,

@@ -20,7 +20,9 @@ import { articles, sources } from "@/db/schema";
 import { legalinfoDetailText } from "@/lib/scraper/adapters/legalinfo";
 import { parsePoliceArticle } from "@/lib/scraper/adapters/police";
 import { extractArticleSafe } from "@/lib/scraper/extract-safe";
+import { htmlFragmentToText } from "@/lib/scraper/extractor";
 import { politeFetch } from "@/lib/scraper/http";
+import { isWordPress, sameSite, wordPressApiBase, wordPressPostId, wordPressPostsUrl } from "@/lib/scraper/links";
 import { decide, type FetchResult, MIN_FRESH_CHARS, type SourceDiff, type SourceStatus } from "@/lib/scraper/recheck";
 
 const { values } = parseArgs({
@@ -65,7 +67,29 @@ async function fetchText(row: Row): Promise<FetchResult> {
   const html = await res.text();
   if (row.domain === "police.gov.mn") return { kind: "text", text: parsePoliceArticle(html).text };
   if (row.domain === "legalinfo.mn") return { kind: "text", text: legalinfoDetailText(html) };
+  // WordPress posts were stored from the REST API's `content.rendered` (crawl.ts handleWpApi):
+  // read them the same way. Readability drops paragraphs that are on the page, which made
+  // unchanged mod.gov.mn posts read as "changed" by the government (Nov 2026 audit).
+  const wp = isWordPress(html) ? await wordPressText(html, row) : null;
+  if (wp !== null) return { kind: "text", text: wp };
   return { kind: "text", text: (await extractArticleSafe(html, row.url))?.text ?? "" };
+}
+
+/** The post's REST content as text, or null (not a post, API closed, or another site's base). */
+async function wordPressText(html: string, row: Row): Promise<string | null> {
+  const id = wordPressPostId(html);
+  if (!id) return null;
+  const advertised = wordPressApiBase(html, row.url);
+  const base = sameSite(new URL(advertised).hostname, row.domain) ? advertised : `${new URL(row.url).origin}/wp-json/`;
+  try {
+    const res = await politeFetch(wordPressPostsUrl(base, `include=${id}&_fields=id,content`), { timeoutMs: 30_000 });
+    if (!res.ok) return null;
+    const posts = JSON.parse(await res.text()) as unknown;
+    const rendered = Array.isArray(posts) ? (posts[0] as { content?: { rendered?: unknown } } | undefined)?.content?.rendered : undefined;
+    return typeof rendered === "string" ? htmlFragmentToText(rendered) : null;
+  } catch {
+    return null;
+  }
 }
 
 async function main() {

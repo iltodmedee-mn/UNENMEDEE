@@ -72,12 +72,22 @@ async function runSample() {
   console.log(`\nTotal cost: $${out.costUsd.toFixed(6)}`);
 }
 
-/** Gives stale or unprocessable articles an extractive summary (labelled "AI ажиллаагүй" on the page). */
+/**
+ * Gives stale or unprocessable published articles an extractive summary (labelled "AI
+ * ажиллаагүй" on the page). Unpublished rows (kept for dedupe) are never shown, so they get none:
+ * 503 such rows once carried a fallback and were counted as "AI-аар шүүгдсэн".
+ */
 async function applyFallbacks(db: ReturnType<typeof getDb>) {
   const stale = await db
     .select({ id: articles.id, text: articles.cleanContent, title: articles.title })
     .from(articles)
-    .where(and(isNull(articles.tldrSummary), or(isNotNull(articles.aiError), lt(articles.createdAt, new Date(Date.now() - FALLBACK_AFTER_HOURS * 3_600_000)))))
+    .where(
+      and(
+        isNull(articles.tldrSummary),
+        eq(articles.isPublished, true),
+        or(isNotNull(articles.aiError), lt(articles.createdAt, new Date(Date.now() - FALLBACK_AFTER_HOURS * 3_600_000))),
+      ),
+    )
     .limit(300);
   for (const a of stale) {
     const tldr = extractiveSummary(a.text) || a.title;

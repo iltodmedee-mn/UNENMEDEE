@@ -3,6 +3,7 @@ import { z } from "zod";
 import { isAiTopic } from "@/lib/topics";
 import { RISK_FLAG_THRESHOLD } from "@/lib/types";
 
+import { cleanModelText } from "./fact-spin";
 import { cleanImpact, cleanReaderTitle } from "./reader-view";
 
 /** LLMs sometimes return numbers as strings or out of range: coerce and clamp. */
@@ -18,18 +19,25 @@ const optionalScore = z.unknown().transform((v) => {
   return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null;
 });
 
+/**
+ * A model text field. `z.coerce.string()` turned a missing key into the text "undefined" (zod 4)
+ * and an object into "[object Object]"; both reached the article page and the Tier-2 prompt.
+ */
+const text = z.unknown().optional().transform((v) => cleanModelText(typeof v === "number" ? String(v) : v));
+
 const stringList = (max: number) =>
   z
-    .array(z.coerce.string())
+    .array(z.unknown())
     .catch([])
-    .transform((xs) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))].slice(0, max));
+    .transform((xs) => [...new Set(xs.map((x) => cleanModelText(typeof x === "number" ? String(x) : x)).filter(Boolean))].slice(0, max));
 
 export const Tier1Schema = z
   .object({
     tldr_summary: z.union([z.string(), z.array(z.string())]).transform((v) => (Array.isArray(v) ? v.join("\n") : v).trim()),
     facts: stringList(12),
-    spin_detected: z.coerce.string().catch(""),
-    neutrality_score: score,
+    spin_detected: text,
+    // Null when the model gave no assessment: a default of 0 printed "Пи-ар 100%" on official news.
+    neutrality_score: optionalScore.optional(),
     entities: z
       .object({
         people: stringList(20),
@@ -38,7 +46,7 @@ export const Tier1Schema = z
       })
       .catch({ people: [], orgs: [], amounts_mnt: [] }),
     risk_score: score,
-    risk_reason: z.coerce.string().catch(""),
+    risk_reason: text,
     importance_score: optionalScore.optional(),
     /** Unknown or missing topics become null (the source domain decides). */
     topic: z
@@ -53,6 +61,7 @@ export const Tier1Schema = z
   // risk_flag is derived deterministically, never trusted from the model.
   .transform((v) => ({
     ...v,
+    neutrality_score: v.neutrality_score ?? null,
     importance_score: v.importance_score ?? null,
     topic: v.topic ?? null,
     reader_title: v.reader_title ?? null,

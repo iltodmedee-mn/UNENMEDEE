@@ -19,7 +19,6 @@
 import type { ReaderImpact } from "@/lib/types";
 
 import { amountWords, weighsOrAccuses } from "./money-video";
-import { numberWords } from "./mn-numbers";
 import type { Sentence } from "./price-video";
 
 /** Notices and ceremonies score lower; a decision people feel scores 65+. */
@@ -81,11 +80,13 @@ export function spokenText(text: string): string {
     const n = Number(m);
     return n >= 1 && n <= 12 ? `${MONTHS[n - 1]} сар` : all;
   });
-  t = t.replace(/(\d+[.,]\d+)\s*(их наяд|тэрбум|сая)/g, (_, v, unit) => {
-    const value = Number(v.replace(",", ".")) * SCALE[unit];
-    return Number.isFinite(value) && value >= 1e6 && value < 1e15 ? amountWords(value) : `${numberWords(Math.round(Number(v.replace(",", "."))))} ${unit}`;
-  });
+  // Thousands separators first ("1,250.5 сая" was read as "1," + "250.5 сая").
   t = t.replace(/(\d)[,\u00a0 ](?=\d{3}\b)/g, "$1");
+  // A decimal before a scale word is said in words, to the same amount (amountWords).
+  t = t.replace(/(?<![\d.,])(\d+[.,]\d+)\s*(их наяд|тэрбум|сая)/g, (all, v, unit) => {
+    const value = Number(v.replace(",", ".")) * SCALE[unit];
+    return Number.isFinite(value) && value > 0 && value < 1e15 ? amountWords(value) : all;
+  });
   // "сарын 01-нээс": a leading zero is read aloud as "тэг".
   t = t.replace(/(^|[^\d.,])0(\d)(?!\d)/g, "$1$2");
   return t.replace(/₮/g, " төгрөг").replace(/\s+/g, " ").trim();
@@ -157,6 +158,9 @@ export function verifyImpactSpec(spec: ImpactSpec): string[] {
   for (const s of spec.sentences) {
     if (/\d{4}-\d{2}-\d{2}|\d+[.,]\d+\s*(их наяд|тэрбум|сая)|\d+\s*-?\s*(р|дүгээр|дугаар)\s+сар/.test(s.say)) problems.push(`the voice would misread: ${s.say}`);
     if (s.say.includes("*")) problems.push(`markup in the narration: ${s.say}`);
+    // "тэг" (zero) is only said when the caption itself shows a zero: a rounded "0.4 сая" once
+    // became "тэг сая".
+    if (/(^|\s)тэг(\s|$)/.test(s.say) && !/(^|[^\d.,])0([^\d.,]|$)/.test(s.caption)) problems.push(`zero said but not written: ${s.say}`);
   }
   if (!/Товчлол: AI/.test(spec.source) || !/Дуу: AI/.test(spec.source)) problems.push("the frame must say the summary and the voice are AI");
   if (impactNarration(spec).length > IMPACT_MAX_CHARS) problems.push("narration too long");

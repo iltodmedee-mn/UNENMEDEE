@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { impactHtml } from "@/lib/video/impact-html";
+import { amountWords } from "@/lib/video/money-video";
 import { IMPACT_MAX_CHARS, impactNarration, type ImpactStory, impactVideoSpec, spokenText, verifyImpactSpec } from "@/lib/video/impact-video";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type ImpactVideoMeta } from "@/lib/video/posts";
 import { kindsFor } from "@/lib/video/schedule";
@@ -115,5 +116,20 @@ describe("kindsFor", () => {
   it("the evening tries a decision first, a price video only when none qualifies", () => {
     assert.deepEqual(kindsFor("impact"), ["impact", "prices", "money"]);
     assert.deepEqual(kindsFor("money"), ["money", "prices"]);
+  });
+});
+
+describe("spoken amounts equal the written ones (Nov 2026 audit)", () => {
+  it("says decimal сая and тэрбум amounts exactly", () => {
+    assert.equal(spokenText("Жилийн тэтгэмж 1.5 сая төгрөг болж өснө"), "Жилийн тэтгэмж нэг сая таван зуун мянга төгрөг болж өснө");
+    assert.equal(spokenText("2,5 сая ₮"), "хоёр сая таван зуун мянга төгрөг");
+    assert.equal(spokenText("0.4 сая төгрөг"), "дөрвөн зуун мянга төгрөг");
+    assert.equal(spokenText("12,5 сая ₮"), "арван хоёр сая таван зуун мянга төгрөг");
+    assert.equal(spokenText("1,250.5 сая ₮"), "нэг тэрбум хоёр зуун тавин нэгэн сая төгрөг");
+    assert.equal(spokenText("9.9996 тэрбум ₮"), "арван тэрбум төгрөг");
+    assert.equal(spokenText("7.5 их наяд ₮"), "долоон их наяд таван зуун тэрбум төгрөг");
+  });
+  it("never says zero for an amount above zero", () => {
+    for (const v of [400_000, 999_999, 1_000_000, 1_499_999, 999_999_999, 1_000_000_000, 2_999_999_999_999]) assert.ok(!/тэг/.test(amountWords(v)), String(v));
   });
 });

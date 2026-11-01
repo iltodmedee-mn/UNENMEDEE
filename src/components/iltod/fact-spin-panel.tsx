@@ -52,7 +52,8 @@ export function FactSpinPanel({ facts, spin, neutrality }: { facts: string[]; sp
             <h3 className="label-mono flex items-center gap-2 text-warning-primary">
               <span aria-hidden className="size-2 rounded-[2px] bg-signal" /> Пи-ар, үнэлэмж
             </h3>
-            <p className="text-sm text-secondary">{spin || "Илэрхий пи-ар илрээгүй."}</p>
+            {/* No text and no score: the model gave no assessment, so nothing is claimed either way. */}
+            <p className="text-sm text-secondary">{spin || (neutrality === null ? "AI энэ мэдээнд пи-арын үнэлгээ өгөөгүй." : "Илэрхий пи-ар илрээгүй.")}</p>
           </div>
         </div>
         <SpinMeter neutrality={neutrality} size="md" />

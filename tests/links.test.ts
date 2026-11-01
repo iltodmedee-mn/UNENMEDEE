@@ -5,7 +5,7 @@ import { describe, it } from "node:test";
 import { opendataItemToScraped, parseOpendataResponse } from "@/lib/scraper/adapters/opendata";
 import { parliamentArticleToScraped, parseParliamentPage } from "@/lib/scraper/adapters/parliament";
 import { classifyDomain, harvestGovernmentHosts, isGovernmentHost, siteName } from "@/lib/scraper/discover";
-import { findFeedUrl, harvestArticleLinks, harvestSectionLinks, isStaticPageUrl, isWordPress, parseFeed, sameSite, scoreLink, wordPressApiBase, wordPressPostsUrl, wordPressPostUrl } from "@/lib/scraper/links";
+import { findFeedUrl, harvestArticleLinks, harvestSectionLinks, isStaticPageUrl, isWordPress, parseFeed, sameSite, scoreLink, wordPressApiBase, wordPressPostsUrl, wordPressPostUrl, wordPressPostId } from "@/lib/scraper/links";
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 
@@ -182,5 +182,14 @@ describe("static CMS pages", () => {
     assert.ok(!isStaticPageUrl("https://dornogovi.gov.mn/home/385"));
     assert.ok(!isStaticPageUrl("https://mcud.gov.mn/a/1759"));
     assert.ok(!isStaticPageUrl("not a url"));
+  });
+});
+
+describe("wordPressPostId (re-check reads WordPress posts through the REST API)", () => {
+  it("reads the shortlink or the body class", () => {
+    assert.equal(wordPressPostId(`<link rel='shortlink' href='https://mod.gov.mn/?p=12345' />`), 12345);
+    assert.equal(wordPressPostId(`<link href="https://x.mn/?p=77" rel="shortlink">`), 77);
+    assert.equal(wordPressPostId(`<body class="post-template-default single postid-901 x">`), 901);
+    assert.equal(wordPressPostId(`<html><body class="home"></body></html>`), null);
   });
 });

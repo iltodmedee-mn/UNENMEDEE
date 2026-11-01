@@ -26,6 +26,7 @@ import { parseArgs } from "node:util";
 import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
+import { storedNeutrality } from "@/lib/ai/fact-spin";
 import { appSettings, articles, clusters, digests, politicians, socialPosts, sources, videos } from "@/db/schema";
 import { type ArticleForPost, articlePost, type DigestForPost, digestPost, FacebookError, publishReel, publishToPage, resolveFacebookPage } from "@/lib/social/facebook";
 import { INSTAGRAM_SETTINGS_KEY, type InstagramPost, instagramArticlePost, instagramDigestPost, publishInstagram, refreshInstagramToken } from "@/lib/social/instagram";
@@ -295,7 +296,7 @@ async function postNews(db: Db, p: Platform) {
         topic,
         tldr: r.tldr ?? "",
         amounts: r.entities?.amounts_mnt ?? [],
-        neutrality: r.factVsSpin?.neutrality_score ?? null,
+        neutrality: storedNeutrality(r.factVsSpin),
         facts: r.factVsSpin?.facts ?? [],
       }));
   }

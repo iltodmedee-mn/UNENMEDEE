@@ -1,7 +1,7 @@
-import { and, desc, eq, gte, inArray, isNotNull, lte, notInArray, or } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, lte, notInArray, or, sql } from "drizzle-orm";
 
 import type { DB } from "@/db";
-import { articles, clusters, digests, sources, type Digest } from "@/db/schema";
+import { articles, digests, sources, type Digest } from "@/db/schema";
 import { formatPeriodMn } from "@/lib/format";
 import type { DigestItem, SourceCategory } from "@/lib/types";
 
@@ -144,14 +144,15 @@ async function loadCandidates(db: DB, plan: DigestPlan, exclude: Set<number>, ex
       importanceScore: articles.importanceScore,
       publishedAt: articles.publishedAt,
       clusterId: articles.clusterId,
-      clusterSize: clusters.articleCount,
+      // Distinct sources that publish this cluster now (as CLUSTER_SOURCES in queries.ts): the
+      // stored article_count counted a ministry's second post as another source and went stale.
+      clusterSize: sql<number | null>`(select count(distinct m.source_id)::int from ${articles} m where m.cluster_id = "articles"."cluster_id" and m.is_published)`,
       sourceName: sources.name,
       sourceDomain: sources.domain,
       sourceCategory: sources.category,
     })
     .from(articles)
     .innerJoin(sources, eq(articles.sourceId, sources.id))
-    .leftJoin(clusters, eq(articles.clusterId, clusters.id))
     .where(
       and(
         eq(articles.isPublished, true),

@@ -227,7 +227,7 @@ export interface FilterResult {
   tldr?: string;
   facts?: string[];
   spin?: string;
-  neutrality?: number;
+  neutrality?: number | null;
   riskScore?: number;
   riskReason?: string;
   amounts?: string[];
@@ -296,7 +296,7 @@ const PublishPayload = z.object({
   tldr: z.string().min(10),
   facts: z.array(z.string()),
   spin: z.string(),
-  neutrality: z.number().min(0).max(100),
+  neutrality: z.number().min(0).max(100).nullable(),
   riskScore: z.number().min(0).max(100),
   amounts: z.array(z.string()),
   deepMarkdown: z.string().nullable(),
