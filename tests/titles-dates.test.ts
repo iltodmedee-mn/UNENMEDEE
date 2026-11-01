@@ -8,6 +8,10 @@ import { JSDOM } from "jsdom";
 
 import { cleanTitle, dateFromText, extractArticle, extractPublishedDate, jsonBlobDate, parseDateValue } from "@/lib/scraper/extractor";
 import { chooseTitle, firstSentenceTitle, isGenericTitle, isTransliteratedTitle, looksLikeNavigation, looksLikeUnitPage, unshoutTitle } from "@/lib/scraper/titles";
+import { pinClock } from "./helpers/fixed-clock";
+
+// Fixtures are 2026 pages and prices: the suite must not depend on the day it runs.
+pinClock();
 
 const page = (name: string) => readFileSync(new URL(`./fixtures/dates/${name}.html`, import.meta.url), "utf8");
 
