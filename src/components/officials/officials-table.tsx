@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { formatMntShort } from "@/lib/format";
-import { formatPercent } from "@/lib/officials/flags";
+import { formatPercent, MIN_ASSETS_FOR_JUMP } from "@/lib/officials/flags";
 import type { PoliticianSummary } from "@/lib/queries";
 import { cx } from "@/utils/cx";
 
@@ -17,14 +17,20 @@ const SORTS: { key: Sort; label: string }[] = [
   { key: "name", label: "Нэр" },
 ];
 
-/** Change against the newest comparable earlier year; null when the years cannot be compared. */
+/** The earlier year is too small to compare against (the profile's markers skip these too). */
+const smallBase = (p: PoliticianSummary) => p.previousAssets !== null && p.previousAssets < MIN_ASSETS_FOR_JUMP;
+
+/**
+ * Change against the newest comparable earlier year; null when the years cannot be compared or the
+ * earlier figure is under 50 сая (8 сая → 300 сая read "▲ 500%+" and topped the change sort).
+ */
 function change(p: PoliticianSummary): number | null {
-  return p.latestAssets !== null && p.previousAssets ? p.latestAssets / p.previousAssets - 1 : null;
+  return p.latestAssets !== null && p.previousAssets && !smallBase(p) ? p.latestAssets / p.previousAssets - 1 : null;
 }
 
 /** "▲ 18%" / "▼ 4%" / "= 0": a number, never a verdict (neutral colour on purpose). */
 function changeLabel(c: number | null, p: PoliticianSummary): string {
-  if (c === null) return p.comparisonLimited ? "харьцуулахгүй" : "—";
+  if (c === null) return p.comparisonLimited ? "харьцуулахгүй" : smallBase(p) ? "бага суурь" : "—";
   if (Math.abs(c) < 0.005) return "= 0";
   return `${c > 0 ? "▲" : "▼"} ${formatPercent(Math.abs(c))}`;
 }
@@ -41,10 +47,12 @@ export function OfficialsTable({ people }: { people: PoliticianSummary[] }) {
 
   const rows = useMemo(() => {
     const list = people.filter((p) => party === "all" || (p.party ?? "Бусад") === party);
-    const key = (p: PoliticianSummary) => (sort === "assets" ? p.latestAssets : sort === "income" ? p.latestIncome : sort === "change" ? change(p) : null) ?? -Infinity;
+    // Assets rank by `rankAssets`: a suspected unit-error filing ranks by its member's last
+    // comparable year, never by the figure the site itself flags.
+    const key = (p: PoliticianSummary) => (sort === "assets" ? p.rankAssets : sort === "income" ? p.latestIncome : sort === "change" ? change(p) : null) ?? -Infinity;
     return sort === "name" ? [...list].sort((a, b) => a.fullName.localeCompare(b.fullName, "mn")) : [...list].sort((a, b) => key(b) - key(a));
   }, [people, party, sort]);
-  const max = useMemo(() => Math.max(0, ...rows.map((p) => p.latestAssets ?? 0)), [rows]);
+  const max = useMemo(() => Math.max(0, ...rows.map((p) => p.rankAssets ?? 0)), [rows]);
   // The newest filing year in the list. Members whose newest filing is older are labelled with
   // their own year, so a 2024 figure is never read as 2025.
   const years = useMemo(() => {
@@ -89,7 +97,8 @@ export function OfficialsTable({ people }: { people: PoliticianSummary[] }) {
         <ul className="divide-y divide-line-soft">
           {rows.map((p) => {
             const c = change(p);
-            const width = max > 0 && p.latestAssets ? `${Math.max(1, (p.latestAssets / max) * 100)}%` : "0%";
+            // A suspect filing draws no bar: its bar would be the figure the site calls a probable error.
+            const width = max > 0 && p.rankAssets && !p.latestSuspect ? `${Math.max(1, (p.rankAssets / max) * 100)}%` : "0%";
             return (
               <li key={p.id}>
                 <Link
@@ -117,9 +126,15 @@ export function OfficialsTable({ people }: { people: PoliticianSummary[] }) {
                           {money(p.latestAssets)}
                           {years?.mixed && p.latestYear !== years.latest && <span className="label-mono ml-1.5 text-tertiary">{p.latestYear}</span>}
                         </span>
-                        <span className="block h-[3px] w-full bg-line-soft" aria-hidden>
-                          <span className={cx("block h-full", p.latestSuspect ? "bg-fg-quaternary/50" : "bg-brand-solid/75")} style={{ width }} />
-                        </span>
+                        {p.latestSuspect ? (
+                          <span className="label-mono normal-case text-tertiary" title="Эрэмбэ, мөрийн урт: өмнөх харьцуулж болох оны дүнгээр">
+                            {p.rankYear && p.rankAssets !== null ? `${p.rankYear}: ${money(p.rankAssets)}` : "харьцуулах он алга"}
+                          </span>
+                        ) : (
+                          <span className="block h-[3px] w-full bg-line-soft" aria-hidden>
+                            <span className="block h-full bg-brand-solid/75" style={{ width }} />
+                          </span>
+                        )}
                       </span>
                       <span className="label-mono col-start-2 text-right normal-case text-secondary xl:col-start-auto">
                         <span className="xl:hidden">орлого </span>
@@ -138,7 +153,9 @@ export function OfficialsTable({ people }: { people: PoliticianSummary[] }) {
           })}
         </ul>
       </div>
-      <p className="label-mono normal-case text-tertiary">Мөрийн урт = энэ жагсаалтын хамгийн их хөрөнгөтэй харьцуулсан хувь · ▲▼ тоо, үнэлгээ биш · мэдүүлэг бүр ХАСХОМ-ын эх холбоостой (хувийн хуудсанд)</p>
+      <p className="label-mono normal-case text-tertiary">
+        Мөрийн урт = энэ жагсаалтын хамгийн их хөрөнгөтэй харьцуулсан хувь · нэгжийн зөрүүтэй байж болзошгүй мэдүүлгийг өмнөх харьцуулж болох оных нь дүнгээр эрэмбэлнэ · 50 саяас бага суурьтай өөрчлөлтийг хувиар харьцуулахгүй · ▲▼ тоо, үнэлгээ биш · мэдүүлэг бүр ХАСХОМ-ын эх холбоостой (хувийн хуудсанд)
+      </p>
     </div>
   );
 }

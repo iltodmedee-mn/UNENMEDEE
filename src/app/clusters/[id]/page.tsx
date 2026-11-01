@@ -28,7 +28,7 @@ async function ClusterView({ params }: { params: PageProps<"/clusters/[id]">["pa
   if (!id) notFound();
   const data = await getCluster(id);
   if (!data) notFound();
-  const { cluster, articles } = data;
+  const { cluster, articles, sourceCount } = data;
   return (
     <div className="flex flex-col gap-8">
       <Link href="/clusters" className="label-mono flex w-fit items-center gap-1.5 text-tertiary hover:text-primary">
@@ -36,7 +36,7 @@ async function ClusterView({ params }: { params: PageProps<"/clusters/[id]">["pa
       </Link>
       <header className="flex flex-col gap-3">
         <div className="label-mono flex items-center gap-2 text-tertiary">
-          {cluster.articleCount} эх сурвалжийн мэдээ {cluster.maxRiskScore >= 35 && <RiskBadge score={cluster.maxRiskScore} />}
+          {sourceCount} эх сурвалжийн {cluster.articleCount} мэдээ {cluster.maxRiskScore >= 35 && <RiskBadge score={cluster.maxRiskScore} />}
         </div>
         <h1 className="headline text-[1.875rem] text-primary md:text-[2.5rem]">{cluster.title}</h1>
       </header>

@@ -74,12 +74,17 @@ const shareLabel = (v: number) => `≈${NBSP}${formatNumber(v).replace(/ /g, NBS
 
 /**
  * The amount as a person says it: "есөн тэрбум зуун сая", "зуун далан гаруй тэрбум" (from 100
- * тэрбум whole тэрбум, "гаруй" when there is more), "гурван их наяд", "нэг их наяд зуун тэрбум".
+ * тэрбум whole тэрбум, "гаруй" when there is more), "гурван их наяд", "нэг их наяд зуун тэрбум",
+ * "нэг сая таван зуун мянга", "дөрвөн зуун мянга". Below 100 тэрбум the words say the same
+ * amount as the digits (to the nearest сая / мянга): "1.5 сая" used to be said "хоёр сая" and
+ * "0.4 сая" "тэг сая", next to a caption showing the real number.
  */
 export function amountWords(v: number): string {
+  if (!Number.isFinite(v) || v < 0) throw new RangeError(`amountWords: ${v}`);
   if (v >= 1e12) {
-    const t = Math.floor(v / 1e12);
-    const rest = Math.round((v - t * 1e12) / 1e9);
+    let t = Math.floor(v / 1e12);
+    let rest = Math.round((v - t * 1e12) / 1e9);
+    if (rest >= 1000) [t, rest] = [t + 1, 0];
     return rest ? `${numberWords(t)} их наяд ${numberWords(rest)} тэрбум` : `${numberWords(t)} их наяд`;
   }
   if (v >= 1e11) {
@@ -87,11 +92,23 @@ export function amountWords(v: number): string {
     return v - b * 1e9 >= 1e7 ? `${numberWords(b, "nominative")} гаруй тэрбум` : `${numberWords(b)} тэрбум`;
   }
   if (v >= 1e9) {
-    const b = Math.floor(v / 1e9);
-    const m = Math.round((v - b * 1e9) / 1e6);
+    let b = Math.floor(v / 1e9);
+    let m = Math.round((v - b * 1e9) / 1e6);
+    if (m >= 1000) [b, m] = [b + 1, 0];
     return m ? `${numberWords(b)} тэрбум ${numberWords(m)} сая` : `${numberWords(b)} тэрбум`;
   }
-  return numberWords(Math.round(v / 1e6)) + " сая";
+  if (v >= 1e6) {
+    let m = Math.floor(v / 1e6);
+    let k = Math.round((v - m * 1e6) / 1e3);
+    if (k >= 1000) [m, k] = [m + 1, 0];
+    if (m >= 1000) return amountWords(m * 1e6);
+    return k ? `${numberWords(m)} сая ${numberWords(k)} мянга` : `${numberWords(m)} сая`;
+  }
+  if (v >= 1e3) {
+    const k = Math.round(v / 1e3);
+    return k >= 1000 ? "нэг сая" : `${numberWords(k)} мянга`;
+  }
+  return numberWords(Math.round(v));
 }
 
 /** Three options: the share and ÷3 / ×3 of it at the same precision, the true one moving with the story. */

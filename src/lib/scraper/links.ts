@@ -209,6 +209,16 @@ export function wordPressApiBase(html: string, pageUrl: string): string {
   }
 }
 
+/**
+ * The WordPress post id of an article page: the `?p=` shortlink, else the `postid-N` body class.
+ * The re-check reads the post through the REST API with it, as the crawler stored it.
+ */
+export function wordPressPostId(html: string): number | null {
+  const short = html.match(/<link[^>]{0,200}rel=["']shortlink["'][^>]{0,300}>/i)?.[0] ?? html.match(/<link[^>]{0,300}href=["'][^"']{0,200}["'][^>]{0,100}rel=["']shortlink["'][^>]{0,100}>/i)?.[0];
+  const id = short?.match(/[?&](?:amp;)?p=(\d{1,10})/)?.[1] ?? html.match(/\bpostid-(\d{1,10})\b/)?.[1];
+  return id ? Number(id) : null;
+}
+
 /** "…/wp-json/" + "wp/v2/posts?…" or "…/index.php?rest_route=/" + "wp/v2/posts&…". */
 export function wordPressPostsUrl(apiBase: string, query: string): string {
   if (/[?&]rest_route=/.test(apiBase)) return `${apiBase.replace(/\/?$/, "/")}wp/v2/posts&${query}`;

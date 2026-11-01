@@ -8,6 +8,7 @@ import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
 import type { DonationsSummary } from "@/lib/donations";
 import { ABOUT_KEY, type About, DEFAULT_ABOUT, parseAbout } from "@/lib/about";
+import { storedNeutrality, storedSpin } from "@/lib/ai/fact-spin";
 import { sharedShortNames, suspectUnitYears } from "@/lib/officials/flags";
 import { HIDDEN_YEARS_KEY, type HiddenYears, parseHiddenYears } from "@/lib/officials/hidden";
 import type { SourceDiff, SourceStatus } from "@/lib/scraper/recheck";
@@ -99,6 +100,15 @@ async function safe<T>(label: string, fallback: T, fn: () => Promise<T>): Promis
   }
 }
 
+/**
+ * How many different sources published this story's cluster, counted now: the stored
+ * `clusters.article_count` counted articles (a second post from the same ministry made "3 эх
+ * сурвалж") and was never lowered when a member was unpublished (clusters 1 and 3, Nov 2026).
+ * The outer column is written out: Drizzle leaves columns unqualified in single-table selects, and
+ * a bare "cluster_id" would bind to `m` inside the subquery.
+ */
+export const CLUSTER_SOURCES = sql<number | null>`(select count(distinct m.source_id)::int from ${articles} m where m.cluster_id = "articles"."cluster_id" and m.is_published)`;
+
 /** The plain headline Tier 1 wrote, else the source's own (src/lib/ai/reader-view.ts). */
 const DISPLAY_TITLE = sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`;
 
@@ -122,7 +132,7 @@ const listColumns = {
   originalUrl: articles.originalUrl,
   topic: articles.topic,
   importanceScore: articles.importanceScore,
-  clusterSize: sql<number | null>`(select ${clusters.articleCount} from ${clusters} where ${clusters.id} = ${articles.clusterId})`,
+  clusterSize: CLUSTER_SOURCES,
   dateUnknown: sql<boolean>`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false)`,
   summaryFallback: articles.summaryFallback,
   pressCount: sql<number>`(select count(*)::int from ${pressLinks} where ${pressLinks.articleId} = ${articles.id})`,
@@ -168,7 +178,7 @@ function toListItem(r: ListRow): ArticleListItem {
     publishedAt: r.publishedAt,
     riskScore: r.riskScore,
     riskFlag: r.riskFlag,
-    neutralityScore: r.factVsSpin?.neutrality_score ?? null,
+    neutralityScore: storedNeutrality(r.factVsSpin),
     amounts: r.entities?.amounts_mnt ?? [],
     hasDeepAnalysis: Boolean(r.deep),
     clusterId: r.clusterId,
@@ -439,22 +449,24 @@ export async function getClusters(limit = 30, sinceDays?: number): Promise<Clust
       .orderBy(desc(clusters.updatedAt))
       .limit(limit);
     if (rows.length === 0) return [];
-    const src = await db
-      .selectDistinct({ clusterId: articles.clusterId, name: sources.name })
+    const members = await db
+      .select({ clusterId: articles.clusterId, name: sources.name })
       .from(articles)
       .innerJoin(sources, eq(articles.sourceId, sources.id))
       .where(and(visible, inArray(articles.clusterId, rows.map((r) => r.id))));
     // Published members only (as on the cluster page): a cluster whose stories were all withdrawn
-    // is left out, and one with a single source left loses its cross-source synthesis.
+    // is left out, one with a single source left loses its cross-source synthesis, and the count
+    // is today's published members, not the stored count from when the cluster was made.
     return rows.flatMap((r) => {
-      const names = src.filter((s) => s.clusterId === r.id).map((s) => s.name);
+      const mine = members.filter((m) => m.clusterId === r.id);
+      const names = [...new Set(mine.map((m) => m.name))];
       if (names.length === 0) return [];
       return [
         {
           id: r.id,
           title: r.title,
           synthesis: names.length < 2 ? null : r.synthesisSummary,
-          articleCount: r.articleCount,
+          articleCount: mine.length,
           maxRiskScore: r.maxRiskScore,
           updatedAt: r.updatedAt,
           sources: names,
@@ -481,7 +493,12 @@ export async function getCluster(id: number) {
     // The title and synthesis were written from the members: with none still published the
     // cluster is gone, and with one left its cross-source synthesis is not shown either.
     if (rows.length === 0) return null;
-    return { cluster: rows.length < 2 ? { ...cluster, synthesisSummary: null } : cluster, articles: rows.map(toListItem) };
+    const sourceCount = new Set(rows.map((r) => r.sourceDomain)).size;
+    return {
+      cluster: { ...cluster, articleCount: rows.length, synthesisSummary: sourceCount < 2 ? null : cluster.synthesisSummary },
+      sourceCount,
+      articles: rows.map(toListItem),
+    };
   });
 }
 
@@ -594,7 +611,7 @@ export async function getArticleBySlug(slug: string): Promise<ArticleDetail | nu
       contentHash: r.contentHash,
       cleanContent: r.cleanContent,
       facts: r.factVsSpin?.facts ?? [],
-      spinDetected: r.factVsSpin?.spin_detected ?? "",
+      spinDetected: storedSpin(r.factVsSpin),
       entities: r.entities ?? { people: [], orgs: [], amounts_mnt: [] },
       deepAnalysis: r.deep,
       scrapeMeta: r.scrapeMeta,
@@ -727,11 +744,24 @@ export async function getSiteStats(): Promise<SiteStats> {
       db
         .select({
           total: count(),
-          analyzed: sql<number>`count(${articles.tldrSummary})::int`,
+          // "AI-аар шүүгдсэн" counts AI summaries only: the extractive fallback (first sentences,
+          // labelled "AI ажиллаагүй") is not an AI analysis; it inflated the public number by 28 %.
+          analyzed: sql<number>`count(*) filter (where ${articles.tldrSummary} is not null and not ${articles.summaryFallback})::int`,
           flagged: sql<number>`count(*) filter (where ${articles.riskFlag})::int`,
         })
         .from(articles),
-      db.select({ n: count() }).from(clusters).where(gte(clusters.articleCount, 2)),
+      // Clusters that two or more sources still publish (the stored article_count goes stale).
+      db
+        .select({ n: count() })
+        .from(
+          db
+            .select({ id: articles.clusterId })
+            .from(articles)
+            .where(and(isNotNull(articles.clusterId), eq(articles.isPublished, true)))
+            .groupBy(articles.clusterId)
+            .having(sql`count(distinct ${articles.sourceId}) >= 2`)
+            .as("live_clusters"),
+        ),
       db.select({ usd: sql<string>`coalesce(sum(${aiUsageLogs.estimatedCostUsd}), 0)` }).from(aiUsageLogs).where(gte(aiUsageLogs.createdAt, monthStart)),
       db
         .select({
@@ -823,19 +853,46 @@ export async function getSources(): Promise<SourceHealth[]> {
 }
 
 export interface TransparencyData {
-  /** Paid spend per day (free providers are always $0 and appear in byProvider instead). */
-  dailySpend: { day: string; deepseek: number; grok: number }[];
+  /**
+   * Spend per Ulaanbaatar day of every provider that cost money in the last 30 days (a billed
+   * Gemini key, ElevenLabs, Requesty, DeepSeek, Grok…), from the logged USD, never from a fixed
+   * list: a list of "the paid ones" said "no paid AI was used" while billed Gemini cost money.
+   */
+  dailySpend: { day: string; costs: Record<string, number> }[];
+  /** The providers in `dailySpend`, largest 30-day spend first. */
+  paidProviders: string[];
   byProvider: { provider: string; calls: number; promptTokens: number; completionTokens: number; costUsd: number }[];
   /** Income null = not entered for that month ("бүртгээгүй"). */
   ledger: { month: string; infraCostUsd: number; aiCostUsd: number; adRevenueUsd: number | null; donationsUsd: number | null; notes: string | null }[];
   totals: { costUsd: number; calls: number; tokens: number };
 }
 
+/**
+ * The daily chart rows: every provider whose logged spend in the window is above zero, whatever
+ * its name (pure, tested). Days with no paid spend are left out; a provider with $0 in total is
+ * not a series.
+ */
+export function paidDailySpend(rows: { day: string; provider: string; usd: string | number | null }[]): Pick<TransparencyData, "dailySpend" | "paidProviders"> {
+  const totals = new Map<string, number>();
+  const days = new Map<string, Record<string, number>>();
+  for (const r of rows) {
+    const usd = Number(r.usd ?? 0);
+    if (!(usd > 0)) continue;
+    totals.set(r.provider, (totals.get(r.provider) ?? 0) + usd);
+    const d = days.get(r.day) ?? {};
+    d[r.provider] = (d[r.provider] ?? 0) + usd;
+    days.set(r.day, d);
+  }
+  const paidProviders = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p);
+  const dailySpend = [...days.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([day, costs]) => ({ day, costs }));
+  return { dailySpend, paidProviders };
+}
+
 export async function getTransparency(): Promise<TransparencyData> {
   "use cache";
   cacheLife("hours");
   cacheTag("ai", "ledger");
-  const empty: TransparencyData = { dailySpend: [], byProvider: [], ledger: [], totals: { costUsd: 0, calls: 0, tokens: 0 } };
+  const empty: TransparencyData = { dailySpend: [], paidProviders: [], byProvider: [], ledger: [], totals: { costUsd: 0, calls: 0, tokens: 0 } };
   return safe("getTransparency", empty, async () => {
     const db = getDb();
     const since = new Date(Date.now() - 30 * 86_400_000);
@@ -865,13 +922,7 @@ export async function getTransparency(): Promise<TransparencyData> {
       // The ledger keeps every month's AI total for good, also after its call logs are pruned.
       db.select({ usd: sql<string>`coalesce(sum(${transparencyLedger.aiCostUsd}), 0)` }).from(transparencyLedger),
     ]);
-    const days = new Map<string, { day: string; deepseek: number; grok: number }>();
-    for (const r of daily) {
-      if (r.provider !== "deepseek" && r.provider !== "grok") continue;
-      const d = days.get(r.day) ?? { day: r.day, deepseek: 0, grok: 0 };
-      d[r.provider] = Number(r.usd);
-      days.set(r.day, d);
-    }
+    const { dailySpend, paidProviders } = paidDailySpend(daily);
     const byProvider = providers.map((p) => ({
       provider: p.provider,
       calls: p.calls,
@@ -880,7 +931,8 @@ export async function getTransparency(): Promise<TransparencyData> {
       costUsd: Number(p.costUsd),
     }));
     return {
-      dailySpend: [...days.values()],
+      dailySpend,
+      paidProviders,
       byProvider,
       ledger: ledger.map((l) => ({
         month: l.month,
@@ -1011,6 +1063,13 @@ export interface PoliticianSummary {
   comparisonLimited: boolean;
   /** The latest filing itself is the suspected unit error (thousand ₮ filed as ₮ or the reverse). */
   latestSuspect: boolean;
+  /**
+   * The figure the list ranks and scales by: the latest filing, or for a suspected unit error the
+   * newest comparable earlier year. A 324 тэрбум filing the site itself calls a probable unit
+   * error ranked its member first and shrank every other bar to a sliver.
+   */
+  rankAssets: number | null;
+  rankYear: number | null;
 }
 
 /** Declaration years an editor took out of the comparison (see src/lib/officials/hidden.ts). */
@@ -1043,7 +1102,12 @@ export async function getPoliticians(): Promise<PoliticianSummary[]> {
       // The latest filing is shown as declared; the change is only computed between years that
       // are comparable (no suspected unit error on either side).
       const latest = mine[0];
-      const previous = latest && !suspect.has(latest.year) ? mine.slice(1).find((d) => d.totalAssets !== null && !suspect.has(d.year)) : undefined;
+      const latestSuspect = latest !== undefined && suspect.has(latest.year);
+      // The newest earlier year that is not a suspected unit error: the change is computed against
+      // it, and a suspect latest filing is ranked by it.
+      const earlier = latest ? mine.slice(1).find((d) => d.totalAssets !== null && !suspect.has(d.year)) : undefined;
+      const previous = latestSuspect ? undefined : earlier;
+      const comparable = latestSuspect ? earlier : undefined;
       return {
         id: p.id,
         fullName: p.fullName,
@@ -1057,7 +1121,9 @@ export async function getPoliticians(): Promise<PoliticianSummary[]> {
         previousYear: previous?.year ?? null,
         previousAssets: previous?.totalAssets ?? null,
         comparisonLimited: suspect.size > 0 || hiddenYears.length > 0,
-        latestSuspect: latest !== undefined && suspect.has(latest.year),
+        latestSuspect,
+        rankAssets: (latestSuspect ? comparable?.totalAssets : latest?.totalAssets) ?? null,
+        rankYear: (latestSuspect ? comparable?.year : latest?.year) ?? null,
       };
     });
   });

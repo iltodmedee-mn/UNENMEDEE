@@ -16,6 +16,71 @@ export interface KeyNumber {
 
 const NUMBER = /^(\d[\d\s,.]*)(.*)$/u;
 
+/** Thousands groups: "4 500 000", "1,907,944", "1.250" (spaces include NBSP and narrow NBSP). */
+const GROUPED = /^\d{1,3}(?:[   ,.]\d{3})+(?:[.,]\d+)?$/;
+
+/**
+ * The values a written number can mean, as canonical strings ("4500000", "51.4"). "1,250.5" and
+ * "1 250,5" are 1250.5; a lone "1.250" may be 1.25 or 1250, so both are returned; a date such as
+ * "2026.10.27" is no amount and returns nothing.
+ */
+export function numberValues(raw: string): Set<string> {
+  const s = raw.trim();
+  const out = new Set<string>();
+  const canon = (v: string) => {
+    const n = Number(v);
+    if (Number.isFinite(n)) out.add(String(n));
+  };
+  if (/^\d+$/.test(s)) canon(s);
+  else if (/^\d+[.,]\d+$/.test(s)) {
+    canon(s.replace(",", "."));
+    // One separator before exactly three digits can also be a thousands separator.
+    if (/^\d{1,3}[.,]\d{3}$/.test(s)) canon(s.replace(/[.,]/, ""));
+  } else if (GROUPED.test(s)) {
+    const decimal = /[.,]\d{1,2}$|[.,]\d{4,}$/.exec(s);
+    const lastSep = Math.max(s.lastIndexOf("."), s.lastIndexOf(","));
+    const hasBoth = s.includes(".") && s.includes(",");
+    if (hasBoth || decimal) {
+      // The last mark is the decimal point, every other separator groups thousands.
+      canon(`${s.slice(0, lastSep).replace(/[   ,.]/g, "")}.${s.slice(lastSep + 1)}`);
+    } else canon(s.replace(/[   ,.]/g, ""));
+  }
+  return out;
+}
+
+/** Every number written in a sentence, as values (see `numberValues`); dates and times never match. */
+function sentenceValues(text: string): Set<string> {
+  const out = new Set<string>();
+  const plain = text
+    .replace(/\d{4}[-./]\d{1,2}[-./]\d{1,2}/g, " ") // 2026-09-08, 2026.10.27
+    .replace(/\d{1,2}:\d{2}/g, " "); // 14:16
+  for (const m of plain.matchAll(/(?<![\d.,])\d[\d.,   ]*\d|(?<![\d.,])\d/g)) {
+    const token = m[0];
+    // A run with spaces that is not a thousands group is several numbers ("10 15").
+    const parts = /[   ]/.test(token) && !GROUPED.test(token) ? token.split(/[   ]+/) : [token];
+    for (const p of parts) for (const v of numberValues(p.replace(/[.,]$/, ""))) out.add(v);
+  }
+  return out;
+}
+
+/**
+ * The fact sentence that names this number as a whole number (a substring test matched "5" inside
+ * "2025" and "15", "1.5" inside "11.5", and "2 их наяд" to a sitting's start time), preferring one
+ * that also names the amount's scale word.
+ */
+export function contextFor(number: string, unit: string, facts: string[]): string | null {
+  const wanted = numberValues(number);
+  if (wanted.size === 0) return null;
+  const matches = facts.filter((f) => [...sentenceValues(f)].some((v) => wanted.has(v)));
+  const scale = unit.split(/\s+/).find((w) => /^(наяд|тэрбум|сая|мянга)/i.test(w));
+  const named = scale ? matches.find((f) => f.toLowerCase().includes(scale.toLowerCase().slice(0, 4))) : undefined;
+  // "5", "12", "20" are common in dates, counts and article numbers: a sentence must also name the
+  // scale word ("тэрбум") to be about this amount. A specific number ("186.2", "4 500 000") need not.
+  // Judged on the value ("3.0" is 3, as common as "3").
+  const specific = [...wanted].some((v) => v.replace(/\D/g, "").length >= 3 || v.includes("."));
+  return named ?? (specific || !scale ? (matches[0] ?? null) : null);
+}
+
 function cut(s: string, max = 160): string {
   if (s.length <= max) return s;
   const head = s.slice(0, max);
@@ -42,9 +107,7 @@ export function keyNumbers(amounts: string[], facts: string[], max = 5): KeyNumb
     const key = value !== null ? String(value) : number.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    const digits = number.replace(/\s/g, "");
-    const alt = digits.includes(".") ? digits.replace(".", ",") : digits.replace(",", ".");
-    const context = facts.find((f) => f.includes(digits) || f.includes(alt)) ?? null;
+    const context = value !== null ? contextFor(number, unit, facts) : null;
     rows.push({
       number,
       unit,

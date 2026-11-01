@@ -58,6 +58,21 @@ const PROVIDER_LABEL: Record<string, string> = {
   elevenlabs: "ElevenLabs · видеоны дуу (сарын багц)",
 };
 
+/** Legend names in the daily chart. */
+const PROVIDER_SHORT: Record<string, string> = {
+  deepseek: "DeepSeek",
+  grok: "Grok",
+  gemini: "Gemini",
+  requesty: "Requesty",
+  mistral: "Mistral",
+  openrouter: "OpenRouter",
+  zai: "Z.ai",
+  nvidia: "NVIDIA",
+  groq: "Groq",
+  ollama: "Ollama",
+  elevenlabs: "ElevenLabs",
+};
+
 /** Every donation as it reached the account: day, name as the donor allowed, amount. */
 function Donations({ gifts }: { gifts: DonationsSummary }) {
   return (
@@ -108,8 +123,11 @@ async function Dashboard() {
   const ledgerRows = [...data.ledger].reverse().map((l) => ({
     month: l.month,
     expenses: l.infraCostUsd + l.aiCostUsd,
-    income: (l.adRevenueUsd ?? 0) + (l.donationsUsd ?? 0),
+    // Nobody entered this month's income: no bar (the table says "бүртгээгүй"), never a $0 bar.
+    income: l.adRevenueUsd === null && l.donationsUsd === null ? null : (l.adRevenueUsd ?? 0) + (l.donationsUsd ?? 0),
   }));
+  const paidSeries = data.paidProviders.map((key) => ({ key, name: PROVIDER_SHORT[key] ?? key }));
+  const paidNames = paidSeries.map((s) => s.name).join(", ");
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -126,12 +144,12 @@ async function Dashboard() {
 
       <Panel
         title="Өдөр бүрийн төлбөртэй AI зардал"
-        description={`Сүүлийн 30 хоног, токен бүрийн бодит үнээр. Үнэгүй AI (Groq, NVIDIA, Ollama) $0 тул графикт биш, доорх хүснэгтэд (сүүлийн ${LOG_KEEP_MONTHS} сар) харагдана.`}
+        description={`Сүүлийн 30 хоног, дуудлага бүрийн бодит үнээр${paidNames ? ` (${paidNames})` : ""}. Үнэгүй AI $0 тул графикт биш, доорх хүснэгтэд (сүүлийн ${LOG_KEEP_MONTHS} сар) харагдана.`}
       >
         {data.dailySpend.length ? (
-          <DailySpendChart data={data.dailySpend} />
+          <DailySpendChart data={data.dailySpend} series={paidSeries} />
         ) : (
-          <p className="text-sm text-tertiary">Төлбөртэй AI ашиглаагүй байна: бүх шинжилгээ үнэгүй AI-аар хийгдсэн.</p>
+          <p className="text-sm text-tertiary">Сүүлийн 30 хоногт төлбөр гарсан AI дуудлага алга: бүгд үнэгүй үйлчилгээгээр хийгдсэн.</p>
         )}
         <div className="overflow-x-auto">
           <table className="w-full min-w-[560px] text-left text-sm">

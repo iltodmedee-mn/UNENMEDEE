@@ -7,18 +7,20 @@ import { formatUsd } from "@/lib/format";
 const AXIS = { fontSize: 12, fill: "var(--color-text-tertiary)" };
 
 function MoneyTooltip({ active, payload, label }: Partial<TooltipContentProps<number, string>>) {
-  if (!active || !payload?.length) return null;
-  const total = payload.reduce((s, p) => s + Number(p.value ?? 0), 0);
+  // A month whose income nobody entered is null, not $0: it has no bar and no tooltip line.
+  const shown = (payload ?? []).filter((p) => p.value !== null && p.value !== undefined);
+  if (!active || !shown.length) return null;
+  const total = shown.reduce((s, p) => s + Number(p.value ?? 0), 0);
   return (
     <div className="rounded-lg bg-primary px-3 py-2 text-xs shadow-lg ring-1 ring-line ring-inset">
       <p className="mb-1 font-semibold text-primary">{label}</p>
-      {payload.map((p) => (
+      {shown.map((p) => (
         <p key={String(p.dataKey)} className="flex items-center gap-2 text-secondary">
           <span className="size-2 rounded-sm" style={{ background: p.color }} />
           {p.name}: <span className="font-semibold text-primary tabular-nums">{formatUsd(Number(p.value ?? 0), 4)}</span>
         </p>
       ))}
-      {payload.length > 1 && <p className="mt-1 border-t border-line pt-1 text-tertiary">Нийт: {formatUsd(total, 4)}</p>}
+      {shown.length > 1 && <p className="mt-1 border-t border-line pt-1 text-tertiary">Нийт: {formatUsd(total, 4)}</p>}
     </div>
   );
 }
@@ -27,9 +29,15 @@ function LegendText(value: string) {
   return <span className="text-xs text-secondary">{value}</span>;
 }
 
-/** Stacked daily PAID AI spend (last 30 days). Free providers are $0 and listed in the table. */
-export function DailySpendChart({ data }: { data: { day: string; deepseek: number; grok: number }[] }) {
-  const rows = data.map((d) => ({ ...d, label: d.day.slice(5) }));
+const SERIES = ["var(--series-1)", "var(--series-2)", "var(--series-3)", "var(--series-4)"];
+
+/**
+ * Stacked daily spend of every provider that cost money (last 30 days): `series` comes from the
+ * logged USD, so a billed Gemini key or ElevenLabs shows up without a code change. Free providers
+ * are $0 and listed in the table.
+ */
+export function DailySpendChart({ data, series }: { data: { day: string; costs: Record<string, number> }[]; series: { key: string; name: string }[] }) {
+  const rows = data.map((d) => ({ label: d.day.slice(5), ...Object.fromEntries(series.map((s) => [s.key, d.costs[s.key] ?? 0])) }));
   return (
     <div className="h-72 w-full" role="img" aria-label="Сүүлийн 30 хоногийн AI зардал, үйлчилгээ үзүүлэгчээр">
       <ResponsiveContainer>
@@ -40,16 +48,26 @@ export function DailySpendChart({ data }: { data: { day: string; deepseek: numbe
           <Tooltip content={<MoneyTooltip />} cursor={{ fill: "var(--color-bg-secondary)" }} />
           <Legend formatter={LegendText} iconType="square" iconSize={10} />
           {/* 2px surface stroke = gap between stacked segments */}
-          <Bar dataKey="deepseek" name="DeepSeek" stackId="a" fill="var(--series-1)" stroke="var(--chart-surface)" strokeWidth={2} />
-          <Bar dataKey="grok" name="Grok" stackId="a" fill="var(--series-2)" stroke="var(--chart-surface)" strokeWidth={2} radius={[4, 4, 0, 0]} />
+          {series.map((s, i) => (
+            <Bar
+              key={s.key}
+              dataKey={s.key}
+              name={s.name}
+              stackId="a"
+              fill={SERIES[i % SERIES.length]}
+              stroke="var(--chart-surface)"
+              strokeWidth={2}
+              radius={i === series.length - 1 ? [4, 4, 0, 0] : undefined}
+            />
+          ))}
         </BarChart>
       </ResponsiveContainer>
     </div>
   );
 }
 
-/** Monthly expenses vs income (one axis, both USD). */
-export function LedgerChart({ data }: { data: { month: string; expenses: number; income: number }[] }) {
+/** Monthly expenses vs income (one axis, both USD). Income null = not entered: no bar. */
+export function LedgerChart({ data }: { data: { month: string; expenses: number; income: number | null }[] }) {
   return (
     <div className="h-72 w-full" role="img" aria-label="Сар бүрийн зардал ба орлого">
       <ResponsiveContainer>

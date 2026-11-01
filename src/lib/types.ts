@@ -8,8 +8,8 @@ export type AIProvider = "deepseek" | "grok" | "gemini" | "nvidia" | "groq" | "r
 export interface FactVsSpin {
   facts: string[];
   spin_detected: string;
-  /** 0 = pure PR spin, 100 = fully neutral/factual. */
-  neutrality_score: number;
+  /** 0 = pure PR spin, 100 = fully neutral/factual; null = the model gave no assessment. */
+  neutrality_score: number | null;
 }
 
 /**

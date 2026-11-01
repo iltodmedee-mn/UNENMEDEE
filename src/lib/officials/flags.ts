@@ -19,7 +19,8 @@ export interface Flag {
 }
 
 const ASSET_JUMP = 0.5;
-const MIN_ASSETS_FOR_JUMP = 50_000_000; // ignore jumps on very small bases
+/** Changes on smaller bases are not compared (the profile markers and the /officials list). */
+export const MIN_ASSETS_FOR_JUMP = 50_000_000;
 /** A year this many times away from the person's other years is a suspected unit error. */
 export const UNIT_GAP = 20;
 /** Totals below this are too small to tell a unit error from a real change. */
