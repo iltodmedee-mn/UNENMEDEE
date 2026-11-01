@@ -1,11 +1,15 @@
 # Typecheck, lint, unit tests and a production build. Needs no secrets:
 # the site renders empty states without DATABASE_URL.
+# Also weekly on main: code that reads the clock can break with no push at all, and the
+# watchdog opens an issue when the last 3 scheduled runs of a workflow failed.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    - cron: "23 4 * * 2" # Tuesday 12:23 Ulaanbaatar
 
 permissions:
   contents: read
@@ -17,6 +21,7 @@ concurrency:
 
 jobs:
   check:
+    if: github.event_name != 'schedule' || github.repository == 'tmorius-eng/UNENMEDEE'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:

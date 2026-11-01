@@ -18,6 +18,10 @@ import { sceneHtml } from "@/lib/video/scene-html";
 import { audioFilter } from "@/lib/video/render";
 import { buildTimeline, captionWords, PAUSE_S, parseSilences, plausibleTake, sentenceStarts } from "@/lib/video/timing";
 import { pcmToWav, speak } from "@/lib/video/tts";
+import { pinClock } from "./helpers/fixed-clock";
+
+// Fixtures are 2026 pages and prices: the suite must not depend on the day it runs.
+pinClock();
 
 const snap = parsePrices(JSON.parse(readFileSync("tests/fixtures/budget/nso-prices.json", "utf8")) as JsonStat2, GOODS.filter((g) => ["beef", "petrol", "canteen"].includes(g.key)));
 
