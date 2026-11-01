@@ -17,8 +17,11 @@ export function ShareButton({ path, title, text, className, label = "Хуваа�
   const [copied, setCopied] = useState(false);
   const [native, setNative] = useState(false);
   const [phone, setPhone] = useState(false);
-  const [story, setStory] = useState<"idle" | "busy" | "done">("idle");
+  const [story, setStory] = useState<"idle" | "busy" | "linked" | "image">("idle");
   const ref = useRef<HTMLDivElement>(null);
+  // The story image is fetched when the menu opens: fetched on the tap, the wait used up the tap's
+  // user activation and iPhone Safari refused navigator.share (NotAllowedError) afterwards.
+  const storyFile = useRef<Promise<File | null> | null>(null);
 
   useEffect(() => {
     if (!menu) return;
@@ -37,6 +40,9 @@ export function ShareButton({ path, title, text, className, label = "Хуваа�
     setNative(typeof navigator.share === "function");
     setPhone(window.matchMedia("(pointer: coarse)").matches);
     setMenu((cur) => (cur ? null : new URL(path, window.location.origin).toString()));
+    storyFile.current ??= fetch(`/story-image?p=${encodeURIComponent(path)}`)
+      .then(async (res) => (res.ok ? new File([await res.blob()], "iltodmedee-story.png", { type: "image/png" }) : null))
+      .catch(() => null);
   };
 
   const shareNative = async (url: string) => {
@@ -48,34 +54,56 @@ export function ShareButton({ path, title, text, className, label = "Хуваа�
     }
   };
 
+  const download = (file: File) => {
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(file);
+    a.download = file.name;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+  };
+
+  // The label reports only what really happened: the link is "copied" only when the clipboard
+  // accepted it, and a share the reader cancelled is not a success.
   const shareStory = async (url: string) => {
     setStory("busy");
-    try {
-      const res = await fetch(`/story-image?p=${encodeURIComponent(path)}`);
-      if (!res.ok) throw new Error(String(res.status));
-      const file = new File([await res.blob()], "iltodmedee-story.png", { type: "image/png" });
-      await navigator.clipboard?.writeText(url).catch(() => {});
-      if (navigator.canShare?.({ files: [file] })) {
-        await navigator.share({ files: [file], title }).catch(() => {});
-      } else {
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(file);
-        a.download = file.name;
-        a.click();
-        setTimeout(() => URL.revokeObjectURL(a.href), 1000);
-      }
-      setStory("done");
-      setTimeout(() => setStory("idle"), 4000);
-    } catch {
+    const file = await (storyFile.current ?? Promise.resolve(null));
+    if (!file) {
+      storyFile.current = null; // try the image again next time
       setStory("idle");
+      return;
     }
+    const linked = await (navigator.clipboard?.writeText(url).then(() => true, () => false) ?? Promise.resolve(false));
+    let shared = false;
+    if (navigator.canShare?.({ files: [file] })) {
+      try {
+        await navigator.share({ files: [file], title });
+        shared = true;
+      } catch (e) {
+        // Cancelled by the reader: nothing to report. Refused for another reason: save it instead.
+        if (!(e instanceof DOMException && e.name === "AbortError")) {
+          download(file);
+          shared = true;
+        }
+      }
+    } else {
+      download(file);
+      shared = true;
+    }
+    if (!shared) {
+      setStory("idle");
+      return;
+    }
+    setStory(linked ? "linked" : "image");
+    setTimeout(() => setStory("idle"), 4000);
   };
 
   const copy = async (url: string) => {
     try {
       await navigator.clipboard.writeText(url);
     } catch {
+      // No clipboard access: the reader copies it by hand, so we do not claim "Хуулагдлаа".
       window.prompt("Холбоосыг хуулна уу:", url);
+      return;
     }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
@@ -114,7 +142,7 @@ export function ShareButton({ path, title, text, className, label = "Хуваа�
           )}
           <button role="menuitem" type="button" className={item} onClick={() => shareStory(menu)} disabled={story === "busy"}>
             <span aria-hidden className="grid size-5 place-items-center rounded-md bg-linear-to-tr from-[#f9ce34] via-[#ee2a7b] to-[#6228d7] text-[10px] font-bold text-white">◎</span>
-            {story === "busy" ? "Зураг бэлдэж байна…" : story === "done" ? "Холбоос хуулагдсан ✓ Link sticker-ээр наа" : phone ? "Instagram / Facebook Story" : "Story зураг татах"}
+            {story === "busy" ? "Зураг бэлдэж байна…" : story === "linked" ? "Холбоос хуулагдсан ✓ Link sticker-ээр наа" : story === "image" ? "Зураг бэлэн ✓" : phone ? "Instagram / Facebook Story" : "Story зураг татах"}
           </button>
           <a
             role="menuitem"

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, useSyncExternalStore } from "react";
+import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { sendTestPush, setFollows, subscribePush, unsubscribePush } from "@/app/push-actions";
 import { FOLLOW_KEY, parseFollows } from "@/lib/officials/follow";
@@ -48,6 +48,52 @@ const subscribePrompt = (l: () => void) => {
 };
 const noop = () => () => {};
 
+/**
+ * Facebook, Messenger, Instagram, Threads ("Barcelona"), TikTok and LINE open links in their own
+ * browser, which has no "Add to Home Screen" and no web push: the reader must open Safari first.
+ */
+export const IN_APP_BROWSER = /FBAN|FBAV|FB_IAB|FBIOS|Instagram|Barcelona|Threads|MessengerForiOS|musical_ly|BytedanceWebview|TikTok|\bLine\//;
+
+/**
+ * The push subscription, shared by every component that calls usePwa() (the bell, the sheet, the
+ * follow buttons): with per-hook state, turning push on in the sheet left the bell showing "off".
+ */
+let currentSub: PushSubscription | null = null;
+let subLoaded = false;
+const subListeners = new Set<() => void>();
+const setSharedSub = (sub: PushSubscription | null) => {
+  currentSub = sub;
+  subListeners.forEach((l) => l());
+};
+const subscribeSub = (l: () => void) => {
+  subListeners.add(l);
+  if (!subLoaded && typeof navigator !== "undefined" && "serviceWorker" in navigator && "PushManager" in window) {
+    subLoaded = true;
+    navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then(setSharedSub, () => {});
+    // sw.js posts this on `pushsubscriptionchange`: the browser replaced the subscription, so the
+    // server must learn the new endpoint or alerts stop without a word.
+    navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
+      if ((e.data as { type?: string } | null)?.type === "iltod-push-renew") void renewSubscription();
+    });
+  }
+  return () => subListeners.delete(l);
+};
+
+async function renewSubscription() {
+  try {
+    if (Notification.permission !== "granted" || !VAPID_PUBLIC_KEY) return;
+    const reg = await navigator.serviceWorker.ready;
+    const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) }));
+    const res = await subscribePush(JSON.parse(JSON.stringify(sub)));
+    if (!res.ok) return;
+    setSharedSub(sub);
+    const follows = parseFollows(localStorage.getItem(FOLLOW_KEY));
+    if (follows.length) await setFollows(sub.endpoint, follows);
+  } catch {
+    // The next visit with the 🔔 sheet open can turn it on again.
+  }
+}
+
 export function usePwa() {
   const canPromptInstall = useSyncExternalStore(subscribePrompt, () => deferredPrompt !== null, () => false);
   const env = useSyncExternalStore(
@@ -57,20 +103,15 @@ export function usePwa() {
       const ios = /iPad|iPhone|iPod/.test(ua) || (ua.includes("Mac") && navigator.maxTouchPoints > 1);
       const standalone = window.matchMedia("(display-mode: standalone)").matches || (navigator as Navigator & { standalone?: boolean }).standalone === true;
       const pushSupported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window && Boolean(VAPID_PUBLIC_KEY);
-      return `${ios ? 1 : 0}${standalone ? 1 : 0}${pushSupported ? 1 : 0}`;
+      return `${ios ? 1 : 0}${standalone ? 1 : 0}${pushSupported ? 1 : 0}${IN_APP_BROWSER.test(ua) ? 1 : 0}`;
     },
-    () => "000",
+    () => "0000",
   );
-  const [isIOS, isStandalone, pushSupported] = [env[0] === "1", env[1] === "1", env[2] === "1"];
+  const [isIOS, isStandalone, pushSupported, inAppBrowser] = [env[0] === "1", env[1] === "1", env[2] === "1", env[3] === "1"];
 
-  const [subscription, setSubscription] = useState<PushSubscription | null>(null);
+  const subscription = useSyncExternalStore(subscribeSub, () => currentSub, () => null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    if (!pushSupported) return;
-    navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then(setSubscription, () => {});
-  }, [pushSupported]);
 
   const install = useCallback(async () => {
     if (!deferredPrompt) return false;
@@ -99,7 +140,7 @@ export function usePwa() {
         setError(res.error ?? "Бүртгэж чадсангүй.");
         return;
       }
-      setSubscription(sub);
+      setSharedSub(sub);
       const follows = parseFollows(localStorage.getItem(FOLLOW_KEY));
       if (follows.length) await setFollows(sub.endpoint, follows);
     } catch {
@@ -112,10 +153,13 @@ export function usePwa() {
   const disablePush = useCallback(async () => {
     if (!subscription) return;
     setBusy(true);
+    setError(null);
     try {
       await unsubscribePush(subscription.endpoint);
       await subscription.unsubscribe();
-      setSubscription(null);
+      setSharedSub(null);
+    } catch {
+      setError("Мэдэгдэл унтрааж чадсангүй. Дахин оролдоно уу.");
     } finally {
       setBusy(false);
     }
@@ -125,12 +169,18 @@ export function usePwa() {
   const sendTest = useCallback(async () => {
     if (!subscription) return;
     setTestState("sending");
-    const res = await sendTestPush(subscription.endpoint);
-    setTestState(res.ok ? "sent" : (res.error ?? "Илгээж чадсангүй."));
+    try {
+      const res = await sendTestPush(subscription.endpoint);
+      setTestState(res.ok ? "sent" : (res.error ?? "Илгээж чадсангүй."));
+    } catch {
+      setTestState("Илгээж чадсангүй. Холболтоо шалгаад дахин оролдоно уу.");
+    }
   }, [subscription]);
 
   return {
     isIOS,
+    /** Opened inside a social app's own browser (see IN_APP_BROWSER). */
+    inAppBrowser,
     sendTest,
     /** "idle" | "sending" | "sent" | an error message */
     testState,

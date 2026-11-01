@@ -12,7 +12,9 @@ export function CopyText({ text, label = "Хуулах", className }: { text: st
     try {
       await navigator.clipboard.writeText(text);
     } catch {
+      // No clipboard access: the reader copies it by hand, so we do not claim "Хуулагдлаа".
       window.prompt("Хуулна уу:", text);
+      return;
     }
     setDone(true);
     setTimeout(() => setDone(false), 2000);

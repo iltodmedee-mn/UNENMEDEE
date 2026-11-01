@@ -33,6 +33,9 @@ function MoneyInput({ id, label, hint, value, onChange }: { id: string; label: s
 export function TaxReceiptCalculator({ shares, year }: { shares: BudgetShare[]; year: string }) {
   const [salary, setSalary] = useState("");
   const [exact, setExact] = useState("");
+  // Controlled: `open={exact > 0}` collapsed the box (and its input) the moment the field was
+  // cleared, and a box closed by hand with a value in it never reopened.
+  const [exactOpen, setExactOpen] = useState(false);
   const [purchases, setPurchases] = useState("");
   const parts = payrollParts(toNumber(salary));
   const payroll = payrollFromInputs({ salary: toNumber(salary), exact: toNumber(exact) });
@@ -59,7 +62,7 @@ export function TaxReceiptCalculator({ shares, year }: { shares: BudgetShare[]; 
             value={salary}
             onChange={setSalary}
           />
-          <details className="text-sm" open={toNumber(exact) > 0 || undefined}>
+          <details className="text-sm" open={exactOpen} onToggle={(e) => setExactOpen(e.currentTarget.open)}>
             <summary className="cursor-pointer text-xs font-semibold text-brand-secondary">Цалингийн хуудсан дээрх яг дүнгээ оруулах</summary>
             <div className="mt-2 flex flex-col gap-2">
               <MoneyInput id="exact" label="Суутгагдсан ХХОАТ + НДШ (татварын дүн)" hint="Цалингийн хуудас эсвэл e-barimt-аас харна. Оруулбал дээрх тооцооллын оронд үүнийг ашиглана." value={exact} onChange={setExact} />

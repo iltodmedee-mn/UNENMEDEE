@@ -102,7 +102,7 @@ export function MyMps({ people }: { people: PoliticianSummary[] }) {
                 {/* eslint-disable-next-line @next/next/no-img-element -- portraits come from parliament.mn */}
                 {p.photoUrl && <img src={p.photoUrl} alt="" loading="lazy" className="size-12 shrink-0 rounded-full object-cover" />}
                 <div className="flex min-w-0 flex-1 flex-col">
-                  <Link href={`/officials/${p.id}`} className="truncate font-semibold text-primary hover:underline">
+                  <Link href={`/officials/${p.id}`} prefetch={false} className="truncate font-semibold text-primary hover:underline">
                     {p.fullName}
                   </Link>
                   <span className="truncate text-xs text-tertiary">{p.party ?? "—"}</span>

@@ -42,9 +42,17 @@ export function TopicBar({ active, placement }: { active: string; placement: "bo
     setEdges((e) => (e.left === left && e.right === right ? e : { left, right }));
   }, []);
 
+  // Centre the active chip by moving the strip only: scrollIntoView also scrolls the page, so a
+  // reload or Back with the strip partly off screen jumped the whole page.
   useEffect(() => {
-    activeRef.current?.scrollIntoView({ block: "nearest", inline: "center" });
-  }, [active]);
+    const el = listRef.current;
+    const chip = activeRef.current;
+    if (!el || !chip || el.clientWidth === 0) return;
+    const box = el.getBoundingClientRect();
+    const own = chip.getBoundingClientRect();
+    el.scrollLeft += own.left + own.width / 2 - (box.left + box.width / 2);
+    measure();
+  }, [active, measure]);
 
   useEffect(() => {
     const el = listRef.current;
@@ -69,7 +77,8 @@ export function TopicBar({ active, placement }: { active: string; placement: "bo
 
   // Mouse only: the closer to an edge, the faster the strip moves toward it. Touch keeps swiping.
   const onPointerMove = (e: PointerEvent<HTMLDivElement>) => {
-    if (e.pointerType !== "mouse") return;
+    // Edge scrolling is motion the reader did not ask for: off under reduced motion (‹ › still work).
+    if (e.pointerType !== "mouse" || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const box = e.currentTarget.getBoundingClientRect();
     const x = e.clientX - box.left;
     const toRight = box.width - x;
@@ -83,7 +92,7 @@ export function TopicBar({ active, placement }: { active: string; placement: "bo
 
   const page = (dir: 1 | -1) => {
     const el = listRef.current;
-    el?.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: "smooth" });
+    el?.scrollBy({ left: dir * el.clientWidth * 0.8, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
   };
 
   const arrow = "absolute inset-y-0 z-10 flex w-12 cursor-pointer items-center text-fg-quaternary transition hover:text-fg-secondary";

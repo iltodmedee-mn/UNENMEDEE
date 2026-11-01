@@ -1,7 +1,7 @@
 "use client";
 
 import { Bell01, BellRinging01, Download01, PlusSquare, Share01, XClose } from "@untitledui/icons";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 
 import { cx } from "@/utils/cx";
@@ -49,23 +49,38 @@ function readerBusy(): boolean {
   );
 }
 
-function IosSteps() {
+function Step({ n, children }: { n: number; children: React.ReactNode }) {
+  return (
+    <li className="flex items-center gap-2">
+      <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-solid text-xs font-semibold text-primary_on-brand">{n}</span>
+      {children}
+    </li>
+  );
+}
+
+/** inApp: opened in Facebook/Instagram/Threads' own browser, which cannot add to the home screen. */
+function IosSteps({ inApp = false }: { inApp?: boolean }) {
+  const first = inApp ? 2 : 1;
   return (
     <ol className="flex flex-col gap-2 text-sm text-secondary">
-      <li className="flex items-center gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-solid text-xs font-semibold text-primary_on-brand">1</span>
-        Safari-ийн доод хэсгийн <Share01 className="inline size-4 text-brand-secondary" aria-label="Share" /> товчийг дарна
-      </li>
-      <li className="flex items-center gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-solid text-xs font-semibold text-primary_on-brand">2</span>
+      {inApp && (
+        <Step n={1}>
+          <span>
+            Энэ хуудсыг <b>Safari</b>-д нээнэ: баруун дээд/доод буланд байгаа <b>⋯</b> цэс → <b>Open in Safari</b> (эсвэл «Open in external browser»)
+          </span>
+        </Step>
+      )}
+      <Step n={first}>
+        <span>
+          Safari-ийн доод хэсгийн <Share01 className="inline size-4 text-brand-secondary" aria-label="Share" /> товчийг дарна
+        </span>
+      </Step>
+      <Step n={first + 1}>
         <span>
           <PlusSquare className="inline size-4 text-brand-secondary" aria-hidden /> <b>Add to Home Screen</b> (Нүүр дэлгэцэнд нэмэх)
         </span>
-      </li>
-      <li className="flex items-center gap-2">
-        <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-solid text-xs font-semibold text-primary_on-brand">3</span>
-        Аппаа нээгээд 🔔 товчоор мэдэгдлээ асаана
-      </li>
+      </Step>
+      <Step n={first + 2}>Аппаа нээгээд 🔔 товчоор мэдэгдлээ асаана</Step>
     </ol>
   );
 }
@@ -82,22 +97,51 @@ function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () 
     () => true,
     () => false,
   );
+  const dialog = useRef<HTMLDivElement>(null);
+  // Callers pass a fresh arrow each render: read it through a ref so the effect below runs only
+  // when the sheet opens or closes (re-running it moved focus on every parent re-render).
+  const closeRef = useRef(onClose);
+  useEffect(() => {
+    closeRef.current = onClose;
+  });
+  // A modal dialog: focus moves into it, Tab stays inside, and closing gives focus back to the
+  // button that opened it (it was left on the page behind the overlay).
   useEffect(() => {
     if (!open) return;
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    const opener = document.activeElement as HTMLElement | null;
+    requestAnimationFrame(() => dialog.current?.focus());
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") closeRef.current();
+      if (e.key !== "Tab" || !dialog.current) return;
+      const items = Array.from(dialog.current.querySelectorAll<HTMLElement>("a[href], button:not([disabled]), input, [tabindex='0']"));
+      if (items.length === 0) return;
+      const [first, last] = [items[0], items[items.length - 1]];
+      if (e.shiftKey && (document.activeElement === first || document.activeElement === dialog.current)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [open]);
   if (!mounted) return null;
   return createPortal(
     open && (
       // CSS enter animations (@starting-style utilities in globals.css): no animation library in the shared header bundle.
       <div className="fade-enter fixed inset-0 z-50 flex items-end justify-center bg-overlay/50 sm:items-center" onClick={onClose}>
         <div
+          ref={dialog}
+          tabIndex={-1}
           role="dialog"
           aria-modal="true"
           aria-label={title}
-          className="sheet-enter w-full max-w-md rounded-t-2xl bg-primary p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ring-1 ring-line sm:rounded-2xl sm:pb-6"
+          className="sheet-enter w-full max-w-md outline-hidden rounded-t-2xl bg-primary p-6 pb-[calc(1.5rem+env(safe-area-inset-bottom))] shadow-2xl ring-1 ring-line sm:rounded-2xl sm:pb-6"
           onClick={(e) => e.stopPropagation()}
         >
           <div className="mb-4 flex items-start justify-between gap-4">
@@ -146,7 +190,7 @@ export function NotifyButton() {
         {pwa.needsInstallForPush ? (
           <div className="flex flex-col gap-4">
             <p className="text-sm text-tertiary">Apple зөвхөн нүүр дэлгэцэнд нэмсэн аппад мэдэгдэл зөвшөөрдөг. Нэг удаа нэмэхэд л болно:</p>
-            <IosSteps />
+            <IosSteps inApp={pwa.inAppBrowser} />
           </div>
         ) : !pwa.subscribed ? (
           <div className="flex flex-col gap-4">
@@ -290,7 +334,7 @@ export function InstallBanner() {
       )}
       <Sheet open={iosSheet} onClose={() => setIosSheet(false)} title="iPhone-д суулгах">
         <div className="flex flex-col gap-4">
-          <IosSteps />
+          <IosSteps inApp={pwa.inAppBrowser} />
           <button type="button" onClick={installedOnIos} className="rounded-xl py-3 text-md font-semibold text-secondary ring-1 ring-primary ring-inset hover:bg-primary_hover">
             ✓ Нүүр дэлгэцэнд нэмчихсэн
           </button>

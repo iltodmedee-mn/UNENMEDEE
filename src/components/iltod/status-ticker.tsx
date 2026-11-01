@@ -36,7 +36,8 @@ export function StatusTicker({ stats, lastArticleAt, todayArticles }: { stats: s
   const current = messages[step % messages.length];
 
   useEffect(() => {
-    if (paused) return;
+    // Readers who asked for reduced motion get no automatic rotation (a tap still moves it on).
+    if (paused || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     const id = setInterval(() => {
       if (document.visibilityState === "visible") setStep((s) => s + 1);
     }, ROTATE_MS);
@@ -50,6 +51,9 @@ export function StatusTicker({ stats, lastArticleAt, todayArticles }: { stats: s
       // Mouse only: a tap fires enter without leave and would pause the line for good.
       onPointerEnter={(e) => e.pointerType === "mouse" && setPaused(true)}
       onPointerLeave={(e) => e.pointerType === "mouse" && setPaused(false)}
+      // Keyboard focus pauses it too, so the line a reader tabbed to does not change under them.
+      onFocus={() => setPaused(true)}
+      onBlur={() => setPaused(false)}
       aria-label={messages.join(". ")}
       className="label-mono mt-2 block h-4 w-full cursor-pointer overflow-hidden text-left text-tertiary"
     >
