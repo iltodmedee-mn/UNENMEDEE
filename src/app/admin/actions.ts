@@ -290,7 +290,21 @@ export async function runFilter(raw: string, forceDeep: boolean): Promise<Filter
 
 const PublishPayload = z.object({
   title: z.string().min(5).max(500),
-  url: z.string().url().nullable(),
+  // http(s) with a host only: `.url()` also took "javascript:…" and "data:…", which became the
+  // story's source link (and its source row's domain).
+  url: z
+    .string()
+    .url()
+    .refine((u) => {
+      try {
+        const p = new URL(u);
+        return (p.protocol === "https:" || p.protocol === "http:") && p.hostname.length > 0;
+      } catch {
+        return false;
+      }
+    }, "only http(s) links")
+    .max(2_000)
+    .nullable(),
   sourceDomain: z.string().min(1).max(255),
   text: z.string().min(50),
   tldr: z.string().min(10),

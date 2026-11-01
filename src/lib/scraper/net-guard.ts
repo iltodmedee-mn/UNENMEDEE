@@ -41,8 +41,17 @@ export function isPrivateAddress(ip: string): boolean {
     if (!bytes) return true;
     const embedded = embeddedIpv4(bytes);
     if (embedded) return isPrivateAddress(embedded);
-    const v = ip.toLowerCase();
-    return bytes.every((b) => b === 0) || v === "::1" || /^f[cd]/.test(v) || /^fe[89ab]/.test(v) || v.startsWith("ff");
+    // Classes from the bytes, not the spelling: "0:0:0:0:0:0:0:1" and "0000::1" are loopback too.
+    const [b0, b1] = bytes;
+    const loopback = bytes.slice(0, 15).every((b) => b === 0) && bytes[15] === 1;
+    return (
+      bytes.every((b) => b === 0) || // unspecified
+      loopback ||
+      (b0 & 0xfe) === 0xfc || // unique local fc00::/7
+      (b0 === 0xfe && (b1 & 0xc0) === 0x80) || // link-local fe80::/10
+      (b0 === 0xfe && (b1 & 0xc0) === 0xc0) || // old site-local fec0::/10
+      b0 === 0xff // multicast
+    );
   }
   return true; // not an IP at all: refuse rather than guess
 }
