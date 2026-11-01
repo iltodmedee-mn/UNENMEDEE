@@ -18,12 +18,15 @@ export function ArticleCard({ article, className }: { article: ArticleListItem; 
         className,
       )}
     >
-      {/* One line: the hydrated TimeAgo is shorter than the server's full date, and a wrapping
-          header moved the card body (CLS). The time truncates instead. */}
-      <header className="flex items-center gap-2">
-        <SourceBadge domain={article.sourceDomain} category={article.sourceCategory} />
-        <TimeAgo date={article.publishedAt} className="label-mono min-w-0 truncate text-tertiary" />
-        <span className="ml-auto flex shrink-0 items-center gap-1.5">
+      {/* Source + time stay together and the badges wrap below them on a narrow card: a one-line
+          header with shrink-0 badges pushed "Гүнзгий шинжилгээ · Өндөр эрсдэл" past the right edge
+          of a phone (/risk, Nov 2026). */}
+      <header className="flex flex-wrap items-center gap-2">
+        <span className="flex min-w-0 items-center gap-2">
+          <SourceBadge domain={article.sourceDomain} category={article.sourceCategory} />
+          <TimeAgo date={article.publishedAt} className="label-mono min-w-0 truncate text-tertiary" />
+        </span>
+        <span className="ml-auto flex flex-wrap items-center gap-1.5">
           {article.hasDeepAnalysis && <DeepBadge />}
           {article.riskScore >= 35 && <RiskBadge score={article.riskScore} />}
         </span>
