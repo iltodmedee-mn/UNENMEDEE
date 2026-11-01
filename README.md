@@ -61,7 +61,7 @@
 ## AI түлхүүр яаж хадгалагддаг вэ
 
 - Кодонд **ямар ч түлхүүр, нууц үг байхгүй**. AI-ийн түлхүүр, `DATABASE_URL` зөвхөн GitHub Actions secrets болон Vercel-ийн орчны хувьсагчид байна. `.env*` файлууд git-д ордоггүй (`.env.example` л байна).
-- Үнэгүй AI-ууд (Groq, NVIDIA NIM, Requesty, OpenRouter) ээлжлэн ажиллана, дараа нь Z.ai. Gemini: төлбөр холбоогүй Google project-ийн түлхүүр бол үнэгүй (`GEMINI_FREE_TIER=true`); төлбөртэй түлхүүр бол үнэгүйнүүдийн дараа, зөвхөн хамгийн хямд `gemini-2.5-flash-lite` загвараар, мөнгөний хязгаар дотор. Зураг үүсгэх загвар хэзээ ч ашиглахгүй. Төлбөртэй (DeepSeek, Grok) нь сард `AI_MONTHLY_BUDGET_USD` ($3), өдөрт `AI_DAILY_BUDGET_USD` ($0.30)-оос хэтэрвэл автоматаар зогсоно ([`src/lib/ai/limits.ts`](src/lib/ai/limits.ts)).
+- Үнэгүй AI-ууд (Groq, NVIDIA NIM, Requesty, OpenRouter) ээлжлэн ажиллана, дараа нь Z.ai. Gemini: төлбөр холбоогүй Google project-ийн түлхүүр бол үнэгүй (`GEMINI_FREE_TIER=true`); төлбөртэй түлхүүр бол үнэгүйнүүдийн дараа, зөвхөн хамгийн хямд `gemini-3.1-flash-lite` загвараар (`gemini-2.5-flash-lite` шинэ түлхүүрт 2026-10-29-өөс нээлттэй биш), мөнгөний хязгаар дотор. Зураг үүсгэх загвар хэзээ ч ашиглахгүй. Төлбөртэй (DeepSeek, Grok) нь сард `AI_MONTHLY_BUDGET_USD` ($3), өдөрт `AI_DAILY_BUDGET_USD` ($0.30)-оос хэтэрвэл автоматаар зогсоно ([`src/lib/ai/limits.ts`](src/lib/ai/limits.ts)).
 - Дуудлага бүр `ai_usage_logs`-д бичигдэж [/transparency](https://iltodmedee.mn/transparency)-д харагдана.
 
 ## Өөрийн компьютер дээр ажиллуулах

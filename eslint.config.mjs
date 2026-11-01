@@ -10,7 +10,6 @@ const eslintConfig = defineConfig([
   {
     files: [
       "src/components/base/**",
-      "src/components/application/**",
       "src/components/foundations/**",
       "src/components/shared-assets/**",
       "src/components/ui/**",
@@ -18,16 +17,6 @@ const eslintConfig = defineConfig([
     rules: {
       "@next/next/no-img-element": "off",
       "@typescript-eslint/no-unused-vars": "off",
-    },
-  },
-  {
-    // three.js / react-three-fiber mutates uniforms in the render loop by design.
-    files: ["src/components/ui/orb.tsx"],
-    rules: {
-      "react-hooks/purity": "off",
-      "react-hooks/immutability": "off",
-      "react-hooks/refs": "off",
-      "react-hooks/preserve-manual-memoization": "off",
     },
   },
   globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "storage/**", "drizzle/**"]),
