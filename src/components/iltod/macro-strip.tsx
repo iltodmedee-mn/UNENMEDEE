@@ -122,14 +122,15 @@ export async function MacroStrip({ compact = false }: { compact?: boolean }) {
   return (
     <section aria-label="Монголбанкны үзүүлэлт" className="flex flex-col gap-2">
       <Ledger cells={cells.filter((c): c is Cell => Boolean(c))} />
-      <p className="flex items-center justify-between text-xs text-tertiary">
+      {/* Wraps on the narrowest phones (320 px): one line pushed "Дэлгэрэнгүй" 4 px past the edge. */}
+      <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs text-tertiary">
         <span>
           Эх сурвалж: Монголбанк (mongolbank.mn) · <DataAge at={snap.updatedAt} staleDays={3} />
           {!compact && " · муруй = сүүлийн үеийн хандлага"}
         </span>
         {compact && (
           // No prefetch: /data pulls the chart library, which would load on every home visit.
-          <Link href="/data" prefetch={false} className="flex items-center gap-1 font-semibold text-brand-secondary hover:underline">
+          <Link href="/data" prefetch={false} className="ml-auto flex shrink-0 items-center gap-1 font-semibold text-brand-secondary hover:underline">
             Дэлгэрэнгүй <ArrowRight className="size-3.5" />
           </Link>
         )}
