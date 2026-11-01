@@ -172,3 +172,40 @@ describe("watchdog rules", () => {
     assert.equal(only((s) => (s.dispatchTokenExpires = new Date(NOW.getTime() + 10 * 86_400_000))).length, 1);
   });
 });
+
+describe("data integrity and phone layout rules", () => {
+  const NOW = new Date("2026-11-01T04:00:00Z");
+  const clean = { brokenAiText: 0, widespreadClusters: 0, duplicateHashes: 0, silentSources: [] };
+
+  it("stays quiet when the data is clean and no page overflows", () => {
+    assert.deepEqual(evaluateHealth({ integrity: clean, layout: [] }, CONFIG, NOW), []);
+    assert.deepEqual(evaluateHealth({}, CONFIG, NOW), [], "no scan, no data: nothing to say");
+  });
+
+  it("names each kind of wrong data the Nov 2026 audit found", () => {
+    const out = evaluateHealth({ integrity: { brokenAiText: 5, widespreadClusters: 1, duplicateHashes: 1, silentSources: ["sport.gov.mn"] } }, CONFIG, NOW);
+    assert.equal(out.length, 4);
+    assert.ok(out.some((l) => l.includes("undefined")));
+    assert.ok(out.some((l) => l.includes("7 хоногоос")));
+    assert.ok(out.some((l) => l.includes("content_hash")));
+    assert.ok(out.some((l) => l.includes("sport.gov.mn")));
+  });
+
+  it("reports a page wider than the phone screen", () => {
+    const out = evaluateHealth({ layout: [{ path: "/risk", viewport: 360, width: 644, culprit: "article.group" }] }, CONFIG, NOW);
+    assert.equal(out.length, 1);
+    assert.match(out[0], /\/risk.*360px.*644px/);
+  });
+});
+
+describe("layout scan pages", () => {
+  it("samples each section of the sitemap and always includes the risky layouts", async () => {
+    const { layoutPages, parseLayoutReport } = await import("@/lib/layout-check");
+    const pages = layoutPages(["https://iltodmedee.mn/article/a", "https://iltodmedee.mn/article/b", "https://iltodmedee.mn/article/c", "https://iltodmedee.mn/clusters/7", "not a url"], [], 2);
+    assert.ok(pages.includes("/risk") && pages.includes("/clusters/7"));
+    assert.equal(pages.filter((p) => p.startsWith("/article/")).length, 2);
+    assert.equal(parseLayoutReport("not json"), undefined);
+    assert.equal(parseLayoutReport(null), undefined);
+    assert.deepEqual(parseLayoutReport('[{"path":"/x","viewport":360,"width":400,"culprit":"div"},{"bad":1}]'), [{ path: "/x", viewport: 360, width: 400, culprit: "div" }]);
+  });
+});

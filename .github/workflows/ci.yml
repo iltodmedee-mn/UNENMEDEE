@@ -36,6 +36,34 @@ jobs:
       - run: npm run check
       - run: npm run build
 
+  # Every page of the demo build at phone widths (scripts/check-layout.ts): fails when one is
+  # wider than the screen. Nov 2026: a one-line card header made /risk 644 px wide on phones and
+  # only a reader's screenshot noticed. The demo data includes no high-risk stories, so the daily
+  # watchdog scans the live site too.
+  mobile-layout:
+    if: github.event_name != 'schedule' || github.repository == 'tmorius-eng/UNENMEDEE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: pglite:./.demo-db
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npx playwright install --with-deps chromium
+      - run: npx tsx scripts/seed-demo.ts
+      - run: npx next build
+      - name: Scan every page at 320, 360 and 390 px
+        run: |
+          npx next start -p 3123 > next.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://localhost:3123/ && break; sleep 1; done
+          npx tsx scripts/check-layout.ts --base http://localhost:3123 --sitemap
+
   # Blocks a PR that adds a dependency with a known high-severity advisory.
   dependency-review:
     if: github.event_name == 'pull_request'

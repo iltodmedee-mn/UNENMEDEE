@@ -14,7 +14,7 @@
 import "dotenv/config";
 
 import { X509Certificate } from "node:crypto";
-import { readdirSync, readFileSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import tls from "node:tls";
 
@@ -23,7 +23,8 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { budgetConfig } from "@/lib/ai/limits";
 import { GOVERNMENTS_VERIFIED_THROUGH } from "@/lib/budget/governments";
-import { type CoreSnapshot, evaluateHealth, type HealthConfig, type HealthSnapshot, type NetworkSnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot, type WorkflowSnapshot } from "@/lib/health";
+import { type CoreSnapshot, evaluateHealth, type IntegritySnapshot, type HealthConfig, type HealthSnapshot, type NetworkSnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot, type WorkflowSnapshot } from "@/lib/health";
+import { parseLayoutReport } from "@/lib/layout-check";
 import { POPULATION } from "@/lib/per-person";
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
 import { PROGRAMME_END } from "@/lib/promises/programme";
@@ -80,6 +81,23 @@ async function core(): Promise<CoreSnapshot> {
     paidCapDays: Number(r.paid_cap_days),
     hoursSinceRecheck: num(r.hours_since_recheck),
   };
+}
+
+/** Data the public site must never show wrong (src/lib/health.ts IntegritySnapshot). */
+async function integrity(): Promise<IntegritySnapshot> {
+  const [r] = await rows(sql`select
+    (select count(*) from articles where is_published and created_at > now() - interval '30 days'
+       -- like, not a regex: in this template literal "\[" loses its backslash and became a class.
+       and (tldr_summary like '%undefined%' or tldr_summary like '%[object Object]%'
+            or fact_vs_spin::text like '%[object Object]%'
+            or fact_vs_spin->>'spin_detected' in ('undefined', 'null')))::int as broken_ai,
+    (select count(*) from (select cluster_id from articles where cluster_id is not null and is_published
+       group by cluster_id having max(published_at) - min(published_at) > interval '7 days') c)::int as wide_clusters,
+    (select count(*) from (select content_hash from articles group by content_hash having count(*) > 1) d)::int as dup_hashes`);
+  const silent = await rows(sql`select s.domain from sources s join articles a on a.source_id = s.id
+    where s.is_active and a.created_at > now() - interval '14 days'
+    group by s.domain having count(*) >= 10 and count(*) filter (where a.is_published) = 0 order by s.domain`);
+  return { brokenAiText: Number(r.broken_ai), widespreadClusters: Number(r.wide_clusters), duplicateHashes: Number(r.dup_hashes), silentSources: silent.map((x) => String(x.domain)) };
 }
 
 async function officials() {
@@ -240,6 +258,7 @@ async function main() {
 
   const collectors = {
     "мэдээ/AI/push": core,
+    "өгөгдлийн бүрэн бүтэн байдал": integrity,
     "УИХ-ын гишүүд": officials,
     "өгөгдлийн хэсгүүд": indicators,
     "opendata.mn": opendata,
@@ -260,6 +279,9 @@ async function main() {
   const s = got<Awaited<ReturnType<typeof settings>>>("тохиргоо");
   const snapshot: HealthSnapshot = {
     core: got("мэдээ/AI/push"),
+    integrity: got("өгөгдлийн бүрэн бүтэн байдал"),
+    // Written by scripts/check-layout.ts in the watchdog workflow; absent when the scan did not run.
+    layout: parseLayoutReport(process.env.LAYOUT_REPORT && existsSync(process.env.LAYOUT_REPORT) ? readFileSync(process.env.LAYOUT_REPORT, "utf8") : null),
     officials: got("УИХ-ын гишүүд"),
     indicators: got<Awaited<ReturnType<typeof indicators>>>("өгөгдлийн хэсгүүд")?.ages,
     population: got<Awaited<ReturnType<typeof indicators>>>("өгөгдлийн хэсгүүд")?.population,

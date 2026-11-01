@@ -8,20 +8,26 @@
 #                  (provider alone = its default model)
 #   db-check:      connect like the site and the jobs (verified TLS) and print the server's
 #                  certificate chain; run after a database or TLS change (no writes)
+#   reanalyse:     run the AI analysis again for the article ids in "ids" (space separated), e.g.
+#                  after the watchdog reports "undefined" in AI text (npm run ai:process -- --id <n>)
 name: Maintenance (manual)
 
 on:
   workflow_dispatch:
     inputs:
       task:
-        description: "refetch-dates, recluster, ai-sample or db-check"
+        description: "refetch-dates, recluster, ai-sample, db-check or reanalyse"
         type: choice
-        options: [refetch-dates, recluster, ai-sample, db-check]
+        options: [refetch-dates, recluster, ai-sample, db-check, reanalyse]
         default: recluster
       dry_run:
         description: "true = print what would change, write nothing (refetch-dates only)"
         type: boolean
         default: true
+      ids:
+        description: "reanalyse only: article ids, space separated (at most 20)"
+        type: string
+        default: ""
       models:
         description: "ai-sample only: provider or provider=model, space separated (empty = every free provider)"
         type: string
@@ -69,6 +75,7 @@ jobs:
           IN_TASK: ${{ inputs.task }}
           IN_DRY: ${{ inputs.dry_run }}
           IN_MODELS: ${{ inputs.models }}
+          IN_IDS: ${{ inputs.ids }}
         run: |
           case "$IN_TASK" in
             refetch-dates)
@@ -93,5 +100,13 @@ jobs:
               echo "::endgroup::"
               npm run db:check
               npm run db:migrate ;;
+            reanalyse)
+              # Digits only, at most 20 ids: the input reaches the shell through env, never inline.
+              if ! printf '%s' "$IN_IDS" | grep -Eq '^ *[0-9]{1,9}( +[0-9]{1,9}){0,19} *$'; then echo "::error::ids must be 1-20 article ids separated by spaces"; exit 1; fi
+              for id in $IN_IDS; do
+                echo "::group::article $id"
+                npm run ai:process -- --id "$id" || echo "::warning::article $id failed"
+                echo "::endgroup::"
+              done ;;
             *) echo "::error::unknown task"; exit 1 ;;
           esac

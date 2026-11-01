@@ -21,7 +21,7 @@ jobs:
     # Forks keep the code but never run the scheduled jobs (no secrets, no Actions minutes).
     if: github.repository == 'tmorius-eng/UNENMEDEE'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -33,6 +33,20 @@ jobs:
           cache: npm
 
       - run: npm ci || (sleep 60 && npm ci)
+
+      # Phone layout of the live site (scripts/check-layout.ts): a page wider than a 360 px screen
+      # becomes a line in the watchdog issue. Best effort: a failed browser install or scan only
+      # means no layout line today (the report file is then missing and the rule stays quiet).
+      - name: Install Chromium for the layout scan
+        id: chromium
+        continue-on-error: true
+        run: npx playwright install --with-deps chromium
+
+      - name: Scan the live site at phone width
+        if: ${{ steps.chromium.outcome == 'success' }}
+        continue-on-error: true
+        timeout-minutes: 8
+        run: npx tsx scripts/check-layout.ts --base https://iltodmedee.mn --sitemap --per-section 1 --widths 360 --report layout.json
 
       - name: Check the site's health
         id: health
@@ -51,6 +65,7 @@ jobs:
           SOCIAL_TELEGRAM: ${{ secrets.TELEGRAM_BOT_TOKEN != '' && vars.TELEGRAM_CHAT_ID != '' }}
           SOCIAL_DISCORD: ${{ secrets.DISCORD_BOT_TOKEN != '' && (vars.DISCORD_CHANNEL_ID != '' || secrets.DISCORD_CHANNEL_ID != '') }}
           BACKUP_CONFIGURED: ${{ secrets.BACKUP_AGE_PUBLIC_KEY != '' }}
+          LAYOUT_REPORT: layout.json
         # 2>&1: a crash's stack trace lands in the issue too, not only in the run log.
         run: npm run --silent health 2>&1 | tee health.txt
 
