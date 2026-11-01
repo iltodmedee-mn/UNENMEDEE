@@ -18,8 +18,18 @@ describe("vercel cleanup", () => {
   ];
 
   it("keeps the newest ready production deployments and unfinished builds, deletes the rest", () => {
-    const gone = deploymentsToDelete(all, { keepProduction: 3 }).map((x) => x.uid).sort();
+    const gone = deploymentsToDelete(all, { keepProduction: 3, currentProductionId: "p5" }).map((x) => x.uid).sort();
     assert.deepEqual(gone, ["e1", "p1", "p2", "pre1"]);
+  });
+
+  it("deletes nothing when the live deployment is unknown or not in the list", () => {
+    assert.deepEqual(deploymentsToDelete(all, { keepProduction: 3 }), []);
+    assert.deepEqual(deploymentsToDelete(all, { keepProduction: 3, currentProductionId: "gone-from-list" }), []);
+  });
+
+  it("reads an invalid keep count as 3, never as none", () => {
+    const gone = deploymentsToDelete(all, { keepProduction: Number.NaN, currentProductionId: "p5" }).map((x) => x.uid);
+    for (const kept of ["p5", "p4", "p3"]) assert.ok(!gone.includes(kept), kept);
   });
 
   it("never deletes the deployment serving production, even after a rollback to an old one", () => {
@@ -29,7 +39,8 @@ describe("vercel cleanup", () => {
   });
 
   it("keeps at least one production deployment", () => {
-    const gone = deploymentsToDelete(all, { keepProduction: 0 }).map((x) => x.uid);
+    const gone = deploymentsToDelete(all, { keepProduction: 0, currentProductionId: "p1" }).map((x) => x.uid);
     assert.ok(!gone.includes("p5"));
+    assert.ok(!gone.includes("p1"));
   });
 });

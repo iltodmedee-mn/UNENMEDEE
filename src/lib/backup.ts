@@ -112,8 +112,17 @@ export interface ImportOptions {
  * Upserts backup lines by primary key, `PAGE` rows at a time, in the order of the file (which is
  * foreign-key order). Rows already in the database are overwritten with the backup's values; rows
  * not in the backup are left alone. Serial sequences are moved past the restored ids.
+ *
+ * One transaction: a unique-key conflict or a bad line halfway through used to leave half a
+ * restore behind with the sequences not moved, and the next pipeline insert failed on a taken id.
+ * Now either the whole file is restored (sequences included) or nothing changes.
  */
 export async function importLines(db: DB, lines: AsyncIterable<string> | Iterable<string>, opts: ImportOptions = {}): Promise<Record<string, number>> {
+  if (opts.dryRun) return importInto(db, lines, opts);
+  return db.transaction((tx) => importInto(tx as unknown as DB, lines, opts));
+}
+
+async function importInto(db: DB, lines: AsyncIterable<string> | Iterable<string>, opts: ImportOptions): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   const only = opts.only ? new Set(opts.only.map((n) => findTable(n)).map(tableName)) : null;
   // One pending batch per table run; a holder object so TypeScript follows writes made in `flush`.
