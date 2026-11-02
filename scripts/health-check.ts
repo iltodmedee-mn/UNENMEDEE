@@ -89,6 +89,7 @@ async function integrity(): Promise<IntegritySnapshot> {
     (select count(*) from articles where is_published and created_at > now() - interval '30 days'
        -- like, not a regex: in this template literal "\[" loses its backslash and became a class.
        and (tldr_summary like '%undefined%' or tldr_summary like '%[object Object]%'
+            or tldr_summary like '%''facts'':%' or tldr_summary like '%"facts":%'
             or fact_vs_spin::text like '%[object Object]%'
             or fact_vs_spin->>'spin_detected' in ('undefined', 'null')))::int as broken_ai,
     (select count(*) from (select cluster_id from articles where cluster_id is not null and is_published

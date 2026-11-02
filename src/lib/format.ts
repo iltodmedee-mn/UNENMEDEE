@@ -36,8 +36,13 @@ export function formatNumber(value: number): string {
 }
 
 /** Splits a TL;DR (newline or sentence separated) into bullet sentences. */
+/** A list marker the model put before a summary line ("- ", "• "): the page draws its own bullets. */
+const BULLET = /^\s*[-–—•*·▪●]\s+/u;
+export const stripBullet = (line: string): string => line.replace(BULLET, "").trim();
+
 export function tldrSentences(tldr: string, max = 3): string[] {
-  const byLine = tldr.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+  // Nov 2026: teasers read "- Шүүхийн ерөнхий зөвлөл…" because the model wrote its lines as a list.
+  const byLine = tldr.split(/\n+/).map(stripBullet).filter(Boolean);
   const parts = byLine.length >= 2 ? byLine : tldr.split(/(?<=[.!?])\s+(?=[А-ЯӨҮЁA-Z0-9"“«])/u).map((s) => s.trim()).filter(Boolean);
   return parts.slice(0, max);
 }

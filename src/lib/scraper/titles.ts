@@ -119,6 +119,20 @@ export function looksLikeUnitPage(title: string, text: string): boolean {
   return UNIT_TITLE.test(t) && UNIT_BODY.test(normalizeText(text).slice(0, 300));
 }
 
+/**
+ * A news page whose body block is empty. gov.mn prints "Мэдээлэл байхгүй байна" in the article
+ * area of image-only posts, so the extracted text is the headline, byline, category chips and
+ * comment rules: 249–479 characters, 88 of its 367 posts in Oct 2026, 72 of them published with
+ * an AI summary of the page chrome ("…онцлох мэдээ хоосон байна" on the home page).
+ */
+const EMPTY_BODY = /Мэдээлэл\s+байхгүй\s+байна\.?\s*$/u;
+export const EMPTY_BODY_MAX_CHARS = 800;
+
+export function looksEmptyBody(text: string): boolean {
+  const t = normalizeText(text).trim();
+  return t.length < EMPTY_BODY_MAX_CHARS && EMPTY_BODY.test(t);
+}
+
 /** The first sentence of the text as a headline (≤ 110 characters, cut at a word). */
 export function firstSentenceTitle(text: string, max = 110): string {
   const lines = normalizeText(text)
