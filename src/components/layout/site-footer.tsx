@@ -6,7 +6,7 @@ import { CONTACT_EMAIL, REPO_URL, repoFile } from "@/lib/site";
 
 import { DonateCard } from "./donate";
 import { Logo } from "./logo";
-import { NAV_GROUPS } from "./nav-data";
+import { GROUP_HEADING, NAV_GROUPS } from "./nav-data";
 import { SocialLinks } from "./social-links";
 
 const footerLink = "text-tertiary transition hover:text-primary";
@@ -27,7 +27,7 @@ export function SiteFooter() {
         </div>
         {NAV_GROUPS.map((g) => (
           <nav key={g.key} aria-labelledby={`footer-${g.key}`} className="flex flex-col gap-2 text-sm">
-            <h2 id={`footer-${g.key}`} className="label-mono mb-1 text-tertiary">
+            <h2 id={`footer-${g.key}`} className={`${GROUP_HEADING} mb-1.5`}>
               {g.label}
             </h2>
             {g.items

@@ -7,7 +7,7 @@ import { type KeyboardEvent, type PointerEvent, useEffect, useId, useRef, useSta
 
 import { cx } from "@/utils/cx";
 
-import { activeHref, NAV_GROUPS, NAV_PRIMARY, type NavItem, NO_PREFETCH } from "./nav-data";
+import { activeHref, GROUP_HEADING, NAV_GROUPS, NAV_PRIMARY, type NavItem, NO_PREFETCH } from "./nav-data";
 import { SocialLinks } from "./social-links";
 
 const prefetchOf = (href: string) => (NO_PREFETCH.has(href) ? false : undefined);
@@ -63,7 +63,7 @@ function GroupsGrid({ active, onNavigate }: { active: string | null; onNavigate?
     <nav aria-label="Үндсэн цэс" className="flex flex-col gap-5">
       {NAV_GROUPS.map((g) => (
         <section key={g.key} aria-labelledby={`menu-${g.key}`}>
-          <h2 id={`menu-${g.key}`} className="label-mono px-1 pb-1.5 text-tertiary">
+          <h2 id={`menu-${g.key}`} className={`${GROUP_HEADING} mb-2`}>
             {g.label}
           </h2>
           <ul className="grid grid-cols-2 gap-x-3 border-t border-line-soft sm:grid-cols-3">
@@ -223,7 +223,7 @@ function AllSections({ pathname, active }: { pathname: string | null; active: st
           <div className="grid grid-cols-4 p-3">
             {NAV_GROUPS.map((g) => (
               <section key={g.key} aria-labelledby={`${id}-${g.key}`} className="border-l border-line-soft px-2 first:border-l-0">
-                <h2 id={`${id}-${g.key}`} className="label-mono px-2.5 pt-2 pb-1.5 text-tertiary">
+                <h2 id={`${id}-${g.key}`} className={`${GROUP_HEADING} mx-2.5 mt-2 mb-2`}>
                   {g.label}
                 </h2>
                 <ul>

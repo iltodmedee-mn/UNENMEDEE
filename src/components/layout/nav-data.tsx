@@ -36,6 +36,12 @@ const topicIcon = (topic: string) =>
  */
 export const NO_PREFETCH = new Set(["/budget", "/data", "/transparency", "/prices"]);
 
+/**
+ * A group's name (Мэдээ, Мөнгө, тоо…) as a filled signal chip like "ГОЛ МЭДЭЭ": the owner asked for
+ * group names readers spot at once (Nov 2026; grey 11 px mono labels were easy to miss).
+ */
+export const GROUP_HEADING = "label-mono inline-flex w-fit items-center rounded-md bg-signal px-2.5 py-1 text-[13px] font-bold text-signal-ink";
+
 /** Always visible in the desktop bar. */
 export const NAV_PRIMARY: NavItem[] = [
   { href: "/", label: "Нүүр" },
