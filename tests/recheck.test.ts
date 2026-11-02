@@ -79,4 +79,23 @@ describe("source recheck: our own lines", () => {
     assert.equal(c.containment, 1);
     assert.equal(c.compared, 3);
   });
+
+  it("ignores page furniture the Nov 2026 re-check read as edits (real production rows)", () => {
+    // bayan-olgii.khural.mn: only the site poll's vote count moved.
+    const poll = (n: number) => `${STORED}\nТА KHURAL.MN –Д ЯМАР ЧИГЛЭЛИЙН МЭДЭЭ ОРУУЛАХ ХЭРЭГТЭЙ ГЭЖ ҮЗЭЖ БАЙНА ВЭ?санал өгсөн: ${n}`;
+    assert.equal(decide(prev, poll(11279), { kind: "text", text: poll(11283) }).status, "ok");
+    // nema.gov.mn: a footer e-mail line and the agency's name in capitals are not article text.
+    const footer = `${STORED}\nalternate_emailinfo@nema.gov.mn\nОНЦГОЙ БАЙДЛЫН ЕРӨНХИЙ ГАЗАР ЗАСГИЙН ГАЗРЫН ТОХИРУУЛАГЧ`;
+    assert.equal(decide(prev, footer, { kind: "text", text: STORED }).status, "ok");
+    // judcouncil.mn: the same text with a space after a full stop.
+    const glued = `${STORED}\nШалгалтын дэлгэрэнгүй хуваарьтай танилцана уу.Шүүгчийн сонгон шалгаруулалтын журам.`;
+    const spaced = `${STORED}\nШалгалтын дэлгэрэнгүй хуваарьтай танилцана уу. Шүүгчийн сонгон шалгаруулалтын журам.`;
+    assert.equal(decide(prev, glued, { kind: "text", text: spaced }).status, "ok");
+  });
+
+  it("calls a re-read that matches almost none of our text unreadable, not changed", () => {
+    // mongolbank.mn #2248: 0 of 12 sentences found: the getter read another block.
+    const other = Array.from({ length: 6 }, (_, i) => `Огт өөр мэдээллийн жагсаалтын ${i + 1}-р мөр энд бичигдсэн байна.`).join("\n");
+    assert.equal(decide(prev, STORED, { kind: "text", text: other }).status, null);
+  });
 });
