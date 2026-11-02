@@ -10,15 +10,17 @@
 #                  certificate chain; run after a database or TLS change (no writes)
 #   reanalyse:     run the AI analysis again for the article ids in "ids" (space separated), e.g.
 #                  after the watchdog reports "undefined" in AI text (npm run ai:process -- --id <n>)
+#   tenders-sync:  migrate, then read this year's tender results from Шилэн данс (12 report months,
+#                  both groups) into /tenders without waiting for news-digest (npm run tenders:sync)
 name: Maintenance (manual)
 
 on:
   workflow_dispatch:
     inputs:
       task:
-        description: "refetch-dates, recluster, ai-sample, db-check or reanalyse"
+        description: "refetch-dates, recluster, ai-sample, db-check, reanalyse or tenders-sync"
         type: choice
-        options: [refetch-dates, recluster, ai-sample, db-check, reanalyse]
+        options: [refetch-dates, recluster, ai-sample, db-check, reanalyse, tenders-sync]
         default: recluster
       dry_run:
         description: "true = print what would change, write nothing (refetch-dates only)"
@@ -108,5 +110,8 @@ jobs:
                 npm run ai:process -- --id "$id" || echo "::warning::article $id failed"
                 echo "::endgroup::"
               done ;;
+            tenders-sync)
+              npm run db:migrate
+              npm run tenders:sync -- --months 12 ;;
             *) echo "::error::unknown task"; exit 1 ;;
           esac
