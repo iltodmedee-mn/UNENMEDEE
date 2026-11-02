@@ -2,7 +2,7 @@ import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, sql, type SQL }
 import { cacheLife, cacheTag } from "next/cache";
 
 import { getDb, hasDatabase } from "@/db";
-import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
+import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, tenders, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
 import { ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
@@ -1414,5 +1414,101 @@ export async function getSourceChanges(limit = 100): Promise<SourceChangeItem[]>
       containment: r.diff?.containment ?? null,
       edits: (r.diff?.pairs.length ?? 0) + (r.diff?.removed.length ?? 0),
     }));
+  });
+}
+
+export interface TenderItem {
+  id: number;
+  code: string;
+  title: string;
+  orgName: string;
+  governor: string | null;
+  budgetMnt: number | null;
+  contractMnt: number | null;
+  method: string | null;
+  winner: string | null;
+  /** Official result date as filed (yyyy-mm-dd), when readable. */
+  resultDate: string | null;
+  /** Amounts in an unclear unit: shown as filed, never as ₮. */
+  unitSuspect: boolean;
+}
+
+export interface TendersOverview {
+  /** Newest contracts first: new to our sync, else by the official date. */
+  latest: TenderItem[];
+  /** This year's largest contracts. */
+  largest: TenderItem[];
+  year: number;
+  awardedCount: number;
+  contractSum: number;
+  orgCount: number;
+  /** Lots whose winner cell says nobody won (no bidders, cancelled). */
+  noAwardCount: number;
+  /** Awards left out of the sum and the ranking because their unit is unclear. */
+  unitSuspectCount: number;
+  syncedAt: string | null;
+}
+
+const tenderColumns = {
+  id: tenders.id,
+  code: tenders.code,
+  title: tenders.title,
+  orgName: tenders.orgName,
+  governor: tenders.governor,
+  budgetMnt: tenders.budgetMnt,
+  contractMnt: tenders.contractMnt,
+  method: tenders.method,
+  winner: tenders.winner,
+  resultDate: tenders.resultDate,
+  unitSuspect: tenders.unitSuspect,
+};
+
+/** /tenders: Шилэн данс form-1831 results (src/lib/procurement), facts only. */
+export async function getTenders(limit = 60): Promise<TendersOverview | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("tenders");
+  return safe("getTenders", null, async () => {
+    const db = getDb();
+    const yearStart = sql`date_trunc('year', now() at time zone 'Asia/Ulaanbaatar')::date`;
+    const thisYear = sql`coalesce(${tenders.resultDate}, (${tenders.firstSeenAt} at time zone 'Asia/Ulaanbaatar')::date) >= ${yearStart}`;
+    const [latest, largest, [totals], [synced]] = await Promise.all([
+      db
+        .select(tenderColumns)
+        .from(tenders)
+        .where(eq(tenders.awarded, true))
+        .orderBy(sql`coalesce(${tenders.awardedSeenAt}, ${tenders.resultDate}::timestamptz) desc nulls last`, desc(tenders.id))
+        .limit(limit),
+      db
+        .select(tenderColumns)
+        .from(tenders)
+        .where(and(eq(tenders.awarded, true), eq(tenders.unitSuspect, false), thisYear))
+        .orderBy(desc(tenders.contractMnt))
+        .limit(15),
+      db
+        .select({
+          year: sql<number>`extract(year from now() at time zone 'Asia/Ulaanbaatar')::int`,
+          awarded: sql<number>`count(*) filter (where ${tenders.awarded})::int`,
+          sum: sql<string>`coalesce(sum(${tenders.contractMnt}) filter (where ${tenders.awarded} and not ${tenders.unitSuspect}), 0)::text`,
+          suspect: sql<number>`count(*) filter (where ${tenders.awarded} and ${tenders.unitSuspect})::int`,
+          orgs: sql<number>`count(distinct ${tenders.orgName})::int`,
+          noAward: sql<number>`count(*) filter (where not ${tenders.awarded} and ${tenders.winner} is not null)::int`,
+        })
+        .from(tenders)
+        .where(thisYear),
+      db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, "tenders_synced_at")),
+    ]);
+    if (latest.length === 0) return null;
+    return {
+      latest,
+      largest,
+      year: totals.year,
+      awardedCount: totals.awarded,
+      contractSum: Number(totals.sum),
+      orgCount: totals.orgs,
+      noAwardCount: totals.noAward,
+      unitSuspectCount: totals.suspect,
+      syncedAt: synced?.value ?? null,
+    };
   });
 }

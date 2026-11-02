@@ -45,6 +45,9 @@ export function SiteFooter() {
           <Link className={footerLink} prefetch={false} href="/prices">
             Махны үнэ, бензиний үнэ 15 жилээр
           </Link>
+          <Link className={footerLink} prefetch={false} href="/tenders">
+            Тендерийн үр дүн: хэн, юуг, хэдээр
+          </Link>
           <Link className={footerLink} prefetch={false} href="/changes">
             Төрийн сайтын засвар, устгалт
           </Link>

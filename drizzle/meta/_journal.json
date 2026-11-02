@@ -162,6 +162,13 @@
       "when": 1793460677207,
       "tag": "0022_elevenlabs_provider",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1793590772908,
+      "tag": "0023_tenders",
+      "breakpoints": true
     }
   ]
 }

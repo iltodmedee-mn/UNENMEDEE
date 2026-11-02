@@ -135,6 +135,11 @@ jobs:
           NODE_EXTRA_CA_CERTS: certs/rapidssl-tls-rsa-ca-g1.pem
         run: npm run budget:sync
 
+      - name: Sync tender results (Шилэн данс form 1831, for /tenders)
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
+        continue-on-error: true
+        run: npm run tenders:sync
+
       - name: Write the digest
         # A failed sync above never stops the digest; a failed digest never stops the steps below
         # (the pipeline may have written the edition already), but nothing runs on an old schema.

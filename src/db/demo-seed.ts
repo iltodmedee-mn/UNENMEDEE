@@ -21,12 +21,13 @@ import { parsePoliceArticle, parsePoliceList } from "@/lib/scraper/adapters/poli
 import { parseZasagFeed } from "@/lib/scraper/adapters/zasag";
 import { extractArticle } from "@/lib/scraper/extractor";
 import { unshoutTitle } from "@/lib/scraper/titles";
+import { parseTenders } from "@/lib/procurement/tenders";
 import { parseSoeReport } from "@/lib/soe/shilendans";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { contentHash, slugify } from "@/lib/text";
 
 import type { DB } from "./index";
-import { articles, assetDeclarations, indicatorSnapshots, politicians, sources } from "./schema";
+import { appSettings, articles, assetDeclarations, indicatorSnapshots, politicians, sources, tenders } from "./schema";
 
 /**
  * Sample data for `npm run demo`, built from the real responses saved in tests/fixtures through the
@@ -167,6 +168,13 @@ export async function seedDemo(db: DB, fixtures = "tests/fixtures", now = new Da
   for (const s of snapshots) {
     const row = { key: s.key, data: s.data, asOf, updatedAt: now };
     await db.insert(indicatorSnapshots).values(row).onConflictDoUpdate({ target: indicatorSnapshots.key, set: row });
+  }
+
+  // /tenders: the real Шилэн данс rows of the parser test (fixture dated Nov 2026).
+  const lots = parseTenders([json("shilendans-tenders.json")], 2026, "2026-11-02");
+  if (lots.length) {
+    await db.insert(tenders).values(lots.map((t) => ({ ...t, firstSeenAt: now, awardedSeenAt: t.awarded ? now : null }))).onConflictDoNothing();
+    await db.insert(appSettings).values({ key: "tenders_synced_at", value: now.toISOString() }).onConflictDoNothing();
   }
 
   // A digest from the rule-based ranking (or the AI editor, when a key is set).
