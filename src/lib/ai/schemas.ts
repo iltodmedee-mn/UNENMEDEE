@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { stripBullet } from "@/lib/format";
+import { LEAKED_KEYS, stripBullet } from "@/lib/format";
 import { isAiTopic } from "@/lib/topics";
 import { RISK_FLAG_THRESHOLD } from "@/lib/types";
 
@@ -32,12 +32,7 @@ const stringList = (max: number) =>
     .catch([])
     .transform((xs) => [...new Set(xs.map((x) => cleanModelText(typeof x === "number" ? String(x) : x)).filter(Boolean))].slice(0, max));
 
-/**
- * Keys of the reply itself inside the summary: the model mixed quote styles ('facts': [...]) and
- * the rest of its JSON became tldr_summary, with importance and topic lost (Nov 2026: #2366,
- * #2369, #2403, #2431 were published that way). Such a reply fails, so the repair retry runs.
- */
-const LEAKED_KEYS = /['"](?:facts|spin_detected|neutrality_score|entities|risk_score|risk_reason|importance_score|topic|reader_title|impact)['"]\s*:/;
+// A reply whose summary holds its own JSON keys (LEAKED_KEYS, format.ts) fails, so the repair retry runs.
 
 export const Tier1Schema = z
   .object({

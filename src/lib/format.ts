@@ -40,9 +40,24 @@ export function formatNumber(value: number): string {
 const BULLET = /^\s*[-–—•*·▪●]\s+/u;
 export const stripBullet = (line: string): string => line.replace(BULLET, "").trim();
 
+/**
+ * Keys of the model's own JSON reply inside a summary: it mixed quote styles ('facts': [...]) and
+ * the rest of the reply became tldr_summary (Nov 2026: #2366, #2369, #2431 showed
+ * "…эхлүүлсэн.','facts': [...], 'impact': {...}}sain uu?{" on the article and in /digest).
+ * The AI schema refuses such a reply now; rows stored before are cut here when shown.
+ */
+export const LEAKED_KEYS = /['"](?:facts|spin_detected|neutrality_score|entities|risk_score|risk_reason|importance_score|topic|reader_title|impact)['"]\s*:/;
+
+/** The summary up to the first leaked JSON key, without the quote and comma that closed it. */
+export function cutLeakedJson(text: string): string {
+  const m = LEAKED_KEYS.exec(text);
+  if (!m) return text;
+  return text.slice(0, m.index).replace(/[\s'",{}[\]]+$/u, "").trim();
+}
+
 export function tldrSentences(tldr: string, max = 3): string[] {
   // Nov 2026: teasers read "- Шүүхийн ерөнхий зөвлөл…" because the model wrote its lines as a list.
-  const byLine = tldr.split(/\n+/).map(stripBullet).filter(Boolean);
+  const byLine = cutLeakedJson(tldr).split(/\n+/).map(stripBullet).filter(Boolean);
   const parts = byLine.length >= 2 ? byLine : tldr.split(/(?<=[.!?])\s+(?=[А-ЯӨҮЁA-Z0-9"“«])/u).map((s) => s.trim()).filter(Boolean);
   return parts.slice(0, max);
 }

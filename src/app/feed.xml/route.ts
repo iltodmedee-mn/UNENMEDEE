@@ -1,3 +1,4 @@
+import { cutLeakedJson } from "@/lib/format";
 import { getSitemapArticles } from "@/lib/queries";
 import { absoluteUrl, SITE_DESCRIPTION, SITE_NAME, SITE_URL, xmlEscape } from "@/lib/site";
 
@@ -16,7 +17,7 @@ export async function GET() {
       <guid isPermaLink="true">${xmlEscape(url)}</guid>
       <pubDate>${date}</pubDate>
       <source url="${xmlEscape(`https://${a.sourceDomain}`)}">${xmlEscape(a.sourceName)}</source>
-      <description>${xmlEscape(a.tldr.replace(/\s+/g, " ").trim())}</description>
+      <description>${xmlEscape(cutLeakedJson(a.tldr).replace(/\s+/g, " ").trim())}</description>
     </item>`;
     })
     .join("\n");
