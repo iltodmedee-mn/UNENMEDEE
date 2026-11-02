@@ -7,7 +7,7 @@ import { contentHash, slugify, truncate } from "@/lib/text";
 import type { ArticleSink } from "./crawl";
 import { isDayLevel, isFutureDate, MAX_AGE_DAYS, publishDecision } from "./dates";
 import { isStaticPageUrl } from "./links";
-import { firstSentenceTitle, isGenericTitle, looksLikeNavigation, looksLikeUnitPage, unshoutTitle } from "./titles";
+import { firstSentenceTitle, isGenericTitle, looksEmptyBody, looksLikeNavigation, looksLikeUnitPage, unshoutTitle } from "./titles";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "./types";
 
 /** Hard cap per article to protect the 500 MB Supabase free tier (~15 KB of text). */
@@ -68,9 +68,9 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
       // again) but never publish it.
       const menuPage = siteTitle && looksLikeNavigation(item.text);
       if (siteTitle && !menuPage) title = firstSentenceTitle(item.text);
-      // A department's "about" page (district CMSs link them like news) or a CMS static page:
-      // stored, never published.
-      const notNews = menuPage || looksLikeUnitPage(title, item.text) || isStaticPageUrl(item.url);
+      // A department's "about" page (district CMSs link them like news), a CMS static page or a post
+      // whose body block is empty (gov.mn image-only posts): stored, never published.
+      const notNews = menuPage || looksLikeUnitPage(title, item.text) || looksEmptyBody(item.text) || isStaticPageUrl(item.url);
       title = unshoutTitle(title);
       // Feeds and APIs (zasag RSS, parliament, WordPress date_gmt) are not checked by the extractor:
       // a date in the future is an event date or a typo, never the publication time.

@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { stripBullet } from "@/lib/format";
 import { isAiTopic } from "@/lib/topics";
 import { RISK_FLAG_THRESHOLD } from "@/lib/types";
 
@@ -31,9 +32,19 @@ const stringList = (max: number) =>
     .catch([])
     .transform((xs) => [...new Set(xs.map((x) => cleanModelText(typeof x === "number" ? String(x) : x)).filter(Boolean))].slice(0, max));
 
+/**
+ * Keys of the reply itself inside the summary: the model mixed quote styles ('facts': [...]) and
+ * the rest of its JSON became tldr_summary, with importance and topic lost (Nov 2026: #2366,
+ * #2369, #2403, #2431 were published that way). Such a reply fails, so the repair retry runs.
+ */
+const LEAKED_KEYS = /['"](?:facts|spin_detected|neutrality_score|entities|risk_score|risk_reason|importance_score|topic|reader_title|impact)['"]\s*:/;
+
 export const Tier1Schema = z
   .object({
-    tldr_summary: z.union([z.string(), z.array(z.string())]).transform((v) => (Array.isArray(v) ? v.join("\n") : v).trim()),
+    // One line per sentence; a "- " / "• " list marker is dropped (the page draws its own bullets).
+    tldr_summary: z
+      .union([z.string(), z.array(z.string())])
+      .transform((v) => (Array.isArray(v) ? v.join("\n") : v).split("\n").map(stripBullet).filter(Boolean).join("\n")),
     facts: stringList(12),
     spin_detected: text,
     // Null when the model gave no assessment: a default of 0 printed "Пи-ар 100%" on official news.
@@ -68,7 +79,8 @@ export const Tier1Schema = z
     impact: v.impact ?? null,
     risk_flag: v.risk_score >= RISK_FLAG_THRESHOLD,
   }))
-  .refine((v) => v.tldr_summary.length >= 20, { message: "tldr_summary is empty" });
+  .refine((v) => v.tldr_summary.length >= 20, { message: "tldr_summary is empty" })
+  .refine((v) => !LEAKED_KEYS.test(v.tldr_summary), { message: "tldr_summary holds the rest of the JSON reply" });
 
 export type Tier1Result = z.output<typeof Tier1Schema>;
 
