@@ -1,87 +1,48 @@
-import { SOCIAL } from "@/lib/site";
+import { DISCORD, SOCIAL } from "@/lib/site";
 import { cx } from "@/utils/cx";
 
 /**
- * The site's Facebook, Instagram, Threads, Messenger and RSS as round brand-coloured buttons. Plain
+ * The site's Facebook, Instagram, Threads, Messenger, Discord and RSS: each platform's own mark
+ * (Simple Icons, CC0) in its brand colour inside a hairline circle, like the header's other round
+ * buttons (Nov 2026: the old filled discs had hand-drawn marks, Threads was a plain "@"). Plain
  * markup with inline SVG (no icon library, no client JS), so it can sit in the header on every page.
  */
-export type SocialKey = "facebook" | "instagram" | "threads" | "messenger" | "rss";
+export type SocialKey = "facebook" | "instagram" | "threads" | "messenger" | "discord" | "rss";
 
-const ITEMS: Record<SocialKey, { label: string; href: string; bg: string; icon: React.ReactNode }> = {
-  facebook: {
-    label: "Facebook",
-    href: SOCIAL.facebook,
-    bg: "bg-[#1877f2]",
-    icon: <path fill="#fff" d="M13.4 21v-7.6h2.6l.4-3h-3V8.5c0-.9.3-1.5 1.5-1.5h1.6V4.3c-.3 0-1.2-.1-2.3-.1-2.3 0-3.9 1.4-3.9 4v2.2H7.7v3h2.6V21h3.1z" />,
-  },
-  instagram: {
-    label: "Instagram",
-    href: SOCIAL.instagram,
-    bg: "bg-[radial-gradient(circle_at_30%_110%,#fdf497_0%,#fd5949_45%,#d6249f_60%,#285aeb_95%)]",
-    icon: (
-      <g fill="none" stroke="#fff" strokeWidth="1.8">
-        <rect x="5.5" y="5.5" width="13" height="13" rx="4" />
-        <circle cx="12" cy="12" r="3.1" />
-        <circle cx="16" cy="8" r=".6" fill="#fff" stroke="none" />
-      </g>
-    ),
-  },
-  threads: {
-    label: "Threads",
-    href: SOCIAL.threads,
-    bg: "bg-[#101010] ring-1 ring-white/15",
-    icon: (
-      <text x="12" y="16.6" textAnchor="middle" fontSize="14.5" fontWeight="700" fill="#fff" fontFamily="inherit">
-        @
-      </text>
-    ),
-  },
-  messenger: {
-    label: "Messenger",
-    href: SOCIAL.messenger,
-    bg: "bg-[linear-gradient(135deg,#00b2ff_0%,#a033ff_60%,#ff5c87_100%)]",
-    icon: (
-      <>
-        <path fill="#fff" d="M12 4.5c-4.3 0-7.5 3.1-7.5 7.1 0 2.1.9 3.9 2.4 5.2v2.7l2.4-1.3c.8.2 1.7.4 2.7.4 4.3 0 7.5-3.1 7.5-7S16.3 4.5 12 4.5z" />
-        <path fill="#7b3cff" d="m7.9 13.9 2.6-4 2 1.6 2.5-1.6-2.6 4-2-1.6z" />
-      </>
-    ),
-  },
-  rss: {
-    label: "RSS",
-    href: "/feed.xml",
-    bg: "bg-[#f26522]",
-    icon: (
-      <g fill="none" stroke="#fff" strokeWidth="2.1" strokeLinecap="round">
-        <circle cx="7.6" cy="16.4" r="1.5" fill="#fff" stroke="none" />
-        <path d="M6.3 11.2a6.5 6.5 0 0 1 6.5 6.5M6.3 6.6a11.1 11.1 0 0 1 11.1 11.1" />
-      </g>
-    ),
-  },
+const ITEMS: Record<SocialKey, { label: string; href: string; tone: string; d: string; external: boolean }> = {
+  facebook: { label: "Facebook", href: SOCIAL.facebook, tone: "text-[#0866ff]", external: true, d: "M9.101 23.691v-7.98H6.627v-3.667h2.474v-1.58c0-4.085 1.848-5.978 5.858-5.978.401 0 .955.042 1.468.103a8.68 8.68 0 0 1 1.141.195v3.325a8.623 8.623 0 0 0-.653-.036 26.805 26.805 0 0 0-.733-.009c-.707 0-1.259.096-1.675.309a1.686 1.686 0 0 0-.679.622c-.258.42-.374.995-.374 1.752v1.297h3.919l-.386 2.103-.287 1.564h-3.246v8.245C19.396 23.238 24 18.179 24 12.044c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.628 3.874 10.35 9.101 11.647Z" },
+  instagram: { label: "Instagram", href: SOCIAL.instagram, tone: "text-[#e1306c]", external: true, d: "M7.0301.084c-1.2768.0602-2.1487.264-2.911.5634-.7888.3075-1.4575.72-2.1228 1.3877-.6652.6677-1.075 1.3368-1.3802 2.127-.2954.7638-.4956 1.6365-.552 2.914-.0564 1.2775-.0689 1.6882-.0626 4.947.0062 3.2586.0206 3.6671.0825 4.9473.061 1.2765.264 2.1482.5635 2.9107.308.7889.72 1.4573 1.388 2.1228.6679.6655 1.3365 1.0743 2.1285 1.38.7632.295 1.6361.4961 2.9134.552 1.2773.056 1.6884.069 4.9462.0627 3.2578-.0062 3.668-.0207 4.9478-.0814 1.28-.0607 2.147-.2652 2.9098-.5633.7889-.3086 1.4578-.72 2.1228-1.3881.665-.6682 1.0745-1.3378 1.3795-2.1284.2957-.7632.4966-1.636.552-2.9124.056-1.2809.0692-1.6898.063-4.948-.0063-3.2583-.021-3.6668-.0817-4.9465-.0607-1.2797-.264-2.1487-.5633-2.9117-.3084-.7889-.72-1.4568-1.3876-2.1228C21.2982 1.33 20.628.9208 19.8378.6165 19.074.321 18.2017.1197 16.9244.0645 15.6471.0093 15.236-.005 11.977.0014 8.718.0076 8.31.0215 7.0301.0839m.1402 21.6932c-1.17-.0509-1.8053-.2453-2.2287-.408-.5606-.216-.96-.4771-1.3819-.895-.422-.4178-.6811-.8186-.9-1.378-.1644-.4234-.3624-1.058-.4171-2.228-.0595-1.2645-.072-1.6442-.079-4.848-.007-3.2037.0053-3.583.0607-4.848.05-1.169.2456-1.805.408-2.2282.216-.5613.4762-.96.895-1.3816.4188-.4217.8184-.6814 1.3783-.9003.423-.1651 1.0575-.3614 2.227-.4171 1.2655-.06 1.6447-.072 4.848-.079 3.2033-.007 3.5835.005 4.8495.0608 1.169.0508 1.8053.2445 2.228.408.5608.216.96.4754 1.3816.895.4217.4194.6816.8176.9005 1.3787.1653.4217.3617 1.056.4169 2.2263.0602 1.2655.0739 1.645.0796 4.848.0058 3.203-.0055 3.5834-.061 4.848-.051 1.17-.245 1.8055-.408 2.2294-.216.5604-.4763.96-.8954 1.3814-.419.4215-.8181.6811-1.3783.9-.4224.1649-1.0577.3617-2.2262.4174-1.2656.0595-1.6448.072-4.8493.079-3.2045.007-3.5825-.006-4.848-.0608M16.953 5.5864A1.44 1.44 0 1 0 18.39 4.144a1.44 1.44 0 0 0-1.437 1.4424M5.8385 12.012c.0067 3.4032 2.7706 6.1557 6.173 6.1493 3.4026-.0065 6.157-2.7701 6.1506-6.1733-.0065-3.4032-2.771-6.1565-6.174-6.1498-3.403.0067-6.156 2.771-6.1496 6.1738M8 12.0077a4 4 0 1 1 4.008 3.9921A3.9996 3.9996 0 0 1 8 12.0077" },
+  threads: { label: "Threads", href: SOCIAL.threads, tone: "text-primary", external: true, d: "M12.186 24h-.007c-3.581-.024-6.334-1.205-8.184-3.509C2.35 18.44 1.5 15.586 1.472 12.01v-.017c.03-3.579.879-6.43 2.525-8.482C5.845 1.205 8.6.024 12.18 0h.014c2.746.02 5.043.725 6.826 2.098 1.677 1.29 2.858 3.13 3.509 5.467l-2.04.569c-1.104-3.96-3.898-5.984-8.304-6.015-2.91.022-5.11.936-6.54 2.717C4.307 6.504 3.616 8.914 3.589 12c.027 3.086.718 5.496 2.057 7.164 1.43 1.783 3.631 2.698 6.54 2.717 2.623-.02 4.358-.631 5.8-2.045 1.647-1.613 1.618-3.593 1.09-4.798-.31-.71-.873-1.3-1.634-1.75-.192 1.352-.622 2.446-1.284 3.272-.886 1.102-2.14 1.704-3.73 1.79-1.202.065-2.361-.218-3.259-.801-1.063-.689-1.685-1.74-1.752-2.964-.065-1.19.408-2.285 1.33-3.082.88-.76 2.119-1.207 3.583-1.291a13.853 13.853 0 0 1 3.02.142c-.126-.742-.375-1.332-.75-1.757-.513-.586-1.308-.883-2.359-.89h-.029c-.844 0-1.992.232-2.721 1.32L7.734 7.847c.98-1.454 2.568-2.256 4.478-2.256h.044c3.194.02 5.097 1.975 5.287 5.388.108.046.216.094.321.142 1.49.7 2.58 1.761 3.154 3.07.797 1.82.871 4.79-1.548 7.158-1.85 1.81-4.094 2.628-7.277 2.65Zm1.003-11.69c-.242 0-.487.007-.739.021-1.836.103-2.98.946-2.916 2.143.067 1.256 1.452 1.839 2.784 1.767 1.224-.065 2.818-.543 3.086-3.71a10.5 10.5 0 0 0-2.215-.221z" },
+  messenger: { label: "Messenger", href: SOCIAL.messenger, tone: "text-[#0a7cff]", external: true, d: "M.001 11.639C.001 4.949 5.241 0 12.001 0S24 4.95 24 11.639c0 6.689-5.24 11.638-12 11.638-1.21 0-2.38-.16-3.47-.46a.96.96 0 00-.64.05l-2.39 1.05a.96.96 0 01-1.35-.85l-.07-2.14a.97.97 0 00-.32-.68A11.39 11.389 0 01.002 11.64zm8.32-2.19l-3.52 5.6c-.35.53.32 1.139.82.75l3.79-2.87c.26-.2.6-.2.87 0l2.8 2.1c.84.63 2.04.4 2.6-.48l3.52-5.6c.35-.53-.32-1.13-.82-.75l-3.79 2.87c-.25.2-.6.2-.86 0l-2.8-2.1a1.8 1.8 0 00-2.61.48z" },
+  // Our own page: what the server and its slash commands do, then the invite.
+  discord: { label: "Discord", href: "/discord", tone: "text-[#5865f2]", external: false, d: "M20.317 4.3698a19.7913 19.7913 0 00-4.8851-1.5152.0741.0741 0 00-.0785.0371c-.211.3753-.4447.8648-.6083 1.2495-1.8447-.2762-3.68-.2762-5.4868 0-.1636-.3933-.4058-.8742-.6177-1.2495a.077.077 0 00-.0785-.037 19.7363 19.7363 0 00-4.8852 1.515.0699.0699 0 00-.0321.0277C.5334 9.0458-.319 13.5799.0992 18.0578a.0824.0824 0 00.0312.0561c2.0528 1.5076 4.0413 2.4228 5.9929 3.0294a.0777.0777 0 00.0842-.0276c.4616-.6304.8731-1.2952 1.226-1.9942a.076.076 0 00-.0416-.1057c-.6528-.2476-1.2743-.5495-1.8722-.8923a.077.077 0 01-.0076-.1277c.1258-.0943.2517-.1923.3718-.2914a.0743.0743 0 01.0776-.0105c3.9278 1.7933 8.18 1.7933 12.0614 0a.0739.0739 0 01.0785.0095c.1202.099.246.1981.3728.2924a.077.077 0 01-.0066.1276 12.2986 12.2986 0 01-1.873.8914.0766.0766 0 00-.0407.1067c.3604.698.7719 1.3628 1.225 1.9932a.076.076 0 00.0842.0286c1.961-.6067 3.9495-1.5219 6.0023-3.0294a.077.077 0 00.0313-.0552c.5004-5.177-.8382-9.6739-3.5485-13.6604a.061.061 0 00-.0312-.0286zM8.02 15.3312c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9555-2.4189 2.157-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.9555 2.4189-2.1569 2.4189zm7.9748 0c-1.1825 0-2.1569-1.0857-2.1569-2.419 0-1.3332.9554-2.4189 2.1569-2.4189 1.2108 0 2.1757 1.0952 2.1568 2.419 0 1.3332-.946 2.4189-2.1568 2.4189Z" },
+  rss: { label: "RSS", href: "/feed.xml", tone: "text-[#f26522]", external: false, d: "M19.199 24C19.199 13.467 10.533 4.8 0 4.8V0c13.165 0 24 10.835 24 24h-4.801zM3.291 17.415c1.814 0 3.293 1.479 3.293 3.295 0 1.813-1.485 3.29-3.301 3.29C1.47 24 0 22.526 0 20.71s1.475-3.294 3.291-3.295zM15.909 24h-4.665c0-6.169-5.075-11.245-11.244-11.245V8.09c8.727 0 15.909 7.184 15.909 15.91z" },
 };
 
-export const ALL_SOCIAL: SocialKey[] = ["facebook", "instagram", "threads", "messenger", "rss"];
+export const ALL_SOCIAL: SocialKey[] = ["facebook", "instagram", "threads", "messenger", "discord", "rss"];
+/** The header's row (Discord sits in the menu and the footer, where there is room). */
+export const HEADER_SOCIAL: SocialKey[] = ["facebook", "instagram", "threads", "messenger", "rss"];
 
 export function SocialLinks({ only = ALL_SOCIAL, size = "md", labels = false, className }: { only?: SocialKey[]; size?: "xs" | "sm" | "md" | "lg"; labels?: boolean; className?: string }) {
   const box = size === "xs" ? "size-6" : size === "sm" ? "size-7" : size === "md" ? "size-8" : "size-10";
+  const items = only.filter((key) => key !== "discord" || DISCORD.invite);
   return (
     // Labelled buttons sit in a grid so the columns line up (flex-wrap left "Threads" and "Messenger" ragged).
     <ul className={cx(labels ? "grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center" : "flex items-center", !labels && (size === "xs" ? "gap-1" : "gap-1.5"), className)}>
-      {only.map((key) => {
+      {items.map((key) => {
         const it = ITEMS[key];
-        const external = key !== "rss";
         return (
           <li key={key}>
             <a
               href={it.href}
-              {...(external ? { target: "_blank", rel: "noopener noreferrer me" } : { type: "application/rss+xml" })}
+              {...(it.external ? { target: "_blank", rel: "noopener noreferrer me" } : key === "rss" ? { type: "application/rss+xml" } : {})}
               aria-label={labels ? undefined : `ИЛ ТОД МЭДЭЭ ${it.label}`}
               title={it.label}
               className={cx("group flex items-center gap-2 rounded-full outline-focus-ring focus-visible:outline-2 focus-visible:outline-offset-2", labels && "pr-3 text-sm font-semibold text-secondary hover:text-primary")}
             >
-              <span className={cx(box, it.bg, "flex shrink-0 items-center justify-center rounded-full transition duration-150 group-hover:-translate-y-0.5")}>
-                <svg viewBox="0 0 24 24" aria-hidden className="size-[70%]">
-                  {it.icon}
+              <span className={cx(box, it.tone, "flex shrink-0 items-center justify-center rounded-full bg-primary ring-1 ring-line ring-inset transition duration-150 group-hover:-translate-y-0.5 group-hover:bg-secondary")}>
+                <svg viewBox="0 0 24 24" aria-hidden className={size === "xs" ? "size-[62%]" : "size-[56%]"} fill="currentColor">
+                  <path d={it.d} />
                 </svg>
               </span>
               {labels && it.label}

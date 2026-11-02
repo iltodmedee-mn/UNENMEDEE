@@ -19,6 +19,7 @@ import { PlacePicker } from "./place-picker";
 import { StatusTicker } from "./status-ticker";
 import { StoryList } from "./story-list";
 import { TopicBar } from "./topic-bar";
+import { TopicMark } from "./topic-icon";
 
 /** Stories rendered with the page; the rest load on demand. */
 const FIRST_PAGE = 20;
@@ -81,7 +82,7 @@ async function Masthead({ stats, digest, seo, topic }: { stats: SiteStats; diges
           <>
             {tint && (
               <p className="label-mono mb-2 flex items-center gap-2 text-[color-mix(in_oklab,var(--tint)_70%,var(--color-text-primary))]">
-                <span aria-hidden className="size-2 rounded-[2px] bg-[var(--tint)]" />
+                <TopicMark topic={tint.key} tile={tint.tile} color={tint.color} size="xs" />
                 Сэдэв · {tint.label}
               </p>
             )}
@@ -148,8 +149,8 @@ export async function HomeFeed({ filter }: { filter: FeedFilter }) {
       <TopicBar active={filter} placement="inline" />
       {topic && (
         <div className="flex items-center justify-between gap-3 pt-4">
-          <h2 className={`label-mono flex items-center gap-1.5 ${topic.color}`}>
-            <span aria-hidden className={`size-2 rounded-[2px] ${topic.dot}`} />
+          <h2 className={`label-mono flex items-center gap-2 ${topic.color}`}>
+            <TopicMark topic={topic.key} tile={topic.tile} color={topic.color} size="md" />
             {topic.label}
           </h2>
           <FollowTopicButton topic={topic.key} />

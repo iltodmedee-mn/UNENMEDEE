@@ -7,13 +7,17 @@ import { type PointerEvent, useCallback, useEffect, useRef, useState } from "rea
 import { TOPICS } from "@/lib/topics";
 import { cx } from "@/utils/cx";
 
-const ITEMS: { key: string; label: string; href: string }[] = [
+import { TopicIcon } from "./topic-icon";
+
+const DATA = TOPICS.find((t) => t.key === "data")!;
+/** `color` tints the chip's icon (the topic's own hue); "Бүгд" has none. */
+const ITEMS: { key: string; label: string; href: string; color?: string }[] = [
   { key: "all", label: "Бүгд", href: "/" },
-  { key: "my", label: "⭐ Миний", href: "/my" },
-  { key: "digest", label: "Тойм", href: "/digest" },
-  { key: "risk", label: "Эрсдэл", href: "/topic/risk" },
-  ...TOPICS.filter((t) => t.key !== "data").map((t) => ({ key: t.key, label: t.label, href: `/topic/${t.key}` })),
-  { key: "data", label: "Тоо баримт", href: "/data" },
+  { key: "my", label: "Миний", href: "/my", color: "text-utility-amber-700" },
+  { key: "digest", label: "Тойм", href: "/digest", color: "text-brand-secondary" },
+  { key: "risk", label: "Эрсдэл", href: "/topic/risk", color: "text-utility-red-700" },
+  ...TOPICS.filter((t) => t.key !== "data").map((t) => ({ key: t.key, label: t.label, href: `/topic/${t.key}`, color: t.color })),
+  { key: "data", label: "Тоо баримт", href: "/data", color: DATA.color },
 ];
 
 /** Width of the edge zone where a resting mouse scrolls the strip, and the top speed (px/frame). */
@@ -121,12 +125,13 @@ export function TopicBar({ active, placement }: { active: string; placement: "bo
                   prefetch={false}
                   aria-current={isActive ? "page" : undefined}
                   className={cx(
-                    "relative block whitespace-nowrap transition-colors",
+                    "relative flex items-center whitespace-nowrap transition-colors",
                     inline
-                      ? cx("label-mono rounded-full px-2.5 py-1.5 ring-1 ring-inset", isActive ? "bg-ink text-bg-primary ring-ink" : "text-secondary ring-line hover:bg-primary_hover hover:text-primary")
-                      : cx("px-3 py-3.5 text-sm", isActive ? "font-semibold text-primary" : "font-medium text-tertiary hover:text-secondary"),
+                      ? cx("label-mono gap-1.5 rounded-full px-2.5 py-1.5 ring-1 ring-inset", isActive ? "bg-ink text-bg-primary ring-ink" : "text-secondary ring-line hover:bg-primary_hover hover:text-primary")
+                      : cx("gap-1.5 px-3 py-3.5 text-sm", isActive ? "font-semibold text-primary" : "font-medium text-tertiary hover:text-secondary"),
                   )}
                 >
+                  {it.color && <TopicIcon topic={it.key} className={cx(inline ? "size-3.5" : "size-4", !(inline && isActive) && it.color)} />}
                   {it.label}
                   {!inline && isActive && <span aria-hidden className="absolute inset-x-3 bottom-1.5 h-0.5 rounded-full bg-brand-solid" />}
                 </Link>

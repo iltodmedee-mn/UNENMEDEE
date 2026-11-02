@@ -20,6 +20,7 @@ import { Chip, MoneyTags } from "./badges";
 import { impactTeaser, isProtocolStory, ProtocolNote, ReaderImpactBlock } from "./reader-impact";
 import { SpinMeter } from "./spin-meter";
 import { TimeAgo } from "./time-ago";
+import { TopicMark } from "./topic-icon";
 
 // Shown only inside an opened story: loaded on the first open, not with the home page.
 const ShareButton = dynamic(() => import("./share-button").then((m) => m.ShareButton), {
@@ -42,7 +43,7 @@ interface RowProps {
 
 /** One story. Memoised with stable handlers, so marking or opening one story re-renders one row, not 40. */
 const StoryRow = memo(function StoryRow({ s, isRead, isOpen, lead, onOpen, onToggleRead }: RowProps) {
-  const { tag, color, dot } = storyTag(s.sourceDomain, s.sourceCategory, s.sourceName, s.topic);
+  const { key: topicKey, tag, color, tile } = storyTag(s.sourceDomain, s.sourceCategory, s.sourceName, s.topic);
   // The ✓ pops only on a tap (a class on rows restored from localStorage would pop on every load).
   const [pop, setPop] = useState(false);
   // "Танд хамаатай юу?" leads the teaser when the text says who a story changes things for.
@@ -57,8 +58,8 @@ const StoryRow = memo(function StoryRow({ s, isRead, isOpen, lead, onOpen, onTog
       <div className="flex items-start gap-4">
         <div className="min-w-0 flex-1">
           <p className="label-mono flex flex-wrap items-center gap-x-2 gap-y-1 text-tertiary">
-            <span className={cx("flex items-center gap-1.5", color)}>
-              <span aria-hidden className={cx("size-2 rounded-[2px]", dot)} />
+            <span className={cx("flex items-center gap-2", color)}>
+              <TopicMark topic={topicKey} tile={tile} color={color} />
               {lead ? (
                 <>
                   {/* The lead's marker: a signal chip that says what it is (a bare yellow rule read as a mystery). */}

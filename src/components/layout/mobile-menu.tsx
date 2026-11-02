@@ -1,10 +1,10 @@
 "use client";
 
-import { Menu02, XClose } from "@untitledui/icons";
+import { Heart, Menu02, XClose } from "@untitledui/icons";
 import Link from "next/link";
 import { Suspense, useEffect, useRef, useState } from "react";
 
-import { NavLinks, NavLinksFallback } from "./nav-links";
+import { MenuGroups, MenuGroupsFallback } from "./nav-links";
 import { HEADER_ICON_BUTTON } from "./header-styles";
 import { SocialLinks } from "./social-links";
 import { TextSizeToggle } from "./text-size-toggle";
@@ -46,24 +46,28 @@ export function MobileMenu() {
           ref={(el) => {
             if (el) el.style.maxHeight = `${Math.max(200, window.innerHeight - el.getBoundingClientRect().top)}px`;
           }}
-          className="menu-enter absolute inset-x-0 top-full max-h-[calc(100dvh-100%)] origin-top overflow-y-auto overscroll-contain border-b border-line bg-primary/95 px-4 py-3 shadow-lg backdrop-blur-xl"
+          // Solid, not see-through: inside the header's backdrop-filter a second blur cannot blur the
+          // page, so a 95 % panel let the headlines behind it show through the links (Nov 2026).
+          className="menu-enter absolute inset-x-0 top-full max-h-[calc(100dvh-100%)] origin-top overflow-y-auto overscroll-contain border-b border-line bg-primary px-4 pt-3 pb-5 shadow-lg"
         >
-          <Suspense fallback={<NavLinksFallback className="flex flex-col gap-0.5" onNavigate={() => setOpen(false)} />}>
-            <NavLinks className="flex flex-col gap-0.5" onNavigate={() => setOpen(false)} />
-          </Suspense>
-          <Link href="/support" onClick={() => setOpen(false)} className="mt-2 block border-t border-line-soft px-3 pt-3 pb-1 text-sm font-semibold text-brand-secondary">
-            💙 Ил тод мэдээг дэмжих (хандив)
-          </Link>
-          <div className="mt-2 flex items-center gap-3 border-t border-line-soft px-3 pt-3 pb-1">
-            <span className="label-mono text-tertiary">Биднийг дагаарай</span>
-            <SocialLinks size="md" className="ml-auto" />
-          </div>
-          <div className="mt-2 flex items-center gap-1 border-t border-line-soft px-1 pt-2 sm:hidden">
-            <span className="label-mono px-2 text-tertiary">Үсгийн хэмжээ</span>
+          {/* Text size and theme first: below `sm` they live only here. */}
+          <div className="mb-4 flex items-center gap-1 border-b border-line-soft pb-3 sm:hidden">
+            <span className="label-mono px-1 text-tertiary">Үсгийн хэмжээ</span>
             <TextSizeToggle />
-            <span className="label-mono ml-auto px-2 text-tertiary">Өнгө</span>
+            <span className="label-mono ml-auto px-1 text-tertiary">Өнгө</span>
             <ThemeToggle />
           </div>
+          <Suspense fallback={<MenuGroupsFallback onNavigate={() => setOpen(false)} />}>
+            <MenuGroups onNavigate={() => setOpen(false)} />
+          </Suspense>
+          <div className="mt-5 flex flex-col gap-2.5">
+            <span className="label-mono px-1 text-tertiary">Биднийг дагаарай</span>
+            <SocialLinks size="lg" className="justify-between sm:justify-start" />
+          </div>
+          <Link href="/support" onClick={() => setOpen(false)} className="mt-5 flex min-h-12 items-center justify-center gap-2 rounded-xl bg-brand-primary px-4 text-sm font-semibold text-brand-secondary">
+            <Heart aria-hidden className="size-[18px]" />
+            Ил тод мэдээг дэмжих (хандив)
+          </Link>
         </div>
       )}
     </div>

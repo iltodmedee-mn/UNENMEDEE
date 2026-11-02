@@ -12,7 +12,7 @@ import { HEADER_ICON_BUTTON } from "./header-styles";
 import { Logo } from "./logo";
 import { MobileMenu } from "./mobile-menu";
 import { NavLinks, NavLinksFallback } from "./nav-links";
-import { SocialLinks } from "./social-links";
+import { HEADER_SOCIAL, SocialLinks } from "./social-links";
 import { TextSizeToggle } from "./text-size-toggle";
 import { ThemeToggle } from "./theme-toggle";
 import { FEED_QUIET_HOURS, hoursSince } from "@/lib/stale";
@@ -69,8 +69,8 @@ export function SiteHeader() {
         <Link href="/" className="shrink-0">
           <Logo />
         </Link>
-        <Suspense fallback={<NavLinksFallback skipHome more className="ml-4 hidden min-w-0 items-center gap-1 xl:flex" />}>
-          <NavLinks skipHome more className="ml-4 hidden min-w-0 items-center gap-1 xl:flex" />
+        <Suspense fallback={<NavLinksFallback className="ml-4 hidden min-w-0 items-center gap-1 xl:flex" />}>
+          <NavLinks className="ml-4 hidden min-w-0 items-center gap-1 xl:flex" />
         </Suspense>
         {/* The nav is hidden below xl: the empty middle of the bar shows the donation chip. */}
         <Suspense fallback={null}>
@@ -81,7 +81,7 @@ export function SiteHeader() {
               🔔 button a 360 px row has no room), all five with RSS on desktop; tablets have the donation
               chip there, and the menu lists them everywhere. */}
           <SocialLinks only={["facebook", "instagram", "threads"]} size="xs" className="hidden min-[390px]:flex sm:hidden" />
-          <SocialLinks size="md" className="mr-2 hidden border-r border-line pr-3 xl:flex" />
+          <SocialLinks only={HEADER_SOCIAL} size="md" className="mr-2 hidden border-r border-line pr-3 xl:flex" />
           <Link href="/search" aria-label="Хайх" title="Хайх" className={HEADER_ICON_BUTTON}>
             <SearchLg className="size-[18px]" aria-hidden />
           </Link>
