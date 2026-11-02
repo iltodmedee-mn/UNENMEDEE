@@ -33,6 +33,7 @@ export const NAV_MORE: NavItem[] = [
   { href: "/data", label: "Өгөгдөл" },
   { href: "/prices", label: "Үнэ" },
   { href: "/tenders", label: "Тендер" },
+  { href: "/documents", label: "Тайлан, баримт" },
   { href: "/risk", label: "Эрсдэл" },
   { href: "/laws", label: "Хууль" },
   { href: "/promises", label: "Амлалт" },

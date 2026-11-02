@@ -12,15 +12,17 @@
 #                  after the watchdog reports "undefined" in AI text (npm run ai:process -- --id <n>)
 #   tenders-sync:  migrate, then read this year's tender results from Шилэн данс (12 report months,
 #                  both groups) into /tenders without waiting for news-digest (npm run tenders:sync)
+#   docs-watch:    migrate, then read audit.mn and the watched report/tender pages into /documents
+#                  (npm run docs:watch)
 name: Maintenance (manual)
 
 on:
   workflow_dispatch:
     inputs:
       task:
-        description: "refetch-dates, recluster, ai-sample, db-check, reanalyse or tenders-sync"
+        description: "refetch-dates, recluster, ai-sample, db-check, reanalyse, tenders-sync or docs-watch"
         type: choice
-        options: [refetch-dates, recluster, ai-sample, db-check, reanalyse, tenders-sync]
+        options: [refetch-dates, recluster, ai-sample, db-check, reanalyse, tenders-sync, docs-watch]
         default: recluster
       dry_run:
         description: "true = print what would change, write nothing (refetch-dates only)"
@@ -113,5 +115,8 @@ jobs:
             tenders-sync)
               npm run db:migrate
               npm run tenders:sync -- --months 12 ;;
+            docs-watch)
+              npm run db:migrate
+              NODE_EXTRA_CA_CERTS=certs/rapidssl-tls-rsa-ca-g1.pem npm run docs:watch ;;
             *) echo "::error::unknown task"; exit 1 ;;
           esac

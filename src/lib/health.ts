@@ -118,7 +118,7 @@ export interface HealthSnapshot {
   /** `refreshedAt` of the stored 60-day tokens (null = no stored state). */
   tokens?: { threads: Date | null; instagram: Date | null };
   /** When the maintenance jobs last recorded a run (absent = the job does not exist yet). */
-  maintenance?: { pruneAt?: Date | null; backupAt?: Date | null; pipelineAt?: Date | null; tendersAt?: Date | null };
+  maintenance?: { pruneAt?: Date | null; backupAt?: Date | null; pipelineAt?: Date | null; tendersAt?: Date | null; documentsAt?: Date | null };
   network?: NetworkSnapshot;
   workflows?: WorkflowSnapshot;
   /** Expiry of the bundled intermediate certificate (`certs/*.pem`). */
@@ -249,6 +249,7 @@ export function evaluateHealth(s: HealthSnapshot, config: HealthConfig, now = ne
   // Supabase fallback (supabase/pipeline-fallback.sql) starts one after an hour when it has a token.
   if (m?.pipelineAt && daysSince(m.pipelineAt, now) * 24 > PIPELINE_QUIET_H) out.push(`Мэдээний pipeline ${Math.round(daysSince(m.pipelineAt, now) * 24)} цаг эхлээгүй: GitHub хуваарийг алгассан байж магадгүй (docs/PIPELINE-FALLBACK.md).`);
   if (m?.tendersAt && daysSince(m.tendersAt, now) > 3) out.push(`Тендерийн үр дүн (/tenders) ${Math.round(daysSince(m.tendersAt, now))} хоног шинэчлэгдээгүй: news-digest → "Sync tender results" алхмыг шалгах (Шилэн дансны API).`);
+  if (m?.documentsAt && daysSince(m.documentsAt, now) > 3) out.push(`Тайлан, баримт бичгийн хяналт (/documents) ${Math.round(daysSince(m.documentsAt, now))} хоног ажиллаагүй: news-digest → "Watch report and tender pages" алхмыг шалгах.`);
   if (m?.backupAt && daysSince(m.backupAt, now) > 10) out.push(`Нөөц хуулбар (backup) ${Math.round(daysSince(m.backupAt, now))} хоног хийгдээгүй (backup workflow).`);
 
   const n = s.network;

@@ -48,6 +48,9 @@ export function SiteFooter() {
           <Link className={footerLink} prefetch={false} href="/tenders">
             Тендерийн үр дүн: хэн, юуг, хэдээр
           </Link>
+          <Link className={footerLink} prefetch={false} href="/documents">
+            Шинэ аудитын тайлан, баримт бичиг
+          </Link>
           <Link className={footerLink} prefetch={false} href="/changes">
             Төрийн сайтын засвар, устгалт
           </Link>

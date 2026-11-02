@@ -351,6 +351,46 @@ export const tenders = pgTable(
 
 export type TenderRow = typeof tenders.$inferSelect;
 
+/**
+ * Reports and tender documents kept on pages (src/lib/documents): audit.mn reports and the file
+ * links on watched WordPress report/tender pages. Only the link, its text and its page are stored,
+ * never the file. `baseline` rows were already there when we first read their page: kept so they
+ * are never announced, listed only as "already on the page".
+ */
+export const documents = pgTable(
+  "documents",
+  {
+    id: serial("id").primaryKey(),
+    url: varchar("url", { length: 1000 }).notNull().unique(),
+    title: text("title").notNull(),
+    /** "audit" | "tender" | "report" */
+    kind: varchar("kind", { length: 16 }).notNull(),
+    domain: varchar("domain", { length: 255 }).notNull(),
+    pageTitle: text("page_title"),
+    pageUrl: text("page_url"),
+    fileType: varchar("file_type", { length: 8 }),
+    /** audit.mn: the audit office and the audit type. */
+    meta: jsonb("meta").$type<Record<string, string>>(),
+    baseline: boolean("baseline").notNull().default(false),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("documents_first_seen_idx").on(t.firstSeenAt)],
+);
+
+/** The watched pages and the `modified` time we last read them at (src/lib/documents). */
+export const watchedPages = pgTable("watched_pages", {
+  url: varchar("url", { length: 1000 }).primaryKey(),
+  domain: varchar("domain", { length: 255 }).notNull(),
+  title: text("title").notNull(),
+  kind: varchar("kind", { length: 16 }).notNull(),
+  /** As the site reports it; a different value means the page was edited. */
+  modified: varchar("modified", { length: 40 }).notNull(),
+  fileCount: integer("file_count").notNull().default(0),
+  checkedAt: timestamp("checked_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+export type DocumentRow = typeof documents.$inferSelect;
+
 export const sourcesRelations = relations(sources, ({ many }) => ({
   articles: many(articles),
 }));

@@ -152,7 +152,7 @@ async function videosAndPress() {
 }
 
 async function settings() {
-  const result = await rows(sql`select key, value from app_settings where key in ('threads', 'instagram', 'prune_state', 'backup_last_at', 'pipeline_started_at', 'tenders_synced_at', 'github_dispatch_token_expires')`);
+  const result = await rows(sql`select key, value from app_settings where key in ('threads', 'instagram', 'prune_state', 'backup_last_at', 'pipeline_started_at', 'tenders_synced_at', 'documents_checked_at', 'github_dispatch_token_expires')`);
   const byKey = new Map(result.map((r) => [String(r.key), String(r.value)]));
   const jsonDate = (key: string, field: string): Date | null => {
     const raw = byKey.get(key);
@@ -172,7 +172,7 @@ async function settings() {
   };
   return {
     tokens: { threads: jsonDate("threads", "refreshedAt"), instagram: jsonDate("instagram", "refreshedAt") },
-    maintenance: { pruneAt: jsonDate("prune_state", "ranAt"), backupAt: plainDate("backup_last_at"), pipelineAt: plainDate("pipeline_started_at"), tendersAt: plainDate("tenders_synced_at") },
+    maintenance: { pruneAt: jsonDate("prune_state", "ranAt"), backupAt: plainDate("backup_last_at"), pipelineAt: plainDate("pipeline_started_at"), tendersAt: plainDate("tenders_synced_at"), documentsAt: plainDate("documents_checked_at") },
     dispatchTokenExpires: plainDate("github_dispatch_token_expires"),
   };
 }

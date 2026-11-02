@@ -43,7 +43,7 @@ database is the only shared state between the two halves.
 | Job | Schedule | Script | Writes |
 |---|---|---|---|
 | News pipeline | every 30 min (four crons: :17 and :32 on even UTC hours, :02 and :47 on odd ones; GitHub may skip some, and a pg_cron fallback dispatches the workflow after 60 min without a start, `docs/PIPELINE-FALLBACK.md`) | `scripts/run-scraper.ts`, `scripts/process-ai.ts` | `articles`, `clusters`, `ai_usage_logs` |
-| Digest + data | 08:07, 20:07 Ulaanbaatar | `digest`, `data:sync`, `macro:sync`, `budget:sync`, `tenders:sync`, `db:prune` | `digests`, `open_datasets`, `indicator_snapshots`, `tenders` |
+| Digest + data | 08:07, 20:07 Ulaanbaatar | `digest`, `data:sync`, `macro:sync`, `budget:sync`, `tenders:sync`, `docs:watch`, `db:prune` | `digests`, `open_datasets`, `indicator_snapshots`, `tenders`, `documents`, `watched_pages` |
 | Officials | weekly | `officials:sync` | `politicians`, `asset_declarations` |
 | Source discovery | weekly | `sources:discover` | `sources` |
 | Source re-check | weekly | `sources:recheck` | `articles.source_status`, `source_diff` |
@@ -71,6 +71,7 @@ migrations in [`drizzle/`](../drizzle) (`IF NOT EXISTS` everywhere, so a rerun i
 | `open_datasets` | opendata.mn metadata and small computed highlights (never raw rows) |
 | `indicator_snapshots` | One JSON document per external source (`mongolbank`, `budget_nso`, `shilendans`, `soe_finance`, …) |
 | `tenders` | Tender results each budget body files to Шилэн данс (form 1831): code, item, budget, contract, method, winner, date; amounts in an unclear unit are flagged, never rescaled (`/tenders`) |
+| `documents`, `watched_pages` | New audit.mn reports and file links added to watched WordPress report/tender pages (link, text, page only; never the file) (`/documents`) |
 | `push_subscriptions` | Web Push endpoints and followed MPs |
 | `videos` | Generated price videos: the MP4 for a few days (served at `/reel?v=<id>` for the platforms to fetch), then only the key and the numbers it showed |
 | `social_posts` | What was posted to Facebook, Instagram, Threads, Telegram and Discord (one row per platform + kind + item, so nothing posts twice) |

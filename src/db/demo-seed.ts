@@ -21,13 +21,14 @@ import { parsePoliceArticle, parsePoliceList } from "@/lib/scraper/adapters/poli
 import { parseZasagFeed } from "@/lib/scraper/adapters/zasag";
 import { extractArticle } from "@/lib/scraper/extractor";
 import { unshoutTitle } from "@/lib/scraper/titles";
+import { documentLinks, parseAuditRegister } from "@/lib/documents/watch";
 import { parseTenders } from "@/lib/procurement/tenders";
 import { parseSoeReport } from "@/lib/soe/shilendans";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { contentHash, slugify } from "@/lib/text";
 
 import type { DB } from "./index";
-import { appSettings, articles, assetDeclarations, indicatorSnapshots, politicians, sources, tenders } from "./schema";
+import { appSettings, articles, assetDeclarations, documents, indicatorSnapshots, politicians, sources, tenders } from "./schema";
 
 /**
  * Sample data for `npm run demo`, built from the real responses saved in tests/fixtures through the
@@ -175,6 +176,19 @@ export async function seedDemo(db: DB, fixtures = "tests/fixtures", now = new Da
   if (lots.length) {
     await db.insert(tenders).values(lots.map((t) => ({ ...t, firstSeenAt: now, awardedSeenAt: t.awarded ? now : null }))).onConflictDoNothing();
     await db.insert(appSettings).values({ key: "tenders_synced_at", value: now.toISOString() }).onConflictDoNothing();
+  }
+
+  // /documents: the real audit.mn register rows and the mimr.gov.mn tender page of the parser tests.
+  const audits = parseAuditRegister(read("audit-register.html"));
+  const wp = JSON.parse(read("wp-report-page.json")) as { content: string; link: string };
+  const files = documentLinks(wp.content, wp.link);
+  const docRows = [
+    ...audits.map((r) => ({ url: r.url, title: r.title, kind: "audit", domain: "audit.mn", pageTitle: "Аудитын тайлангийн сан", pageUrl: "https://audit.mn/audit", meta: { office: r.office ?? "", auditType: r.auditType ?? "" }, firstSeenAt: now })),
+    ...files.map((f) => ({ url: f.url, title: f.title, kind: "tender", domain: "mimr.gov.mn", pageTitle: "Тендерийн урилга", pageUrl: wp.link, fileType: f.fileType, firstSeenAt: now })),
+  ];
+  if (docRows.length) {
+    await db.insert(documents).values(docRows).onConflictDoNothing();
+    await db.insert(appSettings).values({ key: "documents_checked_at", value: now.toISOString() }).onConflictDoNothing();
   }
 
   // A digest from the rule-based ranking (or the AI editor, when a key is set).
