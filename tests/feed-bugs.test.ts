@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { Tier1Schema } from "@/lib/ai/schemas";
-import { stripBullet, tldrSentences } from "@/lib/format";
+import { cutLeakedJson, LEAKED_KEYS, stripBullet, tldrSentences } from "@/lib/format";
 import { looksEmptyBody } from "@/lib/scraper/titles";
 
 import { TIER1_OK } from "./helpers/mock-llm";
@@ -49,5 +49,25 @@ describe("a reply whose summary holds the rest of the JSON", () => {
     const leaked = "- Хуудас хоосон байна.\n- Шийдвэр, тоо дурдагдаагүй.','facts': ['Огноо: 2026-11-02'], 'spin_detected': 'Илрээгүй', 'importance_score': 0, 'topic': 'society'}society{";
     assert.equal(Tier1Schema.safeParse({ ...ok, tldr_summary: leaked }).success, false);
     assert.equal(Tier1Schema.safeParse(ok).success, true);
+  });
+});
+
+describe("summaries stored with the model's JSON reply inside (Nov 2026: #2366, #2369, #2431)", () => {
+  // Shortened from production row #2369.
+  const leaked =
+    "- Хамтарсан хорооны 10 дахь хуралдаан 2026 оны 10 дугаар сарын 30-нд Сөүл хотноо болсон.\n- БНСУ Монгол иргэдэд цахимаар шуурхай жуулчлалын виз олгох тогтолцоог эхлүүлсэн.','facts': ['Огноо: 2026 оны 10 дугаар сарын 30'],'spin_detected': 'Илэрхий пи-ар илрээгүй.','neutrality_score': 95,'impact': {'who': 'Монгол иргэд'}}sain uu?{";
+
+  it("shows only the summary lines, never the keys or the junk after them", () => {
+    assert.deepEqual(tldrSentences(leaked), [
+      "Хамтарсан хорооны 10 дахь хуралдаан 2026 оны 10 дугаар сарын 30-нд Сөүл хотноо болсон.",
+      "БНСУ Монгол иргэдэд цахимаар шуурхай жуулчлалын виз олгох тогтолцоог эхлүүлсэн.",
+    ]);
+    assert.doesNotMatch(cutLeakedJson(leaked), /facts|sain uu|[{}'"]$/);
+  });
+
+  it("leaves a normal summary with quotes alone", () => {
+    const ok = 'Засгийн газар "Чөлөөлье" санаачилгыг эхлүүллээ.';
+    assert.equal(cutLeakedJson(ok), ok);
+    assert.equal(LEAKED_KEYS.test(ok), false);
   });
 });

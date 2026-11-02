@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { tldrSentences } from "@/lib/format";
+
 /**
  * Pure Web Push helpers (no DB, no network) so they can be unit tested.
  */
@@ -80,7 +82,7 @@ export interface NotifiableArticle {
 }
 
 export function articlePayload(a: NotifiableArticle): PushPayload {
-  const firstLine = (a.tldr ?? "").split("\n")[0] ?? "";
+  const firstLine = tldrSentences(a.tldr ?? "", 1)[0] ?? "";
   return {
     title: clip(`${a.riskFlag ? "🚨 " : "📰 "}${a.title}`, 90),
     body: clip(firstLine ? `${firstLine} · ${a.sourceName}` : a.sourceName, 160),
@@ -98,7 +100,7 @@ export function newsPayload(stories: NotifiableArticle[]): PushPayload | null {
   if (!top) return null;
   const p = articlePayload(top);
   if (rest.length === 0) return p;
-  const firstLine = (top.tldr ?? "").split("\n")[0] ?? "";
+  const firstLine = tldrSentences(top.tldr ?? "", 1)[0] ?? "";
   return { ...p, body: clip(`${firstLine ? `${firstLine} ` : ""}+${rest.length} чухал мэдээ`, 160), tag: "news" };
 }
 

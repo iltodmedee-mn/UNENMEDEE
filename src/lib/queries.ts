@@ -967,7 +967,7 @@ export interface DigestView {
   periodEnd: Date;
   title: string;
   intro: string;
-  /** `story` is attached only when asked (`withStories`) and the article still exists with a summary. */
+  /** Only items whose article is still published; `story` is attached only when asked (`withStories`) and it has a summary. */
   items: (DigestItem & { story?: DigestStory })[];
   candidateCount: number;
   generatedBy: string;
@@ -987,16 +987,16 @@ export async function getDigests(kind: "12h" | "30d", limit = 10, withStories = 
     const db = getDb();
     const rows = await db.select().from(digests).where(eq(digests.kind, kind)).orderBy(desc(digests.periodEnd)).limit(limit);
     const stories = new Map<number, DigestStory>();
+    const live = new Set<number>();
     const ids = [...new Set(rows.flatMap((d) => d.items.map((it) => it.articleId)))];
-    if (withStories && ids.length) {
+    if (ids.length) {
       const found = await db
         .select({ id: articles.id, tldr: articles.tldrSummary, summaryFallback: articles.summaryFallback, originalUrl: articles.originalUrl, entities: articles.extractedEntities })
         .from(articles)
-        // An edition lists the articles it chose then; one unpublished since keeps its digest
-        // line (the edition's own text) but its current summary and link are not shown.
         .where(and(inArray(articles.id, ids), eq(articles.isPublished, true)));
       for (const a of found) {
-        if (!a.tldr) continue;
+        live.add(a.id);
+        if (!withStories || !a.tldr) continue;
         stories.set(a.id, { tldr: a.tldr, summaryFallback: a.summaryFallback, originalUrl: a.originalUrl, amounts: a.entities?.amounts_mnt ?? [] });
       }
     }
@@ -1007,10 +1007,14 @@ export async function getDigests(kind: "12h" | "30d", limit = 10, withStories = 
       periodEnd: d.periodEnd,
       title: d.title,
       intro: d.intro,
-      items: d.items.map((it) => {
-        const story = stories.get(it.articleId);
-        return story ? { ...it, story } : it;
-      }),
+      // Withdrawn stories stay withdrawn: an article unpublished after the edition was written
+      // (Nov 2026: 72 empty gov.mn image posts) left its line in /digest, linking to a 404 page.
+      items: d.items
+        .filter((it) => live.has(it.articleId))
+        .map((it) => {
+          const story = stories.get(it.articleId);
+          return story ? { ...it, story } : it;
+        }),
       candidateCount: d.candidateCount,
       generatedBy: d.generatedBy,
       costUsd: Number(d.costUsd),
