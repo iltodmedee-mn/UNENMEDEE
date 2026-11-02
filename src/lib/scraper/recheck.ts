@@ -54,6 +54,16 @@ function isChrome(s: string): boolean {
   const upper = s.match(/\p{Lu}/gu)?.length ?? 0;
   return letters >= 15 && upper / letters >= 0.8;
 }
+/**
+ * A "related news" heading line ("Бусад мэдээлэл", "Шинэ мэдээ", "Холбоотой мэдээ"): what follows
+ * is the site's sidebar, which changes with every new post. nema.gov.mn #2218 was stored with its
+ * "Шинэ мэдээ" list and read as "changed" when the list moved on (Nov 2026).
+ */
+const RELATED_HEADING = /^\s{0,4}(бусад|холбоотой|шинэ|сүүлийн|сүүлд нэмэгдсэн|төстэй|ижил|онцлох)\s{1,3}(мэдээ|мэдээлэл|мэдээнүүд|нийтлэл)\s{0,4}$/imu;
+function withoutRelated(text: string): string {
+  const m = RELATED_HEADING.exec(text);
+  return m && m.index > 0 ? text.slice(0, m.index) : text;
+}
 /** Attachment and link labels ("…төсөлDownload", "…_RFIТатах", "file.pdf"): sites rename them freely. */
 const ATTACHMENT = /download|татах|татаж авах|\.(pdf|docx?|xlsx?|zip)\b|(?<![^\s_])[^\s_]+_[^\s_]+_[^\s_]/iu;
 
@@ -63,7 +73,7 @@ const ATTACHMENT = /download|татах|татаж авах|\.(pdf|docx?|xlsx?|z
  * WINDOW-word pieces so one glued counter does not hide the whole text.
  */
 export function splitSentences(text: string): string[] {
-  return normalizeText(text)
+  return normalizeText(withoutRelated(text))
     // A view counter glued after the date ("2026-10-19 33 Шүүх…") changes on every visit.
     .replace(/(20\d{2}[-./]\d{1,2}[-./]\d{1,2})\s+\d{1,6}(?=\s)/g, "$1")
     .split(/\n+|(?<=[.!?])\s+/)

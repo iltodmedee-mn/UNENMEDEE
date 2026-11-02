@@ -48,8 +48,19 @@ interface Row {
   checkedAt: Date | null;
 }
 
-/** The page's text, read the same way the scraper read it the first time. */
+/**
+ * The page's text, read the same way the scraper read it the first time. Never throws: the
+ * timeout also covers reading the body, and one slow page used to end the whole run (Nov 2026).
+ */
 async function fetchText(row: Row): Promise<FetchResult> {
+  try {
+    return await readPage(row);
+  } catch {
+    return { kind: "error" };
+  }
+}
+
+async function readPage(row: Row): Promise<FetchResult> {
   let res: Response;
   try {
     res = await politeFetch(row.url, { timeoutMs: 30_000 });

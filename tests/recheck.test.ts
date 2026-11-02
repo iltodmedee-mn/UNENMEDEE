@@ -99,3 +99,40 @@ describe("source recheck: our own lines", () => {
     assert.equal(decide(prev, STORED, { kind: "text", text: other }).status, null);
   });
 });
+
+describe("source recheck: related-news sidebar", () => {
+  // nema.gov.mn #2218 (Nov 2026): stored with the site's "Шинэ мэдээ" list; the page re-read
+  // without its headline and with the list moved on matched 0.71 and read as "changed".
+  const body = [
+    "Онцгой байдлын ерөнхий газрын даргын 2026 оны А/398 дугаар тушаалын дагуу ОБЕГ, нийслэлийн хүрээний Онцгой байдлын байгууллагын алба хаагчдыг 2026 оны 10 дугаар сарын 26-ны өдрөөс хүйтний улирлын хувцсанд шилжүүллээ.",
+    "Хүйтний улирлын хувцсанд шилжсэнтэй холбогдуулан Монгол Улсын Ерөнхийлөгчийн 2024 оны 141 дүгээр зарлигаар баталсан “Цэргийн дүрэмт хувцас, цол, ялгах тэмдгийн загвар”, Зэвсэгт хүчний Жанжин штабын даргын 2024 оны А/777 дугаар тушаалаар баталсан “Цэргийн дүрэмт хувцас өмсөх дүрэм”-ийн хэрэгжилтийг хангах хүрээнд хувцасны болон жагсаалын нэгдсэн үзлэг, цэргийн тангараг давтах ажиллагааг зохион байгууллаа.",
+    "Орон нутгийн Онцгой байдлын байгууллагын алба хаагчдыг 2026 оны 11 дүгээр сарын 02-ны өдөрт багтаан бүс нутгийн онцлогт тохируулан хүйтний улирлын хувцсанд бүсийн даргын тушаалаар шилжүүүлэх юм.",
+  ];
+  const stored = [
+    "Алба хаагчид хүйтний улирлын хувцсанд шилжлээ",
+    "calendar_today2026-10-30",
+    ...body,
+    "Бусад мэдээлэл",
+    "calendar_today2026/10/30",
+    "Шинэ мэдээ",
+    "Эрсдэлээ шалгая, аюулгүй байдлаа хангая",
+    "Өнөөдөр буюу аравдугаар сарын 29. Энэ өдөр таны амьдарч байгаа орчин, ажиллаж байгаа газар, айл, өрхийнхөө болоод өөрийн эрсдэлийг тооцож, үүсэж болзошгүй аюулаас урьдчилан сэргийлэх өдөр.",
+  ].join("\n\n");
+
+  it("compares only the text before a related-news heading", () => {
+    const sentences = splitSentences(stored);
+    assert.ok(!sentences.some((s) => s.includes("Эрсдэлээ шалгая")));
+    const c = compareTexts(stored, body.join("\n\n"));
+    assert.ok(c.containment >= 0.8, `containment ${c.containment}`);
+    assert.equal(decide({ status: "changed", missingCount: 0, checkedAt: null }, stored, { kind: "text", text: body.join("\n\n") }).status, "ok");
+  });
+
+  it("keeps a real edit before the heading", () => {
+    const edited = body.map((b) => b.replace("26-ны", "29-ний").replace("02-ны", "09-ний")).join("\n\n");
+    assert.equal(decide({ status: "ok", missingCount: 0, checkedAt: null }, stored, { kind: "text", text: edited }).status, "changed");
+  });
+
+  it("never cuts at a heading on the first line", () => {
+    assert.ok(splitSentences("Шинэ мэдээ\n\n" + body[0]).length > 0);
+  });
+});
