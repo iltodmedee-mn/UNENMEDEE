@@ -13,6 +13,8 @@ import { isDateLine } from "./titles";
 
 /** Below this share of our sentences still on the page, the text counts as changed. */
 export const CHANGED_BELOW = 0.8;
+/** Below this share of our sentences the fresh text is another block, not an edit (see decide). */
+export const UNREADABLE_BELOW = 0.2;
 /** A page must 404 (or redirect away) on this many checks, at least GONE_MIN_DAYS apart. */
 export const GONE_CHECKS = 2;
 export const GONE_MIN_DAYS = 6;
@@ -39,7 +41,19 @@ export interface SourceDiff {
 
 // Bounded runs and no overlapping classes: these run on publisher text, so a long digit run or
 // word must not make them backtrack quadratically.
-const COUNTER = /\d[\d\s,.]{0,24}(уншсан|үзсэн|views?|сэтгэгдэл)/iu;
+const COUNTER = /\d[\d\s,.]{0,24}(уншсан|үзсэн|views?|сэтгэгдэл)|(санал\s{1,3}өгсөн|үзсэн|уншсан|хандалт|views?)\s{0,3}[:：]?\s{0,3}\d/iu;
+/**
+ * Page furniture, not article text: an e-mail line in the footer ("alternate_emailinfo@…") and a
+ * line mostly in capitals (menus, the agency's name, a poll's question). Nov 2026: a poll widget
+ * whose vote count changed and a footer read as "the government changed the article".
+ */
+const EMAIL = /[\p{L}\p{N}._-]{1,64}@[\p{L}\p{N}-]{1,63}\./u;
+function isChrome(s: string): boolean {
+  if (EMAIL.test(s) || /alternate_email/i.test(s)) return true;
+  const letters = s.match(/\p{L}/gu)?.length ?? 0;
+  const upper = s.match(/\p{Lu}/gu)?.length ?? 0;
+  return letters >= 15 && upper / letters >= 0.8;
+}
 /** Attachment and link labels ("…төсөлDownload", "…_RFIТатах", "file.pdf"): sites rename them freely. */
 const ATTACHMENT = /download|татах|татаж авах|\.(pdf|docx?|xlsx?|zip)\b|(?<![^\s_])[^\s_]+_[^\s_]+_[^\s_]/iu;
 
@@ -54,13 +68,13 @@ export function splitSentences(text: string): string[] {
     .replace(/(20\d{2}[-./]\d{1,2}[-./]\d{1,2})\s+\d{1,6}(?=\s)/g, "$1")
     .split(/\n+|(?<=[.!?])\s+/)
     .map((s) => s.replace(/\s+/g, " ").trim())
-    .filter((s) => s.length >= 25 && !isDateLine(s) && !COUNTER.test(s) && !ATTACHMENT.test(s))
+    .filter((s) => s.length >= 25 && !isDateLine(s) && !COUNTER.test(s) && !ATTACHMENT.test(s) && !isChrome(s))
     .flatMap((s) => {
       if (s.length <= LONG_SENTENCE) return [s];
       const w = s.split(" ");
       const pieces: string[] = [];
       for (let i = 0; i < w.length; i += WINDOW) pieces.push(w.slice(i, i + WINDOW).join(" "));
-      return pieces.filter((p) => p.length >= 25 && !COUNTER.test(p));
+      return pieces.filter((p) => p.length >= 25 && !COUNTER.test(p) && !isChrome(p));
     });
 }
 
@@ -76,6 +90,8 @@ function key(s: string): string {
 }
 
 const words = (s: string) => new Set(key(s).split(" ").filter((w) => w.length > 1));
+/** The key without spaces: "уу.ШҮҮГЧИЙН" and "уу. ШҮҮГЧИЙН" (or a new line break) are the same text. */
+const compact = (s: string) => key(s).replace(/\s+/g, "");
 
 function jaccard(a: Set<string>, b: Set<string>): number {
   let inter = 0;
@@ -100,14 +116,14 @@ const OUR_PREFIX = /^Батлагдсан байгууллага:[^\n]*\n+/;
 
 export function compareTexts(stored: string, fresh: string): Comparison {
   const ours = splitSentences(stored.replace(OUR_PREFIX, ""));
-  const freshKey = key(normalizeText(fresh).replace(/\s+/g, " "));
+  const freshKey = compact(normalizeText(fresh));
   const theirs = splitSentences(fresh);
   const theirWords = theirs.map((s) => ({ s, w: words(s) }));
   const pairs: SourceDiff["pairs"] = [];
   const removed: string[] = [];
   let found = 0;
   for (const s of ours) {
-    if (freshKey.includes(key(s))) {
+    if (freshKey.includes(compact(s))) {
       found++;
       continue;
     }
@@ -158,6 +174,10 @@ export function decide(prev: CheckState, stored: string, result: FetchResult, no
   if (result.text.length < MIN_FRESH_CHARS) return { status: null, missingCount: prev.missingCount };
   const c = compareTexts(stored, result.text);
   if (c.compared < MIN_SENTENCES) return { status: null, missingCount: prev.missingCount };
+  // Almost none of our text on the page: the getter read another block (a listing, a JavaScript
+  // shell), not an edited article. mongolbank.mn #2248 matched 0 of 12 sentences in Nov 2026.
+  // Proves nothing, like a failed extraction.
+  if (c.containment < UNREADABLE_BELOW) return { status: null, missingCount: prev.missingCount };
   if (c.containment < CHANGED_BELOW || c.numbersChanged) {
     return {
       status: "changed",
