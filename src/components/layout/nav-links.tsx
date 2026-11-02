@@ -1,52 +1,16 @@
 "use client";
 
-import { Check, ChevronDown } from "@untitledui/icons";
+import { ChevronDown, Heart } from "@untitledui/icons";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type KeyboardEvent, type PointerEvent, useEffect, useId, useRef, useState } from "react";
 
 import { cx } from "@/utils/cx";
 
-interface NavItem {
-  href: string;
-  label: string;
-}
+import { activeHref, NAV_GROUPS, NAV_PRIMARY, type NavItem, NO_PREFETCH } from "./nav-data";
+import { SocialLinks } from "./social-links";
 
-/**
- * Pages whose client code includes the chart library (recharts): a prefetch from the header on
- * every page view downloaded it (the same problem §6c fixed for /data).
- */
-const NO_PREFETCH = new Set(["/budget", "/data", "/transparency", "/prices"]);
-
-/** Always visible in the desktop bar. */
-export const NAV_PRIMARY: NavItem[] = [
-  { href: "/", label: "Нүүр" },
-  { href: "/digest", label: "Онцлох тойм" },
-  { href: "/officials", label: "Улстөрчид" },
-  { href: "/budget", label: "Төсөв" },
-  { href: "/tax", label: "Миний татвар" },
-];
-
-/** Under "Бусад ▾" in the desktop bar; a labelled second group in the mobile menu. */
-export const NAV_MORE: NavItem[] = [
-  { href: "/my", label: "Миний мэдээ" },
-  { href: "/data", label: "Өгөгдөл" },
-  { href: "/prices", label: "Үнэ" },
-  { href: "/tenders", label: "Тендер" },
-  { href: "/documents", label: "Тайлан, баримт" },
-  { href: "/risk", label: "Эрсдэл" },
-  { href: "/laws", label: "Хууль" },
-  { href: "/promises", label: "Амлалт" },
-  { href: "/projects", label: "Төслүүд" },
-  { href: "/sources", label: "Эх сурвалж" },
-  { href: "/changes", label: "Өөрчлөлт" },
-  { href: "/transparency", label: "Ил тод тайлан" },
-  { href: "/about", label: "Бид хэн бэ" },
-];
-
-export const NAV_ITEMS = [...NAV_PRIMARY, ...NAV_MORE];
-
-const isActive = (href: string, pathname: string | null) => pathname !== null && (href === "/" ? pathname === "/" : pathname.startsWith(href));
+const prefetchOf = (href: string) => (NO_PREFETCH.has(href) ? false : undefined);
 
 const linkClass = (active: boolean) =>
   cx(
@@ -54,59 +18,117 @@ const linkClass = (active: boolean) =>
     active ? "bg-secondary text-primary" : "text-tertiary hover:bg-primary_hover hover:text-primary",
   );
 
-interface NavProps {
-  className?: string;
-  onNavigate?: () => void;
-  /** The desktop bar leaves out "Нүүр" (the logo already links home). */
-  skipHome?: boolean;
-  /** The desktop bar folds NAV_MORE into a "Бусад ▾" dropdown. */
-  more?: boolean;
-}
+const PRIMARY = new Set(NAV_PRIMARY.map((item) => item.href));
+const GROUP_ITEMS = NAV_GROUPS.flatMap((g) => g.items);
 
 /**
  * Active-link highlighting needs usePathname(), which suspends on routes whose params are
  * only known at request time (new articles served via ISR). Always render inside <Suspense>
- * with <NavLinksFallback> (same links, no highlight) so the layout shell stays prerendered.
+ * with the *Fallback (same links, no highlight) so the layout shell stays prerendered.
  */
-export function NavLinks(props: NavProps) {
-  return <NavList {...props} pathname={usePathname()} />;
+export function NavLinks({ className }: { className?: string }) {
+  const pathname = usePathname();
+  return <NavBar className={className} pathname={pathname} active={activeHref(pathname)} />;
 }
 
-export function NavLinksFallback(props: NavProps) {
-  return <NavList {...props} pathname={null} />;
+export function NavLinksFallback({ className }: { className?: string }) {
+  return <NavBar className={className} pathname={null} active={null} />;
 }
 
-function NavList({ className, onNavigate, pathname, skipHome, more }: NavProps & { pathname: string | null }) {
-  const link = (item: NavItem) => {
-    const active = isActive(item.href, pathname);
-    return (
-      <Link key={item.href} href={item.href} prefetch={NO_PREFETCH.has(item.href) ? false : undefined} onClick={onNavigate} aria-current={active ? "page" : undefined} className={linkClass(active)}>
-        {item.label}
-      </Link>
-    );
-  };
+/** The desktop bar: the primary links (the logo is "Нүүр") and the "Бүх хэсэг ▾" panel. */
+function NavBar({ className, pathname, active }: { className?: string; pathname: string | null; active: string | null }) {
   return (
     <nav className={className} aria-label="Үндсэн цэс">
-      {NAV_PRIMARY.filter((item) => !skipHome || item.href !== "/").map(link)}
-      {more ? (
-        <NavMore pathname={pathname} />
-      ) : (
-        <>
-          <p className="label-mono mt-3 px-2.5 pb-1 text-tertiary">Бусад</p>
-          {NAV_MORE.map(link)}
-        </>
-      )}
+      {NAV_PRIMARY.filter((item) => item.href !== "/").map((item) => (
+        <Link key={item.href} href={item.href} prefetch={prefetchOf(item.href)} aria-current={active === item.href ? "page" : undefined} className={linkClass(active === item.href)}>
+          {item.label}
+        </Link>
+      ))}
+      <AllSections pathname={pathname} active={active} />
     </nav>
   );
 }
 
+/** The phone and tablet menu: every page in the four groups, two (tablet: three) columns. */
+export function MenuGroups({ onNavigate }: { onNavigate?: () => void }) {
+  return <GroupsGrid active={activeHref(usePathname())} onNavigate={onNavigate} />;
+}
+
+export function MenuGroupsFallback({ onNavigate }: { onNavigate?: () => void }) {
+  return <GroupsGrid active={null} onNavigate={onNavigate} />;
+}
+
+function GroupsGrid({ active, onNavigate }: { active: string | null; onNavigate?: () => void }) {
+  return (
+    <nav aria-label="Үндсэн цэс" className="flex flex-col gap-5">
+      {NAV_GROUPS.map((g) => (
+        <section key={g.key} aria-labelledby={`menu-${g.key}`}>
+          <h2 id={`menu-${g.key}`} className="label-mono px-1 pb-1.5 text-tertiary">
+            {g.label}
+          </h2>
+          <ul className="grid grid-cols-2 gap-x-3 border-t border-line-soft sm:grid-cols-3">
+            {g.items.map((item) => {
+              const Icon = item.icon;
+              const on = active === item.href;
+              return (
+                <li key={item.href} className="border-b border-line-soft">
+                  <Link
+                    href={item.href}
+                    prefetch={prefetchOf(item.href)}
+                    onClick={onNavigate}
+                    aria-current={on ? "page" : undefined}
+                    className={cx("my-0.5 flex min-h-11 items-center gap-2.5 rounded-md px-1.5 py-2 text-[0.9375rem] leading-tight font-semibold transition", on ? "bg-secondary text-primary" : "text-secondary hover:bg-primary_hover hover:text-primary")}
+                  >
+                    {Icon && <Icon aria-hidden className="size-[19px] shrink-0 text-brand-secondary" />}
+                    {item.label}
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </section>
+      ))}
+    </nav>
+  );
+}
+
+/** One page in the desktop panel: icon tile, name, one line of what is there. */
+function PanelLink({ item, active, onClick }: { item: NavItem; active: boolean; onClick: () => void }) {
+  const Icon = item.icon;
+  return (
+    <Link
+      href={item.href}
+      prefetch={prefetchOf(item.href)}
+      aria-current={active ? "page" : undefined}
+      onClick={onClick}
+      className={cx(
+        "flex items-start gap-3 rounded-lg px-2.5 py-2 outline-focus-ring transition duration-100 hover:bg-primary_hover focus-visible:bg-primary_hover focus-visible:outline-2 focus-visible:-outline-offset-2",
+        active && "bg-secondary",
+      )}
+    >
+      {Icon && (
+        <span aria-hidden className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-lg bg-brand-primary text-brand-secondary">
+          <Icon className="size-[18px]" />
+        </span>
+      )}
+      <span className="min-w-0">
+        <span className="block text-sm font-semibold text-primary">{item.label}</span>
+        {item.desc && <span className="block text-xs leading-snug text-tertiary">{item.desc}</span>}
+      </span>
+    </Link>
+  );
+}
+
 /**
- * "Бусад ▾": plain markup with the Untitled dropdown look (base/dropdown), no React Aria, because
- * the header ships on every page. Click / Enter / ↓ open it; a mouse also opens it on hover. It
- * closes on Escape, an outside click, focus leaving it and navigation (the open state remembers
- * the path it was opened on, so a new path closes it without an effect).
+ * "Бүх хэсэг ▾": every page in four labelled groups with an icon and one line each (it used to
+ * be "Бусад ▾", 13 unrelated links in one list). A disclosure (button + panel), plain markup, no
+ * React Aria, because the header ships on every page. Click / Enter / ↓ open it; a mouse also
+ * opens it on hover; ↑ ↓ Home End move through the links. It closes on Escape, an outside click,
+ * focus leaving it and navigation (the open state remembers the path it was opened on, so a new
+ * path closes it without an effect). The panel is positioned against the header row, not the
+ * button, so it spans the page width.
  */
-function NavMore({ pathname }: { pathname: string | null }) {
+function AllSections({ pathname, active }: { pathname: string | null; active: string | null }) {
   const [openOn, setOpenOn] = useState<string | null>(null);
   const here = pathname ?? "";
   const open = openOn === here;
@@ -114,15 +136,16 @@ function NavMore({ pathname }: { pathname: string | null }) {
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
-  const current = NAV_MORE.find((item) => isActive(item.href, pathname));
+  // On a page that is not in the bar, the button says where the reader is ("Тендер ▾").
+  const current = active && !PRIMARY.has(active) ? GROUP_ITEMS.find((item) => item.href === active) : undefined;
 
-  const links = () => Array.from(root.current?.querySelectorAll<HTMLAnchorElement>("[role=menu] a") ?? []);
+  const links = () => Array.from(root.current?.querySelectorAll<HTMLAnchorElement>("[data-panel] a") ?? []);
   const setOpen = (next: boolean, focus?: "first" | "last") => {
     clearTimeout(timer.current);
     setOpenOn(next ? here : null);
     if (focus) requestAnimationFrame(() => (focus === "first" ? links()[0] : links().at(-1))?.focus());
   };
-  // When the mouse opened the menu, the click that usually follows (150–400 ms later) must not
+  // When the mouse opened the panel, the click that usually follows (150–400 ms later) must not
   // toggle it shut again.
   const hoverOpenedAt = useRef(0);
   const hover = (e: PointerEvent, next: boolean, ms: number) => {
@@ -153,7 +176,7 @@ function NavMore({ pathname }: { pathname: string | null }) {
       setOpen(true, e.key === "ArrowDown" ? "first" : "last");
     }
   };
-  const onMenuKey = (e: KeyboardEvent) => {
+  const onPanelKey = (e: KeyboardEvent) => {
     const list = links();
     const i = list.indexOf(document.activeElement as HTMLAnchorElement);
     const go = (n: number) => {
@@ -174,7 +197,6 @@ function NavMore({ pathname }: { pathname: string | null }) {
   return (
     <div
       ref={root}
-      className="relative"
       onPointerEnter={(e) => hover(e, true, 80)}
       onPointerLeave={(e) => hover(e, false, 150)}
       onBlur={(e) => {
@@ -184,7 +206,6 @@ function NavMore({ pathname }: { pathname: string | null }) {
       <button
         ref={trigger}
         type="button"
-        aria-haspopup="menu"
         aria-expanded={open}
         aria-controls={open ? id : undefined}
         onClick={() => {
@@ -194,40 +215,37 @@ function NavMore({ pathname }: { pathname: string | null }) {
         onKeyDown={onTriggerKey}
         className={cx("flex cursor-pointer items-center gap-1 outline-focus-ring focus-visible:outline-2 focus-visible:outline-offset-2", linkClass(Boolean(current) || open))}
       >
-        {current?.label ?? "Бусад"}
+        {current?.label ?? "Бүх хэсэг"}
         <ChevronDown aria-hidden className={cx("size-4 transition-transform duration-150", open && "rotate-180")} />
       </button>
       {open && (
-        <div
-          id={id}
-          role="menu"
-          aria-label="Бусад хуудас"
-          onKeyDown={onMenuKey}
-          className="absolute top-full right-0 z-50 mt-1 menu-enter w-56 origin-top-right rounded-xl bg-primary py-1 shadow-lg ring-1 ring-line"
-        >
-          {NAV_MORE.map((item) => {
-            const active = isActive(item.href, pathname);
-            return (
-              <Link
-                key={item.href}
-                href={item.href}
-                role="menuitem"
-                aria-current={active ? "page" : undefined}
-                onClick={() => setOpen(false)}
-                className="group block px-1.5 py-px outline-hidden"
-              >
-                <span
-                  className={cx(
-                    "flex items-center rounded-md px-2.5 py-2 text-sm font-semibold text-secondary outline-focus-ring transition duration-100 ease-linear group-hover:bg-primary_hover group-focus-visible:bg-primary_hover group-focus-visible:outline-2 group-focus-visible:-outline-offset-2",
-                    active && "bg-secondary text-primary",
-                  )}
-                >
-                  <span className="grow">{item.label}</span>
-                  {active && <Check aria-hidden className="size-4 shrink-0 stroke-[2.25px] text-fg-brand-primary" />}
-                </span>
-              </Link>
-            );
-          })}
+        <div id={id} data-panel data-popover onKeyDown={onPanelKey} className="menu-enter absolute inset-x-4 top-full z-50 mt-1 origin-top rounded-2xl bg-primary shadow-lg ring-1 ring-line md:inset-x-8">
+          <div className="grid grid-cols-4 p-3">
+            {NAV_GROUPS.map((g) => (
+              <section key={g.key} aria-labelledby={`${id}-${g.key}`} className="border-l border-line-soft px-2 first:border-l-0">
+                <h2 id={`${id}-${g.key}`} className="label-mono px-2.5 pt-2 pb-1.5 text-tertiary">
+                  {g.label}
+                </h2>
+                <ul>
+                  {g.items
+                    .filter((item) => item.href !== "/")
+                    .map((item) => (
+                      <li key={item.href}>
+                        <PanelLink item={item} active={active === item.href} onClick={() => setOpen(false)} />
+                      </li>
+                    ))}
+                </ul>
+              </section>
+            ))}
+          </div>
+          <div className="flex items-center gap-3 rounded-b-2xl border-t border-line-soft bg-secondary px-5 py-3">
+            <span className="label-mono text-tertiary">Биднийг дагаарай</span>
+            <SocialLinks size="md" />
+            <Link href="/support" onClick={() => setOpen(false)} className="ml-auto inline-flex items-center gap-1.5 text-sm font-semibold text-brand-secondary hover:underline">
+              <Heart aria-hidden className="size-4" />
+              Ил тод мэдээг дэмжих
+            </Link>
+          </div>
         </div>
       )}
     </div>

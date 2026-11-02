@@ -5,6 +5,7 @@ import { Suspense } from "react";
 
 import { Chip } from "@/components/iltod/badges";
 import { PageHeader } from "@/components/iltod/page-header";
+import { TopicMark } from "@/components/iltod/topic-icon";
 import { FeedSkeleton } from "@/components/iltod/skeletons";
 import { archiveDateLabel, archiveShortLabel, parseArchiveDate, recentDates, ubTime } from "@/lib/archive";
 import { largestAmount } from "@/lib/format";
@@ -28,7 +29,8 @@ export async function generateMetadata({ params }: PageProps<"/archive/[date]">)
 interface Group {
   key: string;
   label: string;
-  dot: string;
+  color: string;
+  tile: string;
   stories: ArticleListItem[];
 }
 
@@ -42,13 +44,13 @@ function groupByTopic(stories: ArticleListItem[]): Group[] {
       continue;
     }
     const t = topicFor(s.sourceDomain, s.sourceCategory, s.topic);
-    const g = groups.get(t.key) ?? { key: t.key, label: t.label, dot: t.dot, stories: [] };
+    const g = groups.get(t.key) ?? { key: t.key, label: t.label, color: t.color, tile: t.tile, stories: [] };
     g.stories.push(s);
     groups.set(t.key, g);
   }
   const order = [...TOPICS.map((t) => t.key), "other"];
   const sorted = [...groups.values()].sort((a, b) => order.indexOf(a.key) - order.indexOf(b.key));
-  if (undated.length) sorted.push({ key: "undated", label: "Огноо тодорхойгүй · энэ өдөр олдсон", dot: "bg-utility-neutral-500", stories: undated });
+  if (undated.length) sorted.push({ key: "undated", label: "Огноо тодорхойгүй · энэ өдөр олдсон", color: "text-utility-neutral-700", tile: "bg-utility-neutral-500/15 dark:bg-utility-neutral-500/25", stories: undated });
   return sorted;
 }
 
@@ -128,7 +130,7 @@ async function DayView({ params }: { params: PageProps<"/archive/[date]">["param
         {groups.map((g) => (
           <section key={g.key} aria-labelledby={`g-${g.key}`} className="flex flex-col gap-3">
             <h2 id={`g-${g.key}`} className="label-mono flex items-center gap-2 text-secondary">
-              <span aria-hidden className={`size-2 rounded-[2px] ${g.dot}`} />
+              <TopicMark topic={g.key} tile={g.tile} color={g.color} />
               {g.key !== "undated" && g.key !== "other" ? (
                 <Link href={`/topic/${g.key}`} prefetch={false} className="hover:text-primary">
                   {g.label}
