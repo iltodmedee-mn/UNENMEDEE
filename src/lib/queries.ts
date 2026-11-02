@@ -2,7 +2,7 @@ import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, sql, type SQL }
 import { cacheLife, cacheTag } from "next/cache";
 
 import { getDb, hasDatabase } from "@/db";
-import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, tenders, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
+import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, tenders, documents, watchedPages, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
 import { ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
@@ -1510,5 +1510,75 @@ export async function getTenders(limit = 60): Promise<TendersOverview | null> {
       unitSuspectCount: totals.suspect,
       syncedAt: synced?.value ?? null,
     };
+  });
+}
+
+export interface DocumentItem {
+  id: number;
+  url: string;
+  title: string;
+  kind: string;
+  domain: string;
+  pageTitle: string | null;
+  pageUrl: string | null;
+  fileType: string | null;
+  meta: Record<string, string> | null;
+  firstSeenAt: Date;
+}
+
+export interface WatchedPageItem {
+  url: string;
+  domain: string;
+  title: string;
+  kind: string;
+  modified: string;
+  fileCount: number;
+}
+
+export interface DocumentsOverview {
+  audits: DocumentItem[];
+  /** Files that appeared on a watched page after we first read it. */
+  added: DocumentItem[];
+  pages: WatchedPageItem[];
+  checkedAt: string | null;
+}
+
+/** /documents: new audit.mn reports and files added to watched report/tender pages. */
+export async function getDocuments(): Promise<DocumentsOverview | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("documents");
+  return safe("getDocuments", null, async () => {
+    const db = getDb();
+    const cols = {
+      id: documents.id,
+      url: documents.url,
+      title: documents.title,
+      kind: documents.kind,
+      domain: documents.domain,
+      pageTitle: documents.pageTitle,
+      pageUrl: documents.pageUrl,
+      fileType: documents.fileType,
+      meta: documents.meta,
+      firstSeenAt: documents.firstSeenAt,
+    };
+    const [audits, added, pages, [checked]] = await Promise.all([
+      db.select(cols).from(documents).where(eq(documents.domain, "audit.mn")).orderBy(desc(documents.firstSeenAt), desc(documents.id)).limit(20),
+      db
+        .select(cols)
+        .from(documents)
+        .where(and(eq(documents.baseline, false), sql`${documents.domain} <> 'audit.mn'`))
+        .orderBy(desc(documents.firstSeenAt), desc(documents.id))
+        .limit(50),
+      db
+        .select({ url: watchedPages.url, domain: watchedPages.domain, title: watchedPages.title, kind: watchedPages.kind, modified: watchedPages.modified, fileCount: watchedPages.fileCount })
+        .from(watchedPages)
+        .where(sql`${watchedPages.fileCount} > 0`)
+        .orderBy(desc(watchedPages.modified))
+        .limit(40),
+      db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, "documents_checked_at")),
+    ]);
+    if (audits.length === 0 && added.length === 0 && pages.length === 0) return null;
+    return { audits, added, pages, checkedAt: checked?.value ?? null };
   });
 }

@@ -82,6 +82,7 @@ describe("watchdog rules", () => {
       ["prune stopped", (s) => (s.maintenance!.pruneAt = daysAgo(4)), /db:prune/],
       ["backup stopped", (s) => (s.maintenance!.backupAt = daysAgo(11)), /Нөөц хуулбар/],
       ["tenders not synced", (s) => (s.maintenance!.tendersAt = daysAgo(4)), /Тендерийн үр дүн/],
+      ["documents not watched", (s) => (s.maintenance!.documentsAt = daysAgo(4)), /Тайлан, баримт бичгийн/],
       ["pipeline not started for 7 h", (s) => (s.maintenance!.pipelineAt = new Date(NOW.getTime() - 7 * 3_600_000)), /pipeline 7 цаг эхлээгүй/],
       ["site down", (s) => (s.network!.siteOk = false), /нээгдэхгүй/],
       ["feed broken", (s) => (s.network!.feedOk = false), /feed\.xml/],
