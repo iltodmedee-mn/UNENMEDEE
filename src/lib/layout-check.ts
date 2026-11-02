@@ -13,7 +13,7 @@ export interface LayoutOverflow {
 }
 
 /** Pages every scan opens: each kind of layout, including the cards that broke in Nov 2026. */
-export const LAYOUT_BASE_PAGES = ["/", "/digest", "/risk", "/clusters", "/officials", "/budget", "/prices", "/tax", "/laws", "/search?q=төсөв"];
+export const LAYOUT_BASE_PAGES = ["/", "/digest", "/risk", "/clusters", "/officials", "/budget", "/prices", "/tax", "/laws", "/tenders", "/search?q=төсөв"];
 
 /**
  * The sitemap's pages, at most `perSection` per first path segment (every /article/… shares one

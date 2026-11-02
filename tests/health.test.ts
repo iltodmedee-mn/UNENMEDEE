@@ -81,6 +81,7 @@ describe("watchdog rules", () => {
       ["token not refreshed", (s) => (s.tokens!.threads = daysAgo(20)), /^threads: 60 хоногийн токен 20 хоног.*40 хоногийн дараа/],
       ["prune stopped", (s) => (s.maintenance!.pruneAt = daysAgo(4)), /db:prune/],
       ["backup stopped", (s) => (s.maintenance!.backupAt = daysAgo(11)), /Нөөц хуулбар/],
+      ["tenders not synced", (s) => (s.maintenance!.tendersAt = daysAgo(4)), /Тендерийн үр дүн/],
       ["pipeline not started for 7 h", (s) => (s.maintenance!.pipelineAt = new Date(NOW.getTime() - 7 * 3_600_000)), /pipeline 7 цаг эхлээгүй/],
       ["site down", (s) => (s.network!.siteOk = false), /нээгдэхгүй/],
       ["feed broken", (s) => (s.network!.feedOk = false), /feed\.xml/],

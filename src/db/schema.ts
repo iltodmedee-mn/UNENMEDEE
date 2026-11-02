@@ -318,6 +318,39 @@ export const indicatorSnapshots = pgTable("indicator_snapshots", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+/**
+ * Tender results filed to Шилэн данс (form 1831, src/lib/procurement): one row per organisation +
+ * tender code + item. `first_seen_at` is when our sync first saw the row, `awarded_seen_at` when
+ * it first carried a winner and a contract amount (the "new contract" feed); the official
+ * `result_date` is shown when the organisation typed a readable one.
+ */
+export const tenders = pgTable(
+  "tenders",
+  {
+    id: serial("id").primaryKey(),
+    key: varchar("key", { length: 200 }).notNull().unique(),
+    code: varchar("code", { length: 40 }).notNull(),
+    title: text("title").notNull(),
+    orgName: text("org_name").notNull(),
+    orgRegister: varchar("org_register", { length: 20 }),
+    governor: text("governor"),
+    budgetMnt: bigint("budget_mnt", { mode: "number" }),
+    contractMnt: bigint("contract_mnt", { mode: "number" }),
+    method: text("method"),
+    winner: text("winner"),
+    awarded: boolean("awarded").notNull().default(false),
+    /** Amounts in an unclear unit (thousands typed as ₮): shown as filed, never summed or ranked. */
+    unitSuspect: boolean("unit_suspect").notNull().default(false),
+    resultDate: date("result_date", { mode: "string" }),
+    firstSeenAt: timestamp("first_seen_at", { withTimezone: true }).notNull().defaultNow(),
+    awardedSeenAt: timestamp("awarded_seen_at", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("tenders_awarded_seen_idx").on(t.awardedSeenAt), index("tenders_result_date_idx").on(t.resultDate)],
+);
+
+export type TenderRow = typeof tenders.$inferSelect;
+
 export const sourcesRelations = relations(sources, ({ many }) => ({
   articles: many(articles),
 }));
