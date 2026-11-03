@@ -276,12 +276,12 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
                 {people.map((p) =>
                   p.id !== null ? (
                     <Link key={p.name} href={`/officials/${p.id}`} prefetch={false} title="УИХ-ын гишүүний хөрөнгө, ирц, мэдээ">
-                      <Chip tone="brand" size="md" className="font-sans tracking-normal hover:underline">
+                      <Chip tone="brand" size="md" className="font-sans tracking-normal whitespace-normal hover:underline">
                         {p.name} →
                       </Chip>
                     </Link>
                   ) : (
-                    <Chip key={p.name} size="md" className="font-sans tracking-normal">
+                    <Chip key={p.name} size="md" className="font-sans tracking-normal whitespace-normal">
                       {p.name}
                     </Chip>
                   ),
@@ -292,7 +292,7 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
               <div className="flex flex-wrap items-center gap-1.5">
                 <span className="label-mono mr-1 text-tertiary">Байгууллагууд</span>
                 {article.entities.orgs.map((o) => (
-                  <Chip key={o} size="md" className="font-sans tracking-normal">
+                  <Chip key={o} size="md" className="font-sans tracking-normal whitespace-normal">
                     {o}
                   </Chip>
                 ))}
