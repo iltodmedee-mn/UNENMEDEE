@@ -281,3 +281,9 @@ jobs:
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && vars.VIDEO_POSTING != 'off' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode video
+
+      # The Launchpad campaign (3–7 Nov 2026, 19:00 Ulaanbaatar; src/lib/social/promo.ts): a no-op on other days.
+      - name: Post the Launchpad campaign reel due today
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '') }}
+        continue-on-error: true
+        run: npm run social:post -- --mode promo
