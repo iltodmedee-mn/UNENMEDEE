@@ -29,6 +29,7 @@ import { POPULATION } from "@/lib/per-person";
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
 import { PROGRAMME_END } from "@/lib/promises/programme";
 import { PROJECTS_VERIFIED_THROUGH } from "@/lib/projects/data";
+import { MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { PRODUCTION_URL } from "@/lib/site";
 import { RATES_CHECKED } from "@/lib/tax/receipt";
 import { TARIFFS_VERIFIED_THROUGH } from "@/lib/budget/tariffs";
@@ -95,8 +96,13 @@ async function integrity(): Promise<IntegritySnapshot> {
     (select count(*) from (select cluster_id from articles where cluster_id is not null and is_published
        group by cluster_id having max(published_at) - min(published_at) > interval '7 days') c)::int as wide_clusters,
     (select count(*) from (select content_hash from articles group by content_hash having count(*) > 1) d)::int as dup_hashes`);
+  // Only rows the publish rule would show: dated and inside MAX_AGE_DAYS. Sites whose link
+  // harvest finds only old archive pages (aimag khural decisions from 2023) or undated FAQ/static
+  // pages store them unpublished on purpose; counting those named 19 healthy sources (Nov 2026).
   const silent = await rows(sql`select s.domain from sources s join articles a on a.source_id = s.id
     where s.is_active and a.created_at > now() - interval '14 days'
+      and a.published_at > now() - interval '1 day' * ${MAX_AGE_DAYS}
+      and coalesce(a.scrape_meta->>'date_unknown', '') <> 'true'
     group by s.domain having count(*) >= 10 and count(*) filter (where a.is_published) = 0 order by s.domain`);
   return { brokenAiText: Number(r.broken_ai), widespreadClusters: Number(r.wide_clusters), duplicateHashes: Number(r.dup_hashes), silentSources: silent.map((x) => String(x.domain)) };
 }

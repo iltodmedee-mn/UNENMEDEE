@@ -13,7 +13,7 @@ export function ArticleCard({ article, className }: { article: ArticleListItem; 
   return (
     <article
       className={cx(
-        "group relative flex flex-col gap-4 rounded-2xl bg-primary p-5 ring-1 ring-line transition ring-inset hover:ring-brand",
+        "group relative flex min-w-0 flex-col gap-4 rounded-2xl bg-primary p-5 ring-1 ring-line transition ring-inset hover:ring-brand",
         article.riskFlag && "ring-risk/50",
         className,
       )}

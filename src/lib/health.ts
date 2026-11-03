@@ -189,7 +189,7 @@ export function evaluateHealth(s: HealthSnapshot, config: HealthConfig, now = ne
     if (g.brokenAiText > 0) out.push(`${g.brokenAiText} нийтлэгдсэн мэдээний AI текстэд "undefined"/"null"/"[object Object]" бичигдсэн байна: AI-ийн хариуны хэлбэр (schemas.ts) өөрчлөгдсөн эсэхийг шалгаад тэдгээрийг дахин боловсруулах (maintenance.yml → reanalyse).`);
     if (g.widespreadClusters > 0) out.push(`${g.widespreadClusters} кластерын мэдээнүүд хооронд 7 хоногоос их зайтай: өөр өөр үйл явдлыг нэгтгэсэн байж болзошгүй (clustering.ts, /clusters-ийг шалгах).`);
     if (g.duplicateHashes > 0) out.push(`Ижил текстийг ${g.duplicateHashes} удаа давхар хадгалсан (content_hash давхардсан): db-sink-ийн давхардлын шалгалтыг шалгах.`);
-    if (g.silentSources.length) out.push(`${g.silentSources.length} эх сурвалжаас сүүлийн 14 хоногт 10+ хуудас ирсэн ч нэг ч мэдээ нийтлэгдээгүй (${g.silentSources.slice(0, 5).join(", ")}): JavaScript хуудас эсвэл буруу шүүлтүүр байж магадгүй.`);
+    if (g.silentSources.length) out.push(`${g.silentSources.length} эх сурвалжаас сүүлийн 14 хоногт шинэ огноотой 10+ мэдээ ирсэн ч нэг нь ч нийтлэгдээгүй (${g.silentSources.slice(0, 5).join(", ")}): JavaScript хуудас эсвэл буруу шүүлтүүр байж магадгүй.`);
   }
 
   for (const l of s.layout ?? []) out.push(`Утсан дээр ${l.path} хуудас дэлгэцээс өргөн (${l.viewport}px дэлгэцэнд ${l.width}px, хажуу тийш гүйдэг): ${l.culprit}`);
