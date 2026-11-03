@@ -1,8 +1,8 @@
 # Daily health check of the whole system (scripts/health-check.ts, rules in src/lib/health.ts):
 # news, AI, digests, push, social posting per configured platform, officials, data snapshots,
 # the live site and its certificates, the workflows themselves and dated facts in the code.
-# A problem opens (or updates) a GitHub issue labelled "watchdog": GitHub emails the repository
-# owner. When everything is healthy again it closes that issue.
+# A problem opens (or updates) a GitHub issue labelled "watchdog": 🔴 urgent problems comment on it
+# (GitHub emails the owner), 🟡 info only rewrites its text. When everything is healthy it closes it.
 name: Watchdog
 
 on:
@@ -69,22 +69,41 @@ jobs:
         # 2>&1: a crash's stack trace lands in the issue too, not only in the run log.
         run: npm run --silent health 2>&1 | tee health.txt
 
+      # 🔴 urgent (news stopped, site down, a core workflow off) or a crashed check: the issue gets a
+      # comment (GitHub e-mails the owner) and the run is red. 🟡 info only (the site works): the
+      # issue's text is rewritten in place, so it e-mails once when it opens and then stays quiet.
       - name: Open or update the watchdog issue
         # Also when npm ci failed and the check never ran (health.txt is then empty).
-        if: ${{ !cancelled() && steps.health.outcome != 'success' }}
+        if: ${{ !cancelled() && (steps.health.outcome != 'success' || steps.health.outputs.level == 'info') }}
         env:
           GH_TOKEN: ${{ github.token }}
+          LEVEL: ${{ steps.health.outcome == 'success' && steps.health.outputs.level || 'urgent' }}
         run: |
           gh label create watchdog --color d73a4a --description "Automatic health check" 2>/dev/null || true
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           if [ -s health.txt ]; then report="$(cat health.txt)"; else report="Шалгалтын скрипт юу ч хэвлэлгүй унасан (npm ci эсвэл скрипт эвдэрсэн). Лог: $run_url"; fi
-          body="$(printf '⚠️ Автомат шалгалт асуудал илрүүллээ (%s UTC):\n\n```\n%s\n```\n\nЛог: %s\n\nЗасагдсаны дараа энэ issue автоматаар хаагдана.' "$(date -u '+%Y-%m-%d %H:%M')" "$report" "$run_url")"
+          guide="Юу хийх вэ: docs/RUNBOOK.md (Claude-гүй үед)."
+          if [ "$LEVEL" = "info" ]; then
+            title="🟡 iltodmedee.mn: анхаарах зүйлс (яаралтай биш, сайт ажиллаж байна)"
+            head="🟡 Сайт хэвийн ажиллаж байна. Доорх зүйлсийг завтай үедээ харна уу"
+          else
+            title="🔴 iltodmedee.mn: ЯАРАЛТАЙ асуудал"
+            head="🔴 Автомат шалгалт яаралтай асуудал илрүүллээ"
+          fi
+          body="$(printf '%s (%s UTC):\n\n```\n%s\n```\n\n%s\nЛог: %s\n\nЗасагдсаны дараа энэ issue автоматаар хаагдана.' "$head" "$(date -u '+%Y-%m-%d %H:%M')" "$report" "$guide" "$run_url")"
           open=$(gh issue list --label watchdog --state open --json number --jq '.[0].number')
-          if [ -n "$open" ]; then gh issue comment "$open" --body "$body"; else gh issue create --title "⚠️ iltodmedee.mn: автомат шалгалт асуудал илрүүллээ" --label watchdog --body "$body"; fi
-          exit 1
+          if [ -z "$open" ]; then
+            gh issue create --title "$title" --label watchdog --body "$body"
+          elif [ "$LEVEL" = "info" ]; then
+            gh issue edit "$open" --title "$title" --body "$body"
+          else
+            gh issue edit "$open" --title "$title"
+            gh issue comment "$open" --body "$body"
+          fi
+          if [ "$LEVEL" != "info" ]; then exit 1; fi
 
       - name: Close the watchdog issue when healthy
-        if: steps.health.outcome == 'success'
+        if: ${{ steps.health.outcome == 'success' && steps.health.outputs.level == 'ok' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

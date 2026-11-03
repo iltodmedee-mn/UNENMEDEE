@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { evaluateHealth, type HealthConfig, type HealthSnapshot } from "@/lib/health";
+import { evaluateHealth, type HealthConfig, healthProblems, healthReport, type HealthSnapshot } from "@/lib/health";
 
 const NOW = new Date("2026-10-27T03:00:00Z");
 const daysAgo = (d: number) => new Date(NOW.getTime() - d * 86_400_000);
@@ -209,5 +209,45 @@ describe("layout scan pages", () => {
     assert.equal(parseLayoutReport("not json"), undefined);
     assert.equal(parseLayoutReport(null), undefined);
     assert.deepEqual(parseLayoutReport('[{"path":"/x","viewport":360,"width":400,"culprit":"div"},{"bad":1}]'), [{ path: "/x", viewport: 360, width: 400, culprit: "div" }]);
+  });
+});
+
+describe("watchdog levels", () => {
+  const level = (change: (s: HealthSnapshot) => void, now = NOW) => {
+    const s = healthy();
+    change(s);
+    return healthProblems(s, CONFIG, now).map((p) => p.level);
+  };
+
+  it("🔴 only when readers are left without news or without the site", () => {
+    assert.deepEqual(level((s) => (s.core!.hoursSinceArticle = 30)), ["urgent"]);
+    assert.deepEqual(level((s) => (s.core!.hoursSinceAi = 40)), ["urgent"]);
+    assert.deepEqual(level((s) => (s.core!.failingSources = 70)), ["urgent"]);
+    assert.deepEqual(level((s) => (s.core!.dbMb = 450)), ["urgent"]);
+    assert.deepEqual(level((s) => (s.maintenance!.pipelineAt = daysAgo(1))), ["urgent"]);
+    assert.deepEqual(level((s) => ((s.network!.siteOk = false), (s.network!.siteStatus = "HTTP 500"))), ["urgent"]);
+    assert.deepEqual(level((s) => (s.network!.siteCertValidTo = daysAgo(-5))), ["urgent"]);
+    assert.deepEqual(level((s) => (s.workflows!.notActive = [".github/workflows/autonomous-news-pipeline.yml (disabled_inactivity)"])), ["urgent"]);
+    assert.deepEqual(level((s) => (s.tokens!.threads = daysAgo(55))), ["urgent"], "five days left: posting is about to stop");
+  });
+
+  it("🟡 for everything the site keeps working through", () => {
+    assert.deepEqual(level((s) => (s.core!.hoursSinceDigest = 30)), ["info"]);
+    assert.deepEqual(level((s) => (s.indicators!.mongolbank = 100)), ["info"]);
+    assert.deepEqual(level((s) => (s.tokens!.threads = daysAgo(20))), ["info"]);
+    assert.deepEqual(level((s) => (s.workflows!.failingSchedules = [".github/workflows/backup.yml"])), ["info"]);
+    assert.deepEqual(level((s) => (s.network!.feedOk = false)), ["info"]);
+    assert.deepEqual(healthProblems({ layout: [{ path: "/risk", viewport: 360, width: 372, culprit: "x" }] }, CONFIG, NOW).map((p) => p.level), ["info"]);
+  });
+
+  it("the report puts urgent lines first under their own heading", () => {
+    assert.deepEqual(healthReport([]), { level: "ok", lines: [] });
+    const r = healthReport([
+      { level: "info", text: "b" },
+      { level: "urgent", text: "a" },
+    ]);
+    assert.equal(r.level, "urgent");
+    assert.deepEqual(r.lines, ["🔴 ЯАРАЛТАЙ (сайт эсвэл мэдээ зогссон):", "- a", "", "🟡 МЭДЭЭЛЭЛ (сайт ажиллаж байгаа, завтай үедээ):", "- b"]);
+    assert.equal(healthReport([{ level: "info", text: "b" }]).level, "info");
   });
 });

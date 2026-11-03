@@ -102,8 +102,8 @@ API түлхүүрээ шалгах: `npm run ai:process -- --sample`. Өгөг�
 | Хэзээ | Юу хийх |
 |---|---|
 | Одоо, нэг удаа | `age-keygen`-ээр нөөцийн түлхүүр үүсгэж `BACKUP_AGE_PUBLIC_KEY` secret-д хийх ([docs/BACKUP.md](docs/BACKUP.md)). Чатад хуулсан Vercel токеныг хүчингүй болгох. |
-| Watchdog issue ирэхэд | Мөрийг уншаад заасан secret, хувьсагч, хуудсыг засах. Засагдмагц issue өөрөө хаагдана. |
-| Улиралд нэг удаа | Нөөц хуулбарыг нэг удаа тайлж шалгах (docs/BACKUP.md, 3-р алхам). Dependabot-ын PR-уудыг CI ногоон бол нэгтгэх. /admin-д сарын орлого (зар, хандив) оруулах: оруулаагүй сар «бүртгээгүй» гэж харагдана. |
+| Watchdog issue ирэхэд | 🔴 яаралтай бол тэр өдөртөө, 🟡 бол завтай үедээ. Мөр бүрт юу хийхийг [docs/RUNBOOK.md](docs/RUNBOOK.md) (Claude-гүй үеийн гарын авлага) хэлнэ. Засагдмагц issue өөрөө хаагдана. |
+| Улиралд нэг удаа | Нөөц хуулбарыг нэг удаа тайлж шалгах (docs/BACKUP.md, 3-р алхам). Dependabot-ын жижиг шинэчлэл CI ногоон бол өөрөө нэгтгэгдэнэ; том (major) шинэчлэлийг [docs/RUNBOOK.md](docs/RUNBOOK.md) §4-ийн дагуу. /admin-д сарын орлого (зар, хандив) оруулах: оруулаагүй сар «бүртгээгүй» гэж харагдана. |
 | Жил бүр | Porkbun домэйн сунгалт. Meta Data Use Checkup. `VERCEL_TOKEN`-ийг шинэчлэх. Watchdog сануулбал `POPULATION`, `RATES_CHECKED`, `GOVERNMENTS_VERIFIED_THROUGH`-ийг шинэчлэх. |
 | Засгийн газар солигдоход | `src/lib/budget/governments.ts`-д шинэ Ерөнхий сайдыг нэмж `GOVERNMENTS_VERIFIED_THROUGH`-ийг шилжүүлэх. Түүнээс өмнө /budget шинэ онд «—» гэж үнэнээр нь харуулна. |
 | 2027-10 | audit.mn-ийн `certs/rapidssl-tls-rsa-ca-g1.pem` 2027-11-02-нд дуусна (watchdog 60 хоногийн өмнө сануулна). |
