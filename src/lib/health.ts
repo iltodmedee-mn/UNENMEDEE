@@ -157,6 +157,24 @@ export interface HealthConfig {
   };
 }
 
+/**
+ * 🔴 urgent = readers are (or within days will be) without news or without the site: no new
+ * story, no AI, most sources failing, the database nearly full, the pipeline not starting, the
+ * site or its certificate, a 60-day posting token about to lapse, a core workflow off. Only these
+ * turn the watchdog run red and comment on the issue (an e-mail every day).
+ * 🟡 info = something to look at when there is time; the site keeps working (a stale data panel,
+ * a quiet press feed, a dated fact to re-check, a page a few pixels too wide on a phone). These
+ * only rewrite the issue's text, so they never e-mail the owner more than once.
+ */
+export type HealthLevel = "urgent" | "info";
+export interface HealthProblem {
+  level: HealthLevel;
+  text: string;
+}
+
+/** Workflows without which the news stops or nobody hears about it. */
+const CORE_WORKFLOW = /autonomous-news-pipeline|watchdog|keepalive/;
+
 const daysSince = (iso: string | Date, now: Date) => (now.getTime() - new Date(iso).getTime()) / DAY_MS;
 const daysUntil = (d: Date, now: Date) => (d.getTime() - now.getTime()) / DAY_MS;
 const h = (v: number | null) => (v === null ? "хэзээ ч" : `${Math.round(v)} цаг`);
@@ -164,119 +182,136 @@ const ymd = (d: Date) => d.toISOString().slice(0, 10);
 /** null (never happened) counts as older than any limit. */
 const olderThan = (v: number | null | undefined, limit: number) => v === null || (v !== undefined && v > limit);
 
-export function evaluateHealth(s: HealthSnapshot, config: HealthConfig, now = new Date()): string[] {
-  const out: string[] = [];
+export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = new Date()): HealthProblem[] {
+  const out: HealthProblem[] = [];
+  const urgent = (text: string) => out.push({ level: "urgent", text });
+  const info = (text: string) => out.push({ level: "info", text });
   const c = s.core;
   if (c) {
-    if (olderThan(c.hoursSinceArticle, 26)) out.push(`Шинэ мэдээ ${h(c.hoursSinceArticle)} орж ирээгүй (autonomous-news-pipeline-ийн scrape алхмыг шалгах).`);
-    if (olderThan(c.hoursSinceAi, 36)) out.push(`AI хураангуй ${h(c.hoursSinceAi)} гараагүй (AI түлхүүр, лимит шалгах). Хүлээгдэж буй: ${c.aiBacklog}.`);
-    if (olderThan(c.hoursSinceDigest, 26)) out.push(`Онцлох тойм ${h(c.hoursSinceDigest)} гараагүй (news-digest workflow).`);
+    if (olderThan(c.hoursSinceArticle, 26)) urgent(`Шинэ мэдээ ${h(c.hoursSinceArticle)} орж ирээгүй (autonomous-news-pipeline-ийн scrape алхмыг шалгах).`);
+    if (olderThan(c.hoursSinceAi, 36)) urgent(`AI хураангуй ${h(c.hoursSinceAi)} гараагүй (AI түлхүүр, лимит шалгах). Хүлээгдэж буй: ${c.aiBacklog}.`);
+    if (olderThan(c.hoursSinceDigest, 26)) info(`Онцлох тойм ${h(c.hoursSinceDigest)} гараагүй (news-digest workflow).`);
     const failing = c.failingSources / Math.max(1, c.activeSources);
-    if (failing > 0.6) out.push(`Эх сурвалжийн ${Math.round(failing * 100)}% алдаатай (${c.failingSources}/${c.activeSources}).`);
-    if (c.pushSubs >= 5 && c.pushFailing > c.pushSubs / 2) out.push(`Push мэдэгдэл: ${c.pushFailing}/${c.pushSubs} захиалга дараалан алдаатай (VAPID түлхүүр, push үйлчилгээ шалгах).`);
+    if (failing > 0.6) urgent(`Эх сурвалжийн ${Math.round(failing * 100)}% алдаатай (${c.failingSources}/${c.activeSources}).`);
+    if (c.pushSubs >= 5 && c.pushFailing > c.pushSubs / 2) info(`Push мэдэгдэл: ${c.pushFailing}/${c.pushSubs} захиалга дараалан алдаатай (VAPID түлхүүр, push үйлчилгээ шалгах).`);
     // The failure counter never moves for 429/5xx or a systemic VAPID problem, so also look at success.
-    if (c.pushSubs >= 5 && olderThan(c.hoursSincePushSuccess, 96)) out.push(`Push мэдэгдэл ${h(c.hoursSincePushSuccess)} нэг ч захиалагчид хүрээгүй (push алхмын лог, VAPID түлхүүр шалгах).`);
-    if (c.dbMb > DB_LIMIT_MB * 0.8) out.push(`Өгөгдлийн сан ${Math.round(c.dbMb)} MB / ${DB_LIMIT_MB} MB: db:prune-ийн лог, RETENTION_DAYS хувьсагчийг шалгах.`);
-    if (c.published24h >= 10 && c.fallback24h / c.published24h > 0.5) out.push(`Сүүлийн 24 цагийн ${c.fallback24h}/${c.published24h} мэдээ AI-гүй (эх текстийн эхний өгүүлбэр) гарсан: AI үйлчилгээ бүгд унасан эсвэл түлхүүр хүчингүй.`);
+    if (c.pushSubs >= 5 && olderThan(c.hoursSincePushSuccess, 96)) info(`Push мэдэгдэл ${h(c.hoursSincePushSuccess)} нэг ч захиалагчид хүрээгүй (push алхмын лог, VAPID түлхүүр шалгах).`);
+    if (c.dbMb > DB_LIMIT_MB * 0.8) urgent(`Өгөгдлийн сан ${Math.round(c.dbMb)} MB / ${DB_LIMIT_MB} MB: db:prune-ийн лог, RETENTION_DAYS хувьсагчийг шалгах.`);
+    if (c.published24h >= 10 && c.fallback24h / c.published24h > 0.5) info(`Сүүлийн 24 цагийн ${c.fallback24h}/${c.published24h} мэдээ AI-гүй (эх текстийн эхний өгүүлбэр) гарсан: AI үйлчилгээ бүгд унасан эсвэл түлхүүр хүчингүй.`);
     const ruleBased = c.recentDigests.filter((g) => g === "rule-based").length;
-    if (c.recentDigests.length >= 4 && ruleBased >= 3) out.push(`Сүүлийн 4 тоймын ${ruleBased} нь AI-гүй (дүрмээр) бичигдсэн: тоймын AI редактор ажиллахгүй байна.`);
-    if (c.paidCapDays >= 5) out.push(`Төлбөртэй AI зардал сүүлийн 7 хоногийн ${c.paidCapDays} өдөр өдрийн дээд хязгаарт хүрсэн: үнэгүй үйлчилгээнүүдийн квот дууссан байж магадгүй.`);
-    if (c.hoursSinceRecheck !== null && c.hoursSinceRecheck > 9 * 24) out.push(`Эх сурвалжийн дахин шалгалт ${Math.round(c.hoursSinceRecheck / 24)} хоног ажиллаагүй (source-recheck workflow).`);
+    if (c.recentDigests.length >= 4 && ruleBased >= 3) info(`Сүүлийн 4 тоймын ${ruleBased} нь AI-гүй (дүрмээр) бичигдсэн: тоймын AI редактор ажиллахгүй байна.`);
+    if (c.paidCapDays >= 5) info(`Төлбөртэй AI зардал сүүлийн 7 хоногийн ${c.paidCapDays} өдөр өдрийн дээд хязгаарт хүрсэн: үнэгүй үйлчилгээнүүдийн квот дууссан байж магадгүй.`);
+    if (c.hoursSinceRecheck !== null && c.hoursSinceRecheck > 9 * 24) info(`Эх сурвалжийн дахин шалгалт ${Math.round(c.hoursSinceRecheck / 24)} хоног ажиллаагүй (source-recheck workflow).`);
   }
 
   const g = s.integrity;
   if (g) {
-    if (g.brokenAiText > 0) out.push(`${g.brokenAiText} нийтлэгдсэн мэдээний AI текстэд "undefined"/"null"/"[object Object]" бичигдсэн байна: AI-ийн хариуны хэлбэр (schemas.ts) өөрчлөгдсөн эсэхийг шалгаад тэдгээрийг дахин боловсруулах (maintenance.yml → reanalyse).`);
-    if (g.widespreadClusters > 0) out.push(`${g.widespreadClusters} кластерын мэдээнүүд хооронд 7 хоногоос их зайтай: өөр өөр үйл явдлыг нэгтгэсэн байж болзошгүй (clustering.ts, /clusters-ийг шалгах).`);
-    if (g.duplicateHashes > 0) out.push(`Ижил текстийг ${g.duplicateHashes} удаа давхар хадгалсан (content_hash давхардсан): db-sink-ийн давхардлын шалгалтыг шалгах.`);
-    if (g.silentSources.length) out.push(`${g.silentSources.length} эх сурвалжаас сүүлийн 14 хоногт шинэ огноотой 10+ мэдээ ирсэн ч нэг нь ч нийтлэгдээгүй (${g.silentSources.slice(0, 5).join(", ")}): JavaScript хуудас эсвэл буруу шүүлтүүр байж магадгүй.`);
+    if (g.brokenAiText > 0) info(`${g.brokenAiText} нийтлэгдсэн мэдээний AI текстэд "undefined"/"null"/"[object Object]" бичигдсэн байна: AI-ийн хариуны хэлбэр (schemas.ts) өөрчлөгдсөн эсэхийг шалгаад тэдгээрийг дахин боловсруулах (maintenance.yml → reanalyse).`);
+    if (g.widespreadClusters > 0) info(`${g.widespreadClusters} кластерын мэдээнүүд хооронд 7 хоногоос их зайтай: өөр өөр үйл явдлыг нэгтгэсэн байж болзошгүй (clustering.ts, /clusters-ийг шалгах).`);
+    if (g.duplicateHashes > 0) info(`Ижил текстийг ${g.duplicateHashes} удаа давхар хадгалсан (content_hash давхардсан): db-sink-ийн давхардлын шалгалтыг шалгах.`);
+    if (g.silentSources.length) info(`${g.silentSources.length} эх сурвалжаас сүүлийн 14 хоногт шинэ огноотой 10+ мэдээ ирсэн ч нэг нь ч нийтлэгдээгүй (${g.silentSources.slice(0, 5).join(", ")}): JavaScript хуудас эсвэл буруу шүүлтүүр байж магадгүй.`);
   }
 
-  for (const l of s.layout ?? []) out.push(`Утсан дээр ${l.path} хуудас дэлгэцээс өргөн (${l.viewport}px дэлгэцэнд ${l.width}px, хажуу тийш гүйдэг): ${l.culprit}`);
+  for (const l of s.layout ?? []) info(`Утсан дээр ${l.path} хуудас дэлгэцээс өргөн (${l.viewport}px дэлгэцэнд ${l.width}px, хажуу тийш гүйдэг): ${l.culprit}`);
 
   const o = s.officials;
   if (o) {
-    if (olderThan(o.hoursSinceSync, 9 * 24)) out.push(`УИХ-ын гишүүдийн мэдээлэл ${o.hoursSinceSync === null ? "хэзээ ч" : `${Math.round(o.hoursSinceSync / 24)} хоног`} шинэчлэгдээгүй (officials-sync workflow).`);
-    if (o.active < 100) out.push(`Идэвхтэй УИХ-ын гишүүн ${o.active} байна (126 байх ёстой): сонгуулийн дараах эсвэл parliament.mn-ийн дутуу хариу. /officials-ыг шалгах.`);
-    else if (o.placesWithoutMps?.length) out.push(`${o.placesWithoutMps.length} аймаг/дүүргийн хуудсанд УИХ-ын гишүүн харагдахгүй байна (${o.placesWithoutMps.slice(0, 5).join(", ")}): тойргийн нэр өөрчлөгдсөн бол src/lib/places.ts-ийг шалгах.`);
+    if (olderThan(o.hoursSinceSync, 9 * 24)) info(`УИХ-ын гишүүдийн мэдээлэл ${o.hoursSinceSync === null ? "хэзээ ч" : `${Math.round(o.hoursSinceSync / 24)} хоног`} шинэчлэгдээгүй (officials-sync workflow).`);
+    if (o.active < 100) info(`Идэвхтэй УИХ-ын гишүүн ${o.active} байна (126 байх ёстой): сонгуулийн дараах эсвэл parliament.mn-ийн дутуу хариу. /officials-ыг шалгах.`);
+    else if (o.placesWithoutMps?.length) info(`${o.placesWithoutMps.length} аймаг/дүүргийн хуудсанд УИХ-ын гишүүн харагдахгүй байна (${o.placesWithoutMps.slice(0, 5).join(", ")}): тойргийн нэр өөрчлөгдсөн бол src/lib/places.ts-ийг шалгах.`);
   }
 
   if (s.indicators) {
     for (const [key, maxH] of Object.entries(INDICATOR_MAX_AGE_H)) {
       const age = s.indicators[key];
-      if (age === undefined) out.push(`Өгөгдлийн хэсэг "${key}" огт хадгалагдаагүй (budget:sync / macro:sync).`);
-      else if (age > maxH) out.push(`Өгөгдлийн хэсэг "${key}" ${Math.round(age / 24)} хоног шинэчлэгдээгүй (news-digest-ийн budget/macro алхам).`);
+      if (age === undefined) info(`Өгөгдлийн хэсэг "${key}" огт хадгалагдаагүй (budget:sync / macro:sync).`);
+      else if (age > maxH) info(`Өгөгдлийн хэсэг "${key}" ${Math.round(age / 24)} хоног шинэчлэгдээгүй (news-digest-ийн budget/macro алхам).`);
     }
   }
-  if (s.opendataHours !== undefined && olderThan(s.opendataHours, 72)) out.push(`opendata.mn өгөгдөл ${h(s.opendataHours)} шинэчлэгдээгүй (news-digest-ийн data:sync алхам).`);
+  if (s.opendataHours !== undefined && olderThan(s.opendataHours, 72)) info(`opendata.mn өгөгдөл ${h(s.opendataHours)} шинэчлэгдээгүй (news-digest-ийн data:sync алхам).`);
 
   for (const platform of SOCIAL_PLATFORMS) {
     if (!config.socialConfigured[platform]) continue;
     const p = s.social?.[platform];
     if (!p) continue;
-    if (olderThan(p.hoursSinceOk, 72)) out.push(`${platform}: ${h(p.hoursSinceOk)} амжилттай пост гараагүй (токен, social алхмын лог шалгах; docs/FACEBOOK.md).`);
-    if (p.unknown7d > 0) out.push(`${platform}: ${p.unknown7d} пост нийтлэгдсэн эсэх нь тодорхойгүй (post_id='unknown'): хуудсаа гараар шалгах.`);
+    if (olderThan(p.hoursSinceOk, 72)) info(`${platform}: ${h(p.hoursSinceOk)} амжилттай пост гараагүй (токен, social алхмын лог шалгах; docs/FACEBOOK.md).`);
+    if (p.unknown7d > 0) info(`${platform}: ${p.unknown7d} пост нийтлэгдсэн эсэх нь тодорхойгүй (post_id='unknown'): хуудсаа гараар шалгах.`);
   }
   if (s.tokens) {
     for (const platform of ["threads", "instagram"] as const) {
       const at = s.tokens[platform];
       if (!config.socialConfigured[platform] || !at) continue;
       const age = daysSince(at, now);
-      if (age > 14) out.push(`${platform}: 60 хоногийн токен ${Math.round(age)} хоног сэргээгдээгүй, ${Math.max(0, Math.round(60 - age))} хоногийн дараа дуусна (шинэ токеныг secret-д хийх).`);
+      if (age > 14) (60 - age < 10 ? urgent : info)(`${platform}: 60 хоногийн токен ${Math.round(age)} хоног сэргээгдээгүй, ${Math.max(0, Math.round(60 - age))} хоногийн дараа дуусна (шинэ токеныг secret-д хийх).`);
     }
   }
 
   // Videos: every slot makes one, so a day and a half without one means the step is failing
   // quietly (both pipeline video steps are continue-on-error); news posts would hide it otherwise.
   if (config.videoPosting && s.videos) {
-    if (olderThan(s.videos.hoursSinceVideo, 36)) out.push(`Өдөр тутмын видео ${h(s.videos.hoursSinceVideo)} хийгдээгүй (pipeline-ийн "Make the slot's video" алхам, Daily video workflow-ийн лог).`);
+    if (olderThan(s.videos.hoursSinceVideo, 36)) info(`Өдөр тутмын видео ${h(s.videos.hoursSinceVideo)} хийгдээгүй (pipeline-ийн "Make the slot's video" алхам, Daily video workflow-ийн лог).`);
     for (const platform of ["facebook", "instagram", "threads"] as const) {
       if (!config.socialConfigured[platform]) continue;
       const age = s.videos.hoursSincePost[platform];
-      if (olderThan(age ?? null, 48)) out.push(`${platform}: видео ${h(age ?? null)} тавигдаагүй (social:post --mode video-ийн лог).`);
+      if (olderThan(age ?? null, 48)) info(`${platform}: видео ${h(age ?? null)} тавигдаагүй (social:post --mode video-ийн лог).`);
     }
   }
   // The article page's "not found in the press" note depends on these feeds.
   for (const [outlet, age] of Object.entries(s.press ?? {})) {
-    if (olderThan(age, 24)) out.push(`Хэвлэлийн RSS ${outlet}: ${h(age)} шинэ гарчиг ирээгүй (press:sync-ийн лог; хаяг, бүтэц өөрчлөгдсөн эсэх).`);
+    if (olderThan(age, 24)) info(`Хэвлэлийн RSS ${outlet}: ${h(age)} шинэ гарчиг ирээгүй (press:sync-ийн лог; хаяг, бүтэц өөрчлөгдсөн эсэх).`);
   }
-  if (s.dispatchTokenExpires && daysUntil(s.dispatchTokenExpires, now) < 30) out.push(`Pipeline-ийн нөөц эхлүүлэгчийн GitHub токен ${ymd(s.dispatchTokenExpires)}-нд дуусна: шинэ токен үүсгээд Supabase Vault-д солих (docs/PIPELINE-FALLBACK.md).`);
+  if (s.dispatchTokenExpires && daysUntil(s.dispatchTokenExpires, now) < 30) info(`Pipeline-ийн нөөц эхлүүлэгчийн GitHub токен ${ymd(s.dispatchTokenExpires)}-нд дуусна: шинэ токен үүсгээд Supabase Vault-д солих (docs/PIPELINE-FALLBACK.md).`);
 
   const m = s.maintenance;
-  if (m?.pruneAt && daysSince(m.pruneAt, now) > 3) out.push(`Өгөгдлийн сангийн цэвэрлэгээ (db:prune) ${Math.round(daysSince(m.pruneAt, now))} хоног ажиллаагүй.`);
-  if (config.backupConfigured === false) out.push(`Нөөц хуулбар хийгдэхгүй байна: BACKUP_AGE_PUBLIC_KEY secret алга (docs/BACKUP.md-ийн 1-р алхам).`);
+  if (m?.pruneAt && daysSince(m.pruneAt, now) > 3) info(`Өгөгдлийн сангийн цэвэрлэгээ (db:prune) ${Math.round(daysSince(m.pruneAt, now))} хоног ажиллаагүй.`);
+  if (config.backupConfigured === false) info(`Нөөц хуулбар хийгдэхгүй байна: BACKUP_AGE_PUBLIC_KEY secret алга (docs/BACKUP.md-ийн 1-р алхам).`);
   // `npm run pipeline:mark`, the pipeline's first step: GitHub drops scheduled runs, and the
   // Supabase fallback (supabase/pipeline-fallback.sql) starts one after an hour when it has a token.
-  if (m?.pipelineAt && daysSince(m.pipelineAt, now) * 24 > PIPELINE_QUIET_H) out.push(`Мэдээний pipeline ${Math.round(daysSince(m.pipelineAt, now) * 24)} цаг эхлээгүй: GitHub хуваарийг алгассан байж магадгүй (docs/PIPELINE-FALLBACK.md).`);
-  if (m?.tendersAt && daysSince(m.tendersAt, now) > 3) out.push(`Тендерийн үр дүн (/tenders) ${Math.round(daysSince(m.tendersAt, now))} хоног шинэчлэгдээгүй: news-digest → "Sync tender results" алхмыг шалгах (Шилэн дансны API).`);
-  if (m?.documentsAt && daysSince(m.documentsAt, now) > 3) out.push(`Тайлан, баримт бичгийн хяналт (/documents) ${Math.round(daysSince(m.documentsAt, now))} хоног ажиллаагүй: news-digest → "Watch report and tender pages" алхмыг шалгах.`);
-  if (m?.backupAt && daysSince(m.backupAt, now) > 10) out.push(`Нөөц хуулбар (backup) ${Math.round(daysSince(m.backupAt, now))} хоног хийгдээгүй (backup workflow).`);
+  if (m?.pipelineAt && daysSince(m.pipelineAt, now) * 24 > PIPELINE_QUIET_H) urgent(`Мэдээний pipeline ${Math.round(daysSince(m.pipelineAt, now) * 24)} цаг эхлээгүй: GitHub хуваарийг алгассан байж магадгүй (docs/PIPELINE-FALLBACK.md).`);
+  if (m?.tendersAt && daysSince(m.tendersAt, now) > 3) info(`Тендерийн үр дүн (/tenders) ${Math.round(daysSince(m.tendersAt, now))} хоног шинэчлэгдээгүй: news-digest → "Sync tender results" алхмыг шалгах (Шилэн дансны API).`);
+  if (m?.documentsAt && daysSince(m.documentsAt, now) > 3) info(`Тайлан, баримт бичгийн хяналт (/documents) ${Math.round(daysSince(m.documentsAt, now))} хоног ажиллаагүй: news-digest → "Watch report and tender pages" алхмыг шалгах.`);
+  if (m?.backupAt && daysSince(m.backupAt, now) > 10) info(`Нөөц хуулбар (backup) ${Math.round(daysSince(m.backupAt, now))} хоног хийгдээгүй (backup workflow).`);
 
   const n = s.network;
   if (n) {
-    if (!n.siteOk) out.push(`iltodmedee.mn нээгдэхгүй байна (${n.siteStatus}): Vercel, домэйн шалгах.`);
-    if (n.siteOk && !n.feedOk) out.push(`/feed.xml RSS эвдэрсэн байна.`);
-    if (n.siteCertValidTo && daysUntil(n.siteCertValidTo, now) < 20) out.push(`iltodmedee.mn-ийн TLS гэрчилгээ ${ymd(n.siteCertValidTo)}-нд дуусна (Vercel өөрөө сунгадаг: DNS-ээ шалгах).`);
-    if (!n.securityTxtExpires) out.push(`/.well-known/security.txt уншигдсангүй.`);
-    else if (daysUntil(n.securityTxtExpires, now) < 30) out.push(`security.txt-ийн Expires ${ymd(n.securityTxtExpires)}: сунгах.`);
+    if (!n.siteOk) urgent(`iltodmedee.mn нээгдэхгүй байна (${n.siteStatus}): Vercel, домэйн шалгах.`);
+    if (n.siteOk && !n.feedOk) info(`/feed.xml RSS эвдэрсэн байна.`);
+    if (n.siteCertValidTo && daysUntil(n.siteCertValidTo, now) < 20) urgent(`iltodmedee.mn-ийн TLS гэрчилгээ ${ymd(n.siteCertValidTo)}-нд дуусна (Vercel өөрөө сунгадаг: DNS-ээ шалгах).`);
+    if (!n.securityTxtExpires) info(`/.well-known/security.txt уншигдсангүй.`);
+    else if (daysUntil(n.securityTxtExpires, now) < 30) info(`security.txt-ийн Expires ${ymd(n.securityTxtExpires)}: сунгах.`);
   }
   for (const cert of s.bundledCerts ?? []) {
-    if (daysUntil(cert.validTo, now) < 60) out.push(`${cert.file} гэрчилгээ ${ymd(cert.validTo)}-нд дуусна: DigiCert-ээс шинэ intermediate татаж солих (audit.mn-ийн өгөгдөл).`);
+    if (daysUntil(cert.validTo, now) < 60) info(`${cert.file} гэрчилгээ ${ymd(cert.validTo)}-нд дуусна: DigiCert-ээс шинэ intermediate татаж солих (audit.mn-ийн өгөгдөл).`);
   }
   if (s.workflows) {
-    for (const wf of s.workflows.notActive) out.push(`Workflow идэвхгүй: ${wf} (Actions → Enable workflow).`);
-    for (const wf of s.workflows.failingSchedules) out.push(`Workflow сүүлийн 3 удаа дараалан алдаатай: ${wf}.`);
+    for (const wf of s.workflows.notActive) (CORE_WORKFLOW.test(wf) ? urgent : info)(`Workflow идэвхгүй: ${wf} (Actions → Enable workflow).`);
+    for (const wf of s.workflows.failingSchedules) (CORE_WORKFLOW.test(wf) ? urgent : info)(`Workflow сүүлийн 3 удаа дараалан алдаатай: ${wf}.`);
   }
 
   // Facts written into the code that only a person can re-check.
   const d = config.dated;
-  if (daysSince(d.governmentsVerified, now) > 548) out.push(`Ерөнхий сайдын жагсаалтыг ${d.governmentsVerified}-нээс хойш шалгаагүй (src/lib/budget/governments.ts, GOVERNMENTS_VERIFIED_THROUGH).`);
-  if (now.getTime() >= new Date(d.programmeEnd).getTime()) out.push(`Засгийн газрын 2024–2028 оны үйл ажиллагааны хөтөлбөр дууссан: шинэ хөтөлбөр батлагдсан бол npm run promises:import.`);
+  if (daysSince(d.governmentsVerified, now) > 548) info(`Ерөнхий сайдын жагсаалтыг ${d.governmentsVerified}-нээс хойш шалгаагүй (src/lib/budget/governments.ts, GOVERNMENTS_VERIFIED_THROUGH).`);
+  if (now.getTime() >= new Date(d.programmeEnd).getTime()) info(`Засгийн газрын 2024–2028 оны үйл ажиллагааны хөтөлбөр дууссан: шинэ хөтөлбөр батлагдсан бол npm run promises:import.`);
   // NSO's own newest figure names the exact update; without it, ask once two years have passed.
-  if (s.population && s.population.year > d.populationYear) out.push(`ҮСХ ${s.population.year} оны хүн амын тоог (${s.population.count.toLocaleString("en-US")}) нийтэлсэн: src/lib/per-person.ts POPULATION-ийг шинэчлэх (одоо ${d.populationYear} оных).`);
-  else if (!s.population && now.getTime() >= Date.UTC(d.populationYear + 2, 3, 1)) out.push(`Хүн амын тоо ${d.populationYear} оных (src/lib/per-person.ts POPULATION): ҮСХ-ны шинэ тоог оруулах.`);
-  if (daysSince(d.ratesChecked, now) > 395) out.push(`Татварын хувь хэмжээг ${d.ratesChecked}-нээс хойш шалгаагүй (src/lib/tax/receipt.ts RATES_CHECKED).`);
-  if (d.tariffsVerified && daysSince(d.tariffsVerified, now) > 395) out.push(`Цахилгаан, усны тарифыг ${d.tariffsVerified}-нээс хойш шалгаагүй (src/lib/budget/tariffs.ts TARIFFS_VERIFIED_THROUGH; ЭХЗХ-ны шинэ шийдвэр гарсан эсэх).`);
-  if (daysSince(d.projectsVerified, now) > 180) out.push(`Төслүүдийн хуудсын (/projects) эх сурвалжуудыг ${d.projectsVerified}-нээс хойш дахин уншаагүй (src/lib/projects/data.ts PROJECTS_VERIFIED_THROUGH).`);
+  if (s.population && s.population.year > d.populationYear) info(`ҮСХ ${s.population.year} оны хүн амын тоог (${s.population.count.toLocaleString("en-US")}) нийтэлсэн: src/lib/per-person.ts POPULATION-ийг шинэчлэх (одоо ${d.populationYear} оных).`);
+  else if (!s.population && now.getTime() >= Date.UTC(d.populationYear + 2, 3, 1)) info(`Хүн амын тоо ${d.populationYear} оных (src/lib/per-person.ts POPULATION): ҮСХ-ны шинэ тоог оруулах.`);
+  if (daysSince(d.ratesChecked, now) > 395) info(`Татварын хувь хэмжээг ${d.ratesChecked}-нээс хойш шалгаагүй (src/lib/tax/receipt.ts RATES_CHECKED).`);
+  if (d.tariffsVerified && daysSince(d.tariffsVerified, now) > 395) info(`Цахилгаан, усны тарифыг ${d.tariffsVerified}-нээс хойш шалгаагүй (src/lib/budget/tariffs.ts TARIFFS_VERIFIED_THROUGH; ЭХЗХ-ны шинэ шийдвэр гарсан эсэх).`);
+  if (daysSince(d.projectsVerified, now) > 180) info(`Төслүүдийн хуудсын (/projects) эх сурвалжуудыг ${d.projectsVerified}-нээс хойш дахин уншаагүй (src/lib/projects/data.ts PROJECTS_VERIFIED_THROUGH).`);
   return out;
+}
+
+/** The problems' texts in rule order (the tests read plain lines). */
+export function evaluateHealth(s: HealthSnapshot, config: HealthConfig, now = new Date()): string[] {
+  return healthProblems(s, config, now).map((p) => p.text);
+}
+
+/** The report the watchdog issue shows: urgent lines under 🔴, the rest under 🟡. */
+export function healthReport(problems: HealthProblem[]): { level: HealthLevel | "ok"; lines: string[] } {
+  const urgentLines = problems.filter((p) => p.level === "urgent").map((p) => `- ${p.text}`);
+  const infoLines = problems.filter((p) => p.level === "info").map((p) => `- ${p.text}`);
+  const lines: string[] = [];
+  if (urgentLines.length) lines.push("🔴 ЯАРАЛТАЙ (сайт эсвэл мэдээ зогссон):", ...urgentLines);
+  if (infoLines.length) lines.push(...(urgentLines.length ? [""] : []), "🟡 МЭДЭЭЛЭЛ (сайт ажиллаж байгаа, завтай үедээ):", ...infoLines);
+  return { level: urgentLines.length ? "urgent" : infoLines.length ? "info" : "ok", lines };
 }

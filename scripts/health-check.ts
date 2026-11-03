@@ -14,7 +14,7 @@
 import "dotenv/config";
 
 import { X509Certificate } from "node:crypto";
-import { existsSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import tls from "node:tls";
 
@@ -23,7 +23,7 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { budgetConfig } from "@/lib/ai/limits";
 import { GOVERNMENTS_VERIFIED_THROUGH } from "@/lib/budget/governments";
-import { type CoreSnapshot, evaluateHealth, type IntegritySnapshot, type HealthConfig, type HealthSnapshot, type NetworkSnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot, type WorkflowSnapshot } from "@/lib/health";
+import { type CoreSnapshot, healthProblems, healthReport, type IntegritySnapshot, type HealthConfig, type HealthSnapshot, type NetworkSnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot, type WorkflowSnapshot } from "@/lib/health";
 import { parseLayoutReport } from "@/lib/layout-check";
 import { POPULATION } from "@/lib/per-person";
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
@@ -317,9 +317,9 @@ async function main() {
     dated: { governmentsVerified: GOVERNMENTS_VERIFIED_THROUGH, programmeEnd: PROGRAMME_END, populationYear: POPULATION.year, ratesChecked: RATES_CHECKED, projectsVerified: PROJECTS_VERIFIED_THROUGH, tariffsVerified: TARIFFS_VERIFIED_THROUGH },
   };
 
-  const problems = evaluateHealth(snapshot, config);
+  const problems = healthProblems(snapshot, config);
   results.forEach((r, i) => {
-    if (r.status === "rejected") problems.push(`Шалгалт "${names[i]}" ажилласангүй: ${(r.reason as Error)?.message ?? r.reason}`);
+    if (r.status === "rejected") problems.push({ level: "info", text: `Шалгалт "${names[i]}" ажилласангүй: ${(r.reason as Error)?.message ?? r.reason}` });
   });
 
   const c = snapshot.core;
@@ -331,12 +331,12 @@ async function main() {
   }
   const configured = SOCIAL_PLATFORMS.filter((p) => config.socialConfigured[p]);
   console.log(`social checked: ${configured.length ? configured.join(", ") : "none"} · network ${skipNetwork ? "skipped" : "checked"} · workflows ${collectors["GitHub workflow"] ? "checked" : "skipped"}`);
-  if (problems.length) {
-    for (const p of problems) console.log(`- ${p}`);
-    process.exitCode = 1;
-  } else {
-    console.log("✓ Healthy");
-  }
+  const report = healthReport(problems);
+  if (report.lines.length) console.log(report.lines.join("\n"));
+  else console.log("✓ Healthy");
+  // The workflow picks the issue's title and whether to e-mail from this; only urgent is red.
+  if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `level=${report.level}\n`);
+  if (report.level === "urgent") process.exitCode = 1;
 }
 
 main()

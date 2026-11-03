@@ -1,0 +1,38 @@
+# Dependabot's minor and patch updates merge themselves once every required check is green, so
+# security and bug fixes keep landing when nobody is watching the repository (Nov 2026: the owner
+# asked for upkeep that needs no coding assistant). Major versions never merge themselves: they
+# change APIs (Next.js, React, undici) and wait for a person (docs/RUNBOOK.md).
+# Needs "Allow auto-merge" on in Settings → General; the main ruleset keeps `check` required, so
+# `gh pr merge --auto` only queues the merge until CI passes and drops it when CI fails.
+name: Dependabot auto-merge
+
+on: pull_request
+
+permissions:
+  contents: read
+
+jobs:
+  automerge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'tmorius-eng/UNENMEDEE'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - name: Read what Dependabot updated
+        id: meta
+        uses: dependabot/fetch-metadata@25dd0e34f4fe68f24cc83900b1fe3fe149efef98 # v3.1.0
+
+      - name: Queue the merge for minor and patch updates
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-minor' || steps.meta.outputs.update-type == 'version-update:semver-patch' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: gh pr merge --auto --squash "$PR_URL"
+
+      - name: Leave major updates for a person
+        if: ${{ steps.meta.outputs.update-type == 'version-update:semver-major' }}
+        env:
+          NAMES: ${{ steps.meta.outputs.dependency-names }}
+        run: echo "::notice::Major update ($NAMES) is not merged automatically. See docs/RUNBOOK.md, 'Dependabot'."
