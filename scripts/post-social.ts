@@ -8,6 +8,7 @@
  *   npm run social:post -- --mode quiz              # the daily Discord quiz poll (once a day)
  *   npm run social:post -- --mode weekly            # "7 хоногийн ТОП" on Mondays (--any-day to test)
  *   npm run social:post -- --mode video             # the newest generated video (make-video.ts) as a Reel on Facebook, Instagram and Threads
+ *   npm run social:post -- --mode promo             # the Launchpad campaign post due today (src/lib/social/promo.ts), 3–7 Nov 2026
  *
  * Facebook needs FB_PAGE_ID (variable) and FB_PAGE_TOKEN (secret). Threads needs THREADS_TOKEN
  * (secret) once: the long-lived token is then kept and refreshed weekly in app_settings
@@ -41,6 +42,7 @@ import { PRODUCTION_URL } from "@/lib/site";
 import { outcomeUnknown } from "@/lib/social/outcome";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
+import { duePromo, type PromoPost } from "@/lib/social/promo";
 
 const { values } = parseArgs({
   options: {
@@ -67,6 +69,8 @@ interface Platform {
   weekly?(w: WeeklyTop): { preview: string; publish(): Promise<string> };
   /** Video platforms (Facebook Reels, Instagram Reels, Threads). */
   video?(v: VideoForPost): { preview: string; publish(): Promise<string> };
+  /** The Launchpad campaign reel (same three platforms). */
+  promo?(p: PromoPost, videoUrl: string): { preview: string; publish(): Promise<string> };
 }
 
 /** A generated video and the public URL the platforms fetch it from (/reel). */
@@ -90,6 +94,7 @@ function facebook(pageId: string, token: string): Platform {
       const description = facebookVideoText(v.meta);
       return { preview: `${v.url}\n${description}`, publish: () => publishReel({ pageId, token, videoUrl: v.url, description }) };
     },
+    promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.facebook}`, publish: () => publishReel({ pageId, token, videoUrl, description: pr.facebook }) }),
   };
 }
 
@@ -104,6 +109,7 @@ function threads(token: string): Platform {
       const text = threadsVideoText(v.meta);
       return { preview: `${v.url}\n${text}`, publish: () => publishThreads({ token, post: { text, link: v.url, videoUrl: v.url } }) };
     },
+    promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.threads}`, publish: () => publishThreads({ token, post: { text: pr.threads, link: videoUrl, videoUrl } }) }),
   };
 }
 
@@ -141,6 +147,7 @@ function instagram(token: string): Platform {
       const caption = instagramVideoCaption(v.meta);
       return { preview: `${v.url}\n${caption}`, publish: () => publishInstagram({ token, post: { videoUrl: v.url, caption } }) };
     },
+    promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.instagram}`, publish: () => publishInstagram({ token, post: { videoUrl, caption: pr.instagram } }) }),
   };
 }
 
@@ -184,12 +191,12 @@ const notPosted = (platform: string, kind: string, ref: unknown) =>
  * next run. Once it may have gone out (published but the DB update failed, or the answer was lost
  * to a timeout) the reservation stays, marked for a manual check: a repost would be a duplicate.
  */
-async function post(db: Db, p: Platform, kind: "digest" | "article" | "quiz" | "weekly" | "video", refId: number, item: { preview: string; publish(): Promise<string> }) {
+async function post(db: Db, p: Platform, kind: "digest" | "article" | "quiz" | "weekly" | "video" | "promo", refId: number, item: { preview: string; publish(): Promise<string> }) {
   console.log(`  → ${p.name} ${kind} #${refId}: ${item.preview.replace(/\n/g, "\n    ")}`);
   if (dry) return;
   let [row] = await db.insert(socialPosts).values({ platform: p.name, kind, refId }).onConflictDoNothing().returning({ id: socialPosts.id });
   let tries = 0;
-  if (!row && kind === "video") {
+  if (!row && (kind === "video" || kind === "promo")) {
     // A video the platform refused before ("failed:n"): claim the row for one more try, atomically.
     const [prev] = await db
       .select({ postId: socialPosts.postId })
@@ -214,7 +221,7 @@ async function post(db: Db, p: Platform, kind: "digest" | "article" | "quiz" | "
       console.error(`::warning::${p.name} ${kind} #${refId}: no answer (${err instanceof Error ? err.message : err}); kept as posted, check the page by hand.`);
       return;
     }
-    if (kind === "video") {
+    if (kind === "video" || kind === "promo") {
       // A refused reel is retried at most VIDEO_MAX_TRIES times, not every 30 min for 48 h
       // (each Facebook try leaves an unpublished upload on the Page).
       const n = tries + 1;
@@ -418,6 +425,14 @@ async function postVideo(db: Db, p: Platform) {
   await post(db, p, "video", v.id, p.video({ id: v.id, meta: v.meta, url: `${PRODUCTION_URL}/reel?v=${v.id}` }));
 }
 
+/** Today's Launchpad campaign reel, once per platform (social_posts kind "promo", ref = day). */
+async function postPromo(db: Db, p: Platform) {
+  if (!p.promo) return;
+  const pr = duePromo(new Date());
+  if (!pr) return console.log(`🗳️ ${p.name}: no Launchpad campaign post due now.`);
+  await post(db, p, "promo", pr.day, p.promo(pr, `${PRODUCTION_URL}${pr.video}`));
+}
+
 async function main() {
   if (!hasDatabase()) {
     console.error("✗ DATABASE_URL is not set.");
@@ -457,7 +472,7 @@ async function main() {
   else if (dcToken || dcChannel) console.error("::error::Discord needs both the DISCORD_BOT_TOKEN secret and DISCORD_CHANNEL_ID (the channel id or its discord.com/channels/… URL, docs/FACEBOOK.md).");
   else console.log("🎮 Discord is off: set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID, see docs/FACEBOOK.md.");
 
-  const mode = values.mode === "digest" || values.mode === "quiz" || values.mode === "weekly" || values.mode === "video" ? values.mode : "news";
+  const mode = values.mode === "digest" || values.mode === "quiz" || values.mode === "weekly" || values.mode === "video" || values.mode === "promo" ? values.mode : "news";
   let weekly: WeeklyTop | null = null;
   if (mode === "weekly") {
     if (!isWeeklyDue(new Date()) && !values["any-day"] && !dry) return console.log("📊 The weekly list goes out on Mondays (Ulaanbaatar); --any-day to post now.");
@@ -471,6 +486,7 @@ async function main() {
       else if (mode === "quiz") await postQuiz(db, p);
       else if (mode === "weekly" && weekly) await postWeekly(db, p, weekly);
       else if (mode === "video") await postVideo(db, p);
+      else if (mode === "promo") await postPromo(db, p);
       else await postNews(db, p);
     } catch (err) {
       const hint = err instanceof FacebookError && err.hint ? ` ${err.hint}` : "";
