@@ -31,7 +31,7 @@ import { PROGRAMME_END } from "@/lib/promises/programme";
 import { PROJECTS_VERIFIED_THROUGH } from "@/lib/projects/data";
 import { MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { PRODUCTION_URL } from "@/lib/site";
-import { RATES_CHECKED } from "@/lib/tax/receipt";
+import { PIT_CHANGE, RATES_CHECKED } from "@/lib/tax/receipt";
 import { TARIFFS_VERIFIED_THROUGH } from "@/lib/budget/tariffs";
 import { OUTLETS } from "@/lib/press/outlets";
 
@@ -314,7 +314,7 @@ async function main() {
     },
     backupConfigured: process.env.BACKUP_CONFIGURED === undefined ? undefined : flag(process.env.BACKUP_CONFIGURED),
     videoPosting: process.env.VIDEO_POSTING === undefined ? undefined : process.env.VIDEO_POSTING.trim().toLowerCase() !== "off",
-    dated: { governmentsVerified: GOVERNMENTS_VERIFIED_THROUGH, programmeEnd: PROGRAMME_END, populationYear: POPULATION.year, ratesChecked: RATES_CHECKED, projectsVerified: PROJECTS_VERIFIED_THROUGH, tariffsVerified: TARIFFS_VERIFIED_THROUGH },
+    dated: { governmentsVerified: GOVERNMENTS_VERIFIED_THROUGH, programmeEnd: PROGRAMME_END, populationYear: POPULATION.year, ratesChecked: RATES_CHECKED, projectsVerified: PROJECTS_VERIFIED_THROUGH, tariffsVerified: TARIFFS_VERIFIED_THROUGH, pitChangeEffective: PIT_CHANGE?.effective },
   };
 
   const problems = healthProblems(snapshot, config);

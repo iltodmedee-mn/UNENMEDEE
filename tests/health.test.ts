@@ -251,3 +251,14 @@ describe("watchdog levels", () => {
     assert.equal(healthReport([{ level: "info", text: "b" }]).level, "info");
   });
 });
+
+describe("passed tax change", () => {
+  it("asks for the /tax update from the day the ХХОАТ change takes effect, as info", () => {
+    const config = { ...CONFIG, dated: { ...CONFIG.dated, pitChangeEffective: "2027-01-01" } };
+    const lines = (iso: string) => healthProblems(healthy(), config, new Date(iso)).filter((p) => /ХХОАТ/.test(p.text));
+    assert.equal(lines("2026-12-31T12:00:00Z").length, 0);
+    const on = lines("2027-01-02T00:00:00Z");
+    assert.equal(on.length, 1);
+    assert.equal(on[0].level, "info");
+  });
+});
