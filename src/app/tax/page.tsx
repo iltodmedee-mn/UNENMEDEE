@@ -10,7 +10,7 @@ import type { BudgetNsoSnapshot } from "@/lib/budget/nso";
 import { getIndicator } from "@/lib/queries";
 import { absoluteUrl, jsonLd } from "@/lib/site";
 import { breadcrumbLd } from "@/lib/structured-data";
-import { sharesFromSpending } from "@/lib/tax/receipt";
+import { PIT_CHANGE, sharesFromSpending } from "@/lib/tax/receipt";
 
 export const metadata: Metadata = {
   title: "Цалингийн татвар тооцоолуур: ХХОАТ, НДШ хаашаа явдаг вэ",
@@ -63,6 +63,21 @@ export default function TaxPage() {
       >
         <ShareButton path="/tax" title="Миний татвар хаашаа явдаг вэ? 1 минутад тооцоол" className="w-fit" />
       </PageHeader>
+      {PIT_CHANGE && (
+        <aside className="mb-6 border-l-2 border-line pl-3 text-sm text-tertiary">
+          УИХ {PIT_CHANGE.passed}-нд татварын багц хуулийг баталсан: ХХОАТ {PIT_CHANGE.effective}-нээс өөрчлөгдөнө (сарын 792,000 ₮ хүртэлх орлого чөлөөлөгдөнө гэж
+          мэдээлсэн). Доорх тооцоо одоогийн хувь хэмжээгээр; батлагдсан эх бичвэр legalinfo.mn-д нийтлэгдмэгц шинэчилнэ. Эх сурвалж:{" "}
+          {PIT_CHANGE.sources.map((src, i) => (
+            <span key={src.url}>
+              {i > 0 && ", "}
+              <a href={src.url} target="_blank" rel="noopener nofollow" className="underline hover:text-secondary">
+                {src.name}
+              </a>
+            </span>
+          ))}
+          .
+        </aside>
+      )}
       <Suspense fallback={<div className="h-64 animate-pulse rounded-3xl bg-primary ring-1 ring-line ring-inset" />}>
         <Calculator />
       </Suspense>

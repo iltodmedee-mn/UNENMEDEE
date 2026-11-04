@@ -10,6 +10,20 @@ export const SI_RATE = 0.115;
 export const PIT_RATE = 0.1;
 /** The day the rates above were last written against their source; the watchdog asks for a re-check yearly. */
 export const RATES_CHECKED = "2026-10-24";
+/**
+ * The tax package Parliament passed on 2026-06-26 changes ХХОАТ from 2027-01-01 (the bill and the
+ * press: a monthly 792,000 ₮ exempt, a 1 % band up to 2 сая, its start year reported as 2027 or
+ * 2028). Not modelled until the enacted text is on legalinfo.mn; /tax says so, and from
+ * `effective` the watchdog asks for the calculator to be updated. Delete once it is.
+ */
+export const PIT_CHANGE: { passed: string; effective: string; sources: { name: string; url: string }[] } | null = {
+  passed: "2026-06-26",
+  effective: "2027-01-01",
+  sources: [
+    { name: "УИХ, хуулийн төсөл", url: "https://d.parliament.mn/tusul/68992d11-313a-4470-aa70-ece2bfc03b37" },
+    { name: "ikon.mn", url: "https://ikon.mn/n/3ok6" },
+  ],
+};
 /** Shop prices include 10% VAT, so the VAT inside a price is price / 11. */
 export const VAT_SHARE_OF_PRICE = 1 / 11;
 
