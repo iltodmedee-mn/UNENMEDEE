@@ -154,8 +154,6 @@ export interface HealthConfig {
     projectsVerified: string;
     /** The hand-typed ERC / УСУГ tariffs on /prices were last checked on this day (`TARIFFS_VERIFIED_THROUGH`). */
     tariffsVerified?: string;
-    /** A passed ХХОАТ change not yet in the /tax calculator takes effect on this day (`PIT_CHANGE.effective`). */
-    pitChangeEffective?: string;
   };
 }
 
@@ -297,7 +295,6 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
   // NSO's own newest figure names the exact update; without it, ask once two years have passed.
   if (s.population && s.population.year > d.populationYear) info(`ҮСХ ${s.population.year} оны хүн амын тоог (${s.population.count.toLocaleString("en-US")}) нийтэлсэн: src/lib/per-person.ts POPULATION-ийг шинэчлэх (одоо ${d.populationYear} оных).`);
   else if (!s.population && now.getTime() >= Date.UTC(d.populationYear + 2, 3, 1)) info(`Хүн амын тоо ${d.populationYear} оных (src/lib/per-person.ts POPULATION): ҮСХ-ны шинэ тоог оруулах.`);
-  if (d.pitChangeEffective && now.getTime() >= new Date(d.pitChangeEffective).getTime()) info(`ХХОАТ-ын шинэ хувь хэмжээ ${d.pitChangeEffective}-нээс хүчин төгөлдөр боллоо, /tax тооцоолуурыг legalinfo.mn-ийн эх бичвэрээр шинэчлэх (src/lib/tax/receipt.ts PIT_CHANGE).`);
   if (daysSince(d.ratesChecked, now) > 395) info(`Татварын хувь хэмжээг ${d.ratesChecked}-нээс хойш шалгаагүй (src/lib/tax/receipt.ts RATES_CHECKED).`);
   if (d.tariffsVerified && daysSince(d.tariffsVerified, now) > 395) info(`Цахилгаан, усны тарифыг ${d.tariffsVerified}-нээс хойш шалгаагүй (src/lib/budget/tariffs.ts TARIFFS_VERIFIED_THROUGH; ЭХЗХ-ны шинэ шийдвэр гарсан эсэх).`);
   if (daysSince(d.projectsVerified, now) > 180) info(`Төслүүдийн хуудсын (/projects) эх сурвалжуудыг ${d.projectsVerified}-нээс хойш дахин уншаагүй (src/lib/projects/data.ts PROJECTS_VERIFIED_THROUGH).`);

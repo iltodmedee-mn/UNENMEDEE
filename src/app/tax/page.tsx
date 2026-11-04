@@ -11,7 +11,8 @@ import type { BudgetNsoSnapshot } from "@/lib/budget/nso";
 import { getIndicator } from "@/lib/queries";
 import { absoluteUrl, jsonLd } from "@/lib/site";
 import { breadcrumbLd } from "@/lib/structured-data";
-import { PIT_CHANGE, sharesFromSpending } from "@/lib/tax/receipt";
+import { ubDateKey } from "@/lib/archive";
+import { PIT_SOURCES, sharesFromSpending } from "@/lib/tax/receipt";
 
 export const metadata: Metadata = {
   title: "Цалингийн татвар тооцоолуур: ХХОАТ, НДШ хаашаа явдаг вэ",
@@ -19,11 +20,11 @@ export const metadata: Metadata = {
   description: "Цалингаа оруулаад ХХОАТ, НДШ, НӨАТ-аа тооцоол, тэр мөнгө улсын төсөвт юунд зарцуулагддагийг 1 минутад хар. Үндэсний статистикийн хорооны албан тоогоор, тооцоо зөвхөн таны төхөөрөмж дээр.",
 };
 
-/** Has the passed PIT change taken effect (Ulaanbaatar day)? A daily cached clock keeps the page static. */
-async function pitChangeStarted(): Promise<boolean> {
+/** Today in Ulaanbaatar ("2027-01-01"): picks the ХХОАТ schedule. A daily cached clock keeps the page static. */
+async function taxDay(): Promise<string> {
   "use cache";
   cacheLife("hours");
-  return PIT_CHANGE !== null && Date.now() >= Date.parse(`${PIT_CHANGE.effective}T00:00:00+08:00`);
+  return ubDateKey(Date.now());
 }
 
 async function Calculator() {
@@ -31,7 +32,7 @@ async function Calculator() {
   const economic = nso?.data.spending.economic;
   const year = economic && [...economic.years].reverse().find((y) => economic.total[y]);
   if (!economic || !year) return <Empty title="Төсвийн өгөгдөл хараахан татагдаагүй" description="Удахгүй шинэчлэгдэнэ." />;
-  return <TaxReceiptCalculator shares={sharesFromSpending(economic.categories, year)} year={year} />;
+  return <TaxReceiptCalculator shares={sharesFromSpending(economic.categories, year)} year={year} day={await taxDay()} />;
 }
 
 const TAX_LD = {
@@ -71,31 +72,20 @@ export default async function TaxPage() {
       >
         <ShareButton path="/tax" title="Миний татвар хаашаа явдаг вэ? 1 минутад тооцоол" className="w-fit" />
       </PageHeader>
-      {PIT_CHANGE && (
-        <aside className="mb-6 border-l-2 border-line pl-3 text-sm text-tertiary">
-          {(await pitChangeStarted()) ? (
-            <>
-              <strong className="text-secondary">Анхаар:</strong> УИХ {PIT_CHANGE.passed}-нд баталсан татварын багц хуулиар ХХОАТ {PIT_CHANGE.effective}-нээс өөрчлөгдсөн
-              (сарын 792,000 ₮ хүртэлх орлого чөлөөлөгдөнө гэж мэдээлсэн). Доорх тооцоо өмнөх хувь хэмжээгээр хийгдэж байгаа тул таны ХХОАТ үүнээс бага байж магадгүй;
-              батлагдсан эх бичвэрийн дагуу шинэчлэх хүртэл лавлагаа болгон ашиглана уу. Эх сурвалж:{" "}
-            </>
-          ) : (
-            <>
-              УИХ {PIT_CHANGE.passed}-нд татварын багц хуулийг баталсан: ХХОАТ {PIT_CHANGE.effective}-нээс өөрчлөгдөнө (сарын 792,000 ₮ хүртэлх орлого чөлөөлөгдөнө гэж
-              мэдээлсэн). Доорх тооцоо одоогийн хувь хэмжээгээр; батлагдсан эх бичвэр legalinfo.mn-д нийтлэгдмэгц шинэчилнэ. Эх сурвалж:{" "}
-            </>
-          )}
-          {PIT_CHANGE.sources.map((src, i) => (
-            <span key={src.url}>
-              {i > 0 && ", "}
-              <a href={src.url} target="_blank" rel="noopener nofollow" className="underline hover:text-secondary">
-                {src.name}
-              </a>
-            </span>
-          ))}
-          .
-        </aside>
-      )}
+      <aside className="mb-6 border-l-2 border-line pl-3 text-sm text-tertiary">
+        УИХ 2026-06-26-нд баталсан татварын багц хуулиар цалингийн ХХОАТ өөрчлөгдөнө: <strong className="text-secondary">2027-01-01</strong>-нээс НДШ хассаны дараах сарын
+        792,000 ₮ хүртэлх цалин татваргүй, цалингийн татварын хөнгөлөлт хүчингүй болно; <strong className="text-secondary">2028-01-01</strong>-нээс 792,000–2,000,000 ₮-ийн хэсэгт 1%,
+        түүнээс дээш 10% (жилд 120 саяас дээш 15%, 180 саяас дээш 20%). Тооцоолуур өнөөдрийн хүчинтэй шатлалаар тооцож, ирэх өөрчлөлтийг доор нь харуулна. Эх сурвалж:{" "}
+        {PIT_SOURCES.map((src, i) => (
+          <span key={src.url}>
+            {i > 0 && ", "}
+            <a href={src.url} target="_blank" rel="noopener nofollow" className="underline hover:text-secondary">
+              {src.name}
+            </a>
+          </span>
+        ))}
+        .
+      </aside>
       <Suspense fallback={<div className="h-64 animate-pulse rounded-3xl bg-primary ring-1 ring-line ring-inset" />}>
         <Calculator />
       </Suspense>

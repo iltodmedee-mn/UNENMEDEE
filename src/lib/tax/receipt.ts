@@ -6,24 +6,82 @@
 
 /** Employee social insurance (НДШ), share of gross pay. Source: PwC Worldwide Tax Summaries. */
 export const SI_RATE = 0.115;
-/** Personal income tax (ХХОАТ) base rate, applied after НДШ. Reliefs and 2026 changes are not modelled. */
-export const PIT_RATE = 0.1;
 /** The day the rates above were last written against their source; the watchdog asks for a re-check yearly. */
-export const RATES_CHECKED = "2026-10-24";
+export const RATES_CHECKED = "2026-11-04";
+
+/** One band of the yearly ХХОАТ scale on wages: `rate` applies to the part of the income up to `upTo` (₮ a year). */
+export interface PitBand {
+  upTo: number | null;
+  rate: number;
+}
+
 /**
- * The tax package Parliament passed on 2026-06-26 changes ХХОАТ from 2027-01-01 (the bill and the
- * press: a monthly 792,000 ₮ exempt, a 1 % band up to 2 сая, its start year reported as 2027 or
- * 2028). Not modelled until the enacted text is on legalinfo.mn; /tax says so, and from
- * `effective` the watchdog asks for the calculator to be updated. Delete once it is.
+ * ХХОАТ on wages by taxable yearly income (gross minus НДШ), each band taxing only its own part.
+ * The tax package Parliament passed on 2026-06-26 (ХХОАТ-ын тухай хууль, legalinfo.mn lawId 14410,
+ * in force from 2027-01-01) exempts the first 9,504,000 ₮ a year (792,000 ₮ a month) from 2027
+ * and taxes the part up to 24,000,000 ₮ (2 сая a month) at 1 % from 2028; the monthly tax credit
+ * on wages ends in 2027. Table as printed by PwC Mongolia's 2026 tax alert no. 4, which matches
+ * the parliament's and the press's figures (2 сая a month → 12,080 ₮ from 2028).
  */
-export const PIT_CHANGE: { passed: string; effective: string; sources: { name: string; url: string }[] } | null = {
-  passed: "2026-06-26",
-  effective: "2027-01-01",
-  sources: [
-    { name: "УИХ, хуулийн төсөл", url: "https://d.parliament.mn/tusul/68992d11-313a-4470-aa70-ece2bfc03b37" },
-    { name: "ikon.mn", url: "https://ikon.mn/n/3ok6" },
-  ],
-};
+export const PIT_SCHEDULES: { from: string; bands: PitBand[] }[] = [
+  {
+    from: "2000-01-01",
+    bands: [
+      { upTo: 120_000_000, rate: 0.1 },
+      { upTo: 180_000_000, rate: 0.15 },
+      { upTo: null, rate: 0.2 },
+    ],
+  },
+  {
+    from: "2027-01-01",
+    bands: [
+      { upTo: 9_504_000, rate: 0 },
+      { upTo: 120_000_000, rate: 0.1 },
+      { upTo: 180_000_000, rate: 0.15 },
+      { upTo: null, rate: 0.2 },
+    ],
+  },
+  {
+    from: "2028-01-01",
+    bands: [
+      { upTo: 9_504_000, rate: 0 },
+      { upTo: 24_000_000, rate: 0.01 },
+      { upTo: 120_000_000, rate: 0.1 },
+      { upTo: 180_000_000, rate: 0.15 },
+      { upTo: null, rate: 0.2 },
+    ],
+  },
+];
+
+/** Where the schedules come from (printed on /tax). */
+export const PIT_SOURCES: { name: string; url: string }[] = [
+  { name: "legalinfo.mn, ХХОАТ-ын тухай хууль", url: "https://legalinfo.mn/mn/detail?lawId=14410" },
+  { name: "PwC, татварын мэдээ 2026/4", url: "https://www.pwc.com/mn/en/tax_alerts/pdf/2026/tax_alert_04_mn_2026.pdf" },
+  { name: "ikon.mn", url: "https://ikon.mn/n/3ok6" },
+];
+
+/** The schedule in force on an Ulaanbaatar day ("2027-03-01"). */
+export function pitSchedule(day: string): { from: string; bands: PitBand[] } {
+  return PIT_SCHEDULES.filter((s) => s.from <= day).at(-1) ?? PIT_SCHEDULES[0];
+}
+
+/** Yearly ХХОАТ on a taxable yearly wage income under the schedule in force on `day`. */
+export function annualPit(taxableYear: number, day: string): number {
+  if (!Number.isFinite(taxableYear) || taxableYear <= 0) return 0;
+  let tax = 0;
+  let floor = 0;
+  for (const band of pitSchedule(day).bands) {
+    const top = band.upTo ?? Infinity;
+    if (taxableYear > floor) tax += (Math.min(taxableYear, top) - floor) * band.rate;
+    floor = top;
+  }
+  return tax;
+}
+
+/** Schedules that start after `day` (the calculator shows what the same salary pays then). */
+export function upcomingSchedules(day: string): string[] {
+  return PIT_SCHEDULES.map((s) => s.from).filter((from) => from > day);
+}
 /** Shop prices include 10% VAT, so the VAT inside a price is price / 11. */
 export const VAT_SHARE_OF_PRICE = 1 / 11;
 
@@ -33,23 +91,23 @@ export interface BudgetShare {
   share: number;
 }
 
-/** Monthly НДШ and ХХОАТ for a gross salary (an estimate: no tax credit, no 2026 changes). */
-export function payrollParts(grossMonthly: number): { si: number; pit: number; total: number } {
+/** Monthly НДШ and ХХОАТ for a gross salary on an Ulaanbaatar day (an estimate: no tax credit). */
+export function payrollParts(grossMonthly: number, day: string): { si: number; pit: number; total: number } {
   if (!Number.isFinite(grossMonthly) || grossMonthly <= 0) return { si: 0, pit: 0, total: 0 };
   const si = Math.round(grossMonthly * SI_RATE);
-  const pit = Math.round((grossMonthly - grossMonthly * SI_RATE) * PIT_RATE);
+  const pit = Math.round(annualPit((grossMonthly - grossMonthly * SI_RATE) * 12, day) / 12);
   return { si, pit, total: si + pit };
 }
 
 /** Rough monthly ХХОАТ + НДШ for a gross salary (shown to the reader as an estimate). */
-export function estimatePayrollTax(grossMonthly: number): number {
-  return payrollParts(grossMonthly).total;
+export function estimatePayrollTax(grossMonthly: number, day: string): number {
+  return payrollParts(grossMonthly, day).total;
 }
 
 /** The exact amount from a payslip wins; otherwise the estimate from the salary. */
-export function payrollFromInputs(input: { salary: number; exact: number }): { monthly: number; source: "exact" | "estimate" | "none" } {
+export function payrollFromInputs(input: { salary: number; exact: number; day: string }): { monthly: number; source: "exact" | "estimate" | "none" } {
   if (Number.isFinite(input.exact) && input.exact > 0) return { monthly: input.exact, source: "exact" };
-  const monthly = estimatePayrollTax(input.salary);
+  const monthly = estimatePayrollTax(input.salary, input.day);
   return { monthly, source: monthly > 0 ? "estimate" : "none" };
 }
 
