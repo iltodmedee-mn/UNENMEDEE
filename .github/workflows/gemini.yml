@@ -1,6 +1,7 @@
-# Free code fixes: write "@gemini <what to do>" in an issue (or on a pull request of this repo) and
-# Google's Gemini CLI (free tier) reads CLAUDE.md, edits the code and a pull request is opened
-# with the change (on a pull request the commit goes to its branch). Merging stays with a person.
+# Free code fixes: write "@gemini <what to do>" on an issue and Google's Gemini CLI (free tier)
+# reads CLAUDE.md, edits the code on top of main, and a pull request is opened with the change.
+# Merging stays with a person. Issues only, always from main: a comment on a pull request would
+# make this privileged workflow check out and run that branch's code (CodeQL "untrusted checkout").
 #
 # Only the owner and collaborators can start it (the comment author's role is checked below);
 # anyone can comment on a public repository, so never widen that.
@@ -33,6 +34,7 @@ jobs:
     if: >-
       github.repository == 'tmorius-eng/UNENMEDEE' && (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@gemini') &&
+          github.event.issue.pull_request == null &&
           contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
         (github.event_name == 'issues' && contains(github.event.issue.body, '@gemini') &&
           contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
@@ -47,7 +49,6 @@ jobs:
       actions: write
     env:
       NUMBER: ${{ github.event.issue.number }}
-      IS_PR: ${{ github.event.issue.pull_request != null }}
     steps:
       - name: Check that the Gemini key is set
         id: cred
@@ -60,28 +61,17 @@ jobs:
             echo "::notice::@gemini is not set up: add the GEMINI_AGENT_API_KEY repository secret (docs/RUNBOOK.md §5)."
           fi
 
-      - name: Find the branch to work on
+      - name: Say that the work started
         if: steps.cred.outputs.ok == 'true'
-        id: branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "$IS_PR" = "true" ]; then
-            info="$(gh pr view "$NUMBER" --repo "$GITHUB_REPOSITORY" --json headRefName,isCrossRepository)"
-            if [ "$(jq -r .isCrossRepository <<<"$info")" = "true" ]; then
-              gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "@gemini зөвхөн энэ репогийн branch дээрх PR-д ажиллана."
-              exit 1
-            fi
-            echo "base=$(jq -r .headRefName <<<"$info")" >> "$GITHUB_OUTPUT"
-          else
-            echo "base=main" >> "$GITHUB_OUTPUT"
-          fi
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "🤖 Gemini ажиллаж эхэллээ (5–30 минут). Явц: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
 
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: steps.cred.outputs.ok == 'true'
         with:
-          ref: ${{ steps.branch.outputs.base }}
+          ref: main
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -160,38 +150,34 @@ jobs:
           git diff --cached --stat | tail -20 > "$RUNNER_TEMP/stat.txt"
           if npm run check > "$RUNNER_TEMP/check.log" 2>&1; then echo "check=pass" >> "$GITHUB_OUTPUT"; else echo "check=fail" >> "$GITHUB_OUTPUT"; fi
 
-      # A fresh clone (no file Gemini touched, no hook), the patch applied, committed and pushed;
-      # a new pull request for an issue, a new commit on the branch for a pull request.
+      # A fresh clone of main (no file Gemini touched, no hook), the patch applied, committed and
+      # pushed to a new branch, and a pull request opened.
       - name: Open the pull request
         if: steps.cred.outputs.ok == 'true' && steps.verify.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          BASE: ${{ steps.branch.outputs.base }}
           CHECK: ${{ steps.verify.outputs.check }}
           TITLE: ${{ github.event.issue.title }}
           SUMMARY: ${{ steps.gemini.outputs.summary }}
         run: |
           set -euo pipefail
           work="$RUNNER_TEMP/publish"
-          git clone --quiet --branch "$BASE" "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$work"
+          git clone --quiet --branch main "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" "$work"
           cd "$work"
           git config core.hooksPath /dev/null
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ "$IS_PR" = "true" ]; then branch="$BASE"; else branch="gemini/issue-${NUMBER}-${GITHUB_RUN_ID}"; git checkout -q -b "$branch"; fi
+          branch="gemini/issue-${NUMBER}-${GITHUB_RUN_ID}"
+          git checkout -q -b "$branch"
           git apply --index "$RUNNER_TEMP/change.patch"
           git commit -q -m "Gemini: #${NUMBER} ${TITLE:0:60}" -m "Requested in #${NUMBER}; npm run check: ${CHECK}."
           git push -q origin "HEAD:$branch"
           summary="$(printf '%s' "$SUMMARY" | head -c 3000)"
-          if [ "$CHECK" = "pass" ]; then status="✅ \`npm run check\` давсан"; else status="❌ \`npm run check\` унасан: PR draft хэвээр, дээр нь \`@gemini CI-г засаарай\` гэж бичээрэй"; fi
+          if [ "$CHECK" = "pass" ]; then status="✅ \`npm run check\` давсан"; else status="❌ \`npm run check\` унасан: PR draft хэвээр. Хаагаад энэ issue дээр алдааг нь бичиж \`@gemini\` дахин дуудаарай"; fi
           stat="$(cat "$RUNNER_TEMP/stat.txt")"
-          if [ "$IS_PR" = "true" ]; then
-            url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/pull/$NUMBER"
-          else
-            draft=""; if [ "$CHECK" != "pass" ]; then draft="--draft"; fi
-            body="$(printf 'Gemini-ийн засвар (#%s-ээс).\n\n%s\n\n```\n%s\n```\n\n%s\n\nCI ногоон болмогц **Squash and merge**. Буруу бол PR-ийг хаана.' "$NUMBER" "$status" "$stat" "$summary")"
-            url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Gemini: ${TITLE:0:80}" --body "$body" $draft)"
-          fi
+          draft=""; if [ "$CHECK" != "pass" ]; then draft="--draft"; fi
+          body="$(printf 'Gemini-ийн засвар (#%s-ээс).\n\n%s\n\n```\n%s\n```\n\n%s\n\nCI ногоон болмогц **Squash and merge**. Буруу бол PR-ийг хаана.' "$NUMBER" "$status" "$stat" "$summary")"
+          url="$(gh pr create --repo "$GITHUB_REPOSITORY" --base main --head "$branch" --title "Gemini: ${TITLE:0:80}" --body "$body" $draft)"
           # A push with this token starts no workflow, so CI is started by hand on the branch.
           gh workflow run ci.yml --repo "$GITHUB_REPOSITORY" --ref "$branch"
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$(printf '🤖 Gemini дууслаа: %s\n%s\n\n%s' "$url" "$status" "$summary")"
