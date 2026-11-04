@@ -82,7 +82,7 @@ jobs:
           gh label create watchdog --color d73a4a --description "Automatic health check" 2>/dev/null || true
           run_url="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           if [ -s health.txt ]; then report="$(cat health.txt)"; else report="Шалгалтын скрипт юу ч хэвлэлгүй унасан (npm ci эсвэл скрипт эвдэрсэн). Лог: $run_url"; fi
-          guide="Юу хийх вэ: docs/RUNBOOK.md (Claude-гүй үед)."
+          guide="Юу хийх вэ: docs/RUNBOOK.md. Код засах шаардлагатай бол доор \`@gemini энэ issue-ийн асуудлыг засаад PR нээ\` гэж бичээрэй (RUNBOOK §5)."
           if [ "$LEVEL" = "info" ]; then
             title="🟡 iltodmedee.mn: анхаарах зүйлс (яаралтай биш, сайт ажиллаж байна)"
             head="🟡 Сайт хэвийн ажиллаж байна. Доорх зүйлсийг завтай үедээ харна уу"
