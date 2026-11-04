@@ -85,7 +85,7 @@ export const TOPICS: Topic[] = [
     tag: "НИЙГЭМ",
     color: "text-utility-pink-700",
     dot: "bg-utility-pink-500", tile: "bg-utility-pink-500/15 dark:bg-utility-pink-500/25", hex: "#ec4899",
-    domains: ["mlsp.gov.mn", "ndaatgal.mn", "ncge.gov.mn"],
+    domains: ["mlsp.gov.mn", "ndaatgal.mn", "ncge.gov.mn", "gadpwd.gov.mn"],
   },
   {
     key: "environment",
@@ -93,7 +93,7 @@ export const TOPICS: Topic[] = [
     tag: "БАЙГАЛЬ ОРЧИН",
     color: "text-utility-green-700",
     dot: "bg-utility-green-500", tile: "bg-utility-green-500/15 dark:bg-utility-green-500/25", hex: "#22c55e",
-    domains: ["mecc.gov.mn", "water.gov.mn", "namem.gov.mn", "mofa.gov.mn"],
+    domains: ["mecc.gov.mn", "water.gov.mn", "namem.gov.mn", "mofa.gov.mn", "vet.gov.mn"],
   },
   {
     key: "infrastructure",

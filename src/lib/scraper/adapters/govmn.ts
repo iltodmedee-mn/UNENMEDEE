@@ -40,6 +40,26 @@ export const GOVMN_ORGS: Record<string, string> = {
   "sukhbaatar.gov.mn": "sukhbaatargover",
   "govisumber.gov.mn": "govisumbergover",
   "bgd.mn": "bgdzdtg",
+  // Nov 4 2026, second pass: sources whose own site gave 0–3 published stories in 30 days while
+  // gov.mn had more (counted per slug on the portal's list API the same day).
+  "afccp.gov.mn": "ama", // the competition authority, now "Монополын эсрэг газар" on the portal
+  "mta.gov.mn": "mta",
+  "sport.gov.mn": "sport",
+  "gazar.gov.mn": "gazar",
+  "vet.gov.mn": "vet",
+  "ipom.gov.mn": "ipom",
+  "cabinet.gov.mn": "cabinet",
+  "nfa.gov.mn": "nfa",
+  "gadpwd.gov.mn": "gadpwd",
+  "govi-altai.gov.mn": "govialtaigovern",
+  "uvurkhangai.gov.mn": "uvurkhangaigov",
+  "zavkhan.gov.mn": "zavkhangovern",
+  "orkhon.gov.mn": "orkhongovern",
+  "dundgovi.gov.mn": "dundgovigovern",
+  "bagakhangai.ub.gov.mn": "bkhdzdtg",
+  "nad.ub.gov.mn": "ndzdtg",
+  "sbd.gov.mn": "sbdzdtg",
+  "bzd.ub.gov.mn": "bzdzdtg",
 };
 
 /** gov.mn prints times without a zone: Ulaanbaatar (+08:00). */
