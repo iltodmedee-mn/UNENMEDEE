@@ -108,7 +108,9 @@ jobs:
           GEMINI_CLI_TRUST_WORKSPACE: "true"
         with:
           gemini_api_key: ${{ secrets.GEMINI_AGENT_API_KEY }}
-          gemini_model: ${{ vars.GEMINI_AGENT_MODEL }}
+          # Flash on the free key: the CLI's default (Pro) answered 503 "high demand" and 429 "quota"
+          # ten times in a row on Nov 4 2026; Flash has higher free limits. GEMINI_AGENT_MODEL overrides.
+          gemini_model: ${{ vars.GEMINI_AGENT_MODEL || 'gemini-flash-latest' }}
           workflow_name: gemini-fix
           settings: |-
             {
