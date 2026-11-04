@@ -68,6 +68,9 @@ export const SOURCE_SEEDS: SourceSeed[] = [
   s("ministry", "moh.gov.mn", "Эрүүл мэндийн яам", "https://moh.gov.mn/home"),
   s("ministry", "mecc.gov.mn", "Байгаль орчин, уур амьсгалын өөрчлөлтийн яам", "https://mecc.gov.mn/posts"),
   s("ministry", "mlsp.gov.mn", "Хөдөлмөр, нийгмийн хамгааллын яам", "https://mlsp.gov.mn/content?c=1"),
+  // Read from the www.gov.mn portal (adapters/govmn.ts): gadpwd.gov.mn no longer resolves.
+  s("agency", "gadpwd.gov.mn", "Хөгжлийн бэрхшээлтэй хүний хөгжлийн ерөнхий газар"),
+  s("agency", "vet.gov.mn", "Мал эмнэлгийн ерөнхий газар"),
   s("ministry", "mofa.gov.mn", "Хүнс, хөдөө аж ахуй, хөнгөн үйлдвэрийн яам", "https://mofa.gov.mn/news"),
   s("ministry", "mrt.gov.mn", "Зам, тээврийн яам"),
   s("ministry", "mcud.gov.mn", "Барилга, хот байгуулалтын яам"),
@@ -144,8 +147,10 @@ export const SOURCE_SEEDS: SourceSeed[] = [
   s("local", "chingeltei.gov.mn", "Чингэлтэй дүүрэг", "http://www.chingeltei.gov.mn/"),
   s("local", "niislel.khural.mn", "Нийслэлийн Иргэдийн Төлөөлөгчдийн Хурал"),
   // Ulaanbaatar districts (Oct 2026): khanuul.mn, bgd.mn and sbd.gov.mn are the districts' own
-  // domains; bzd.ub.gov.mn (Баянзүрх) answers with a hosting "suspended" page and ulaanbaatar.mn
-  // itself times out from outside Mongolia, so both stay as they are until they come back.
+  // domains; ulaanbaatar.mn itself times out from outside Mongolia. bzd.ub.gov.mn (Баянзүрх)
+  // answers with a hosting "suspended" page, so its news is read from the www.gov.mn portal
+  // (adapters/govmn.ts), like several other bodies below.
+  s("local", "bzd.ub.gov.mn", "Баянзүрх дүүрэг"),
   s("local", "khanuul.mn", "Хан-Уул дүүрэг", "https://www.khanuul.mn/"),
   s("local", "shd.ub.gov.mn", "Сонгинохайрхан дүүрэг", "http://www.shd.ub.gov.mn/"),
   s("local", "bgd.mn", "Баянгол дүүрэг", "https://www.bgd.mn/"),

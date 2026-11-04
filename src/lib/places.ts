@@ -13,7 +13,7 @@ export interface Place {
   /** "Архангай", "Улаанбаатар", "Хан-Уул". */
   name: string;
   kind: PlaceKind;
-  /** Scraped official sites for this place (may be empty: Баянзүрх's site is down). */
+  /** Scraped official sites for this place (Баянзүрх's own site is down; its news comes from gov.mn). */
   domains: string[];
   /** The parliament.mn constituency the place's MPs are elected in. */
   constituency: string | null;
@@ -35,7 +35,7 @@ export const DISTRICTS: Place[] = [
   district("baganuur", "Багануур", ["bnd.ub.gov.mn"], "Багануур, Багахангай, Налайх"),
   district("bagakhangai", "Багахангай", ["bagakhangai.ub.gov.mn"], "Багануур, Багахангай, Налайх"),
   district("bayangol", "Баянгол", ["bgd.mn"], "Баянгол"),
-  district("bayanzurkh", "Баянзүрх", [], "Баянзүрх"),
+  district("bayanzurkh", "Баянзүрх", ["bzd.ub.gov.mn"], "Баянзүрх"),
   district("nalaikh", "Налайх", ["nad.ub.gov.mn"], "Багануур, Багахангай, Налайх"),
   district("songinokhairkhan", "Сонгинохайрхан", ["shd.ub.gov.mn"], "Сонгинохайрхан"),
   district("sukhbaatar-duureg", "Сүхбаатар", ["sbd.gov.mn"], "Сүхбаатар, Чингэлтэй"),
