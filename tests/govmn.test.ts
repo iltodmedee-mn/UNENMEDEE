@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { API_ADAPTERS } from "@/lib/scraper/adapters";
+import { API_ADAPTERS, apiHost, groupByApiHost } from "@/lib/scraper/adapters";
 import { GOVMN_ORGS, govMnListUrl, isGovMnNotFound, parseGovMnArticle, parseGovMnList, rscStream } from "@/lib/scraper/adapters/govmn";
 import { parseNhrcmList } from "@/lib/scraper/adapters/nhrcm";
 import { SOURCE_SEEDS } from "@/lib/sources";
@@ -66,6 +66,18 @@ describe("www.gov.mn portal news (govmn.ts)", () => {
       assert.ok(seeded.has(domain), `${domain} is not in seed-sources.ts`);
       assert.equal(typeof API_ADAPTERS[domain], "function", domain);
     }
+  });
+});
+
+describe("API sources run one queue per host (run-scraper.ts)", () => {
+  it("puts every portal source in one queue and keeps the others apart, in order", () => {
+    const list = ["mof.gov.mn", "police.gov.mn", "customs.gov.mn", "zasag.mn", "legalinfo.mn", "vet.gov.mn"].map((domain) => ({ domain }));
+    assert.deepEqual(
+      groupByApiHost(list).map((g) => g.map((s) => s.domain)),
+      [["mof.gov.mn", "customs.gov.mn", "vet.gov.mn"], ["police.gov.mn"], ["zasag.mn"], ["legalinfo.mn"]],
+    );
+    assert.equal(apiHost("zasag.mn"), "mongolia.gov.mn");
+    assert.equal(apiHost("parliament.mn"), "parliament.mn");
   });
 });
 
