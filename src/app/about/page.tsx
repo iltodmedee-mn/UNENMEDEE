@@ -3,6 +3,7 @@ import Link from "next/link";
 
 import { PageHeader } from "@/components/iltod/page-header";
 import { ShareButton } from "@/components/iltod/share-button";
+import { EmailLink } from "@/components/iltod/email-link";
 import { type About, paragraphs } from "@/lib/about";
 import { formatNumber, formatUsd } from "@/lib/format";
 import { getAbout, getSiteStats } from "@/lib/queries";
@@ -124,9 +125,9 @@ export default async function AboutPage() {
         </h2>
         <p className="text-md text-secondary">
           Санал хүсэлт, алдаа, хамтын ажиллагааны асуудлаар:{" "}
-          <a className="font-semibold text-brand-secondary hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
+          <EmailLink className="font-semibold text-brand-secondary hover:underline">
             {CONTACT_EMAIL}
-          </a>
+          </EmailLink>
         </p>
         <p className="text-sm text-tertiary">
           Энэ ажлыг дэмжих бол{" "}

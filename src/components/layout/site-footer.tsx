@@ -2,6 +2,7 @@ import { Mail01 } from "@untitledui/icons";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { EmailLink } from "@/components/iltod/email-link";
 import { CONTACT_EMAIL, REPO_URL, repoFile, STATUS_URL } from "@/lib/site";
 
 import { DonateCard } from "./donate";
@@ -58,10 +59,10 @@ export function SiteFooter() {
           <span className="label-mono text-tertiary">Биднийг дагаарай</span>
           <SocialLinks size="md" />
         </div>
-        <a className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-brand-secondary hover:underline" href={`mailto:${CONTACT_EMAIL}`}>
+        <EmailLink className="inline-flex w-fit items-center gap-2 text-sm font-semibold text-brand-secondary hover:underline">
           <Mail01 aria-hidden className="size-4" />
           {CONTACT_EMAIL}
-        </a>
+        </EmailLink>
         <Suspense fallback={null}>
           <DonateCard className="lg:ml-auto lg:min-w-[22rem]" />
         </Suspense>

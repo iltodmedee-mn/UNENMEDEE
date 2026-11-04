@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 
 import { PageHeader } from "@/components/iltod/page-header";
+import { EmailLink } from "@/components/iltod/email-link";
 import { CONTACT_EMAIL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -65,9 +66,9 @@ export default function PrivacyPage() {
         </h2>
         <p className="text-sm text-secondary">
           Таны төхөөрөмж дээрх тохиргоо браузерын өгөгдлийг цэвэрлэхэд устна. Мэдэгдлийн захиалгаа 🔔 цэснээс унтраана. Бусад асуудлаар{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold text-brand-secondary hover:underline">
+          <EmailLink className="font-semibold text-brand-secondary hover:underline">
             {CONTACT_EMAIL}
-          </a>{" "}
+          </EmailLink>{" "}
           хаягаар бичвэл 30 хоногийн дотор шийдвэрлэнэ. Бидэнд таны Facebook-ийн мэдээлэл хадгалагддаггүй тул устгах зүйл үүсэхгүй.
         </p>
       </section>
