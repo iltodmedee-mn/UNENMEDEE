@@ -6,11 +6,12 @@ import { duePromo, LAUNCHPAD_URL, PROMOS } from "@/lib/social/promo";
 import { THREADS_MAX, threadsLength } from "@/lib/social/threads";
 
 describe("Launchpad campaign posts (3–7 Nov 2026)", () => {
-  it("posts one day at 19:00 Ulaanbaatar, inside an 8-hour window, and nothing from 8 November", () => {
+  it("posts one day at 19:00 Ulaanbaatar, inside a 4-hour window (never at night), and nothing from 8 November", () => {
     assert.equal(duePromo(new Date("2026-11-03T10:59:00Z")), null);
     assert.equal(duePromo(new Date("2026-11-03T11:00:00Z"))?.day, 1);
-    assert.equal(duePromo(new Date("2026-11-03T18:59:00Z"))?.day, 1);
-    assert.equal(duePromo(new Date("2026-11-03T19:01:00Z")), null);
+    assert.equal(duePromo(new Date("2026-11-03T14:59:00Z"))?.day, 1);
+    assert.equal(duePromo(new Date("2026-11-03T15:01:00Z")), null);
+    assert.equal(duePromo(new Date("2026-11-03T18:59:00Z")), null);
     assert.equal(duePromo(new Date("2026-11-07T12:00:00Z"))?.day, 5);
     for (const t of ["2026-11-08T11:30:00Z", "2026-11-09T11:30:00Z", "2027-11-03T11:30:00Z"]) assert.equal(duePromo(new Date(t)), null, t);
     assert.ok(PROMOS.every((p) => Date.parse(p.postAt) < Date.parse("2026-11-08T00:00:00Z")));

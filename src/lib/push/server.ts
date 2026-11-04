@@ -100,7 +100,7 @@ export async function sendToAll(db: DB, payloads: PushPayload[]): Promise<SendRe
             result.sent++;
           } catch (err) {
             const status = (err as { statusCode?: number }).statusCode;
-            const kind = classifyPushFailure(status);
+            const kind = classifyPushFailure(status, (err as Error)?.message ?? "");
             if (kind === "gone") {
               gone.push(s.id);
               return;

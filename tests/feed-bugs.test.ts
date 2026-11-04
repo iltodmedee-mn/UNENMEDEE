@@ -71,3 +71,9 @@ describe("summaries stored with the model's JSON reply inside (Nov 2026: #2366, 
     assert.equal(LEAKED_KEYS.test(ok), false);
   });
 });
+
+describe("a one-line summary with leaked JSON is cut (Nov 2026 audit)", () => {
+  it("does not show the leak again", () => {
+    assert.deepEqual(tldrSentences("Нэг өгүүлбэр.', 'facts': ['a']"), ["Нэг өгүүлбэр."]);
+  });
+});

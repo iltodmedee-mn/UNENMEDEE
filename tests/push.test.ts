@@ -59,6 +59,9 @@ describe("push payloads", () => {
 describe("push failure accounting", () => {
   it("deletes only subscriptions the browser dropped, counts only their own errors, ignores outages", () => {
     assert.equal(classifyPushFailure(404), "gone");
+    // A malformed stored key is refused locally with no status (Nov 2026 audit): permanent.
+    assert.equal(classifyPushFailure(undefined, "The subscription p256dh value should be 65 bytes long."), "permanent");
+    assert.equal(classifyPushFailure(undefined, "socket hang up"), "transient");
     assert.equal(classifyPushFailure(410), "gone");
     assert.equal(classifyPushFailure(400), "permanent");
     assert.equal(classifyPushFailure(401), "permanent"); // VAPID mismatch

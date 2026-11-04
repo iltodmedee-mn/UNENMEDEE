@@ -32,7 +32,7 @@ export function maybePublished(err: unknown): boolean {
   const e = err as { status?: unknown; code?: unknown; message?: unknown } | null;
   if (!e) return false;
   const message = typeof e.message === "string" ? e.message : "";
-  const status = typeof e.status === "number" ? e.status : Number(message.match(/^\w+ (\d{3})\b/)?.[1] ?? NaN);
+  const status = typeof e.status === "number" ? e.status : Number(message.match(/^[^:]*?\b(\d{3}):/)?.[1] ?? NaN);
   const code = typeof e.code === "number" ? e.code : Number(message.match(/\(code (-?\d+)\)/)?.[1] ?? NaN);
   return status >= 500 || TRANSIENT_GRAPH_CODES.has(code);
 }

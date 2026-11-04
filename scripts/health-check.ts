@@ -238,7 +238,9 @@ async function workflows(token: string, repo: string): Promise<WorkflowSnapshot>
   const notActive = list.workflows.filter((w) => w.state !== "active" && w.state !== "disabled_manually").map((w) => `${w.path} (${w.state})`);
   const failingSchedules: string[] = [];
   for (const w of list.workflows) {
-    if (w.state === "disabled_manually") continue;
+    // The watchdog's own runs are red whenever it reports something urgent: counting them made it
+    // report itself as failing for three more days after the real problem was fixed.
+    if (w.state === "disabled_manually" || /\/watchdog\.ya?ml$/.test(w.path)) continue;
     const runs = (await github(`repos/${repo}/actions/workflows/${w.id}/runs?event=schedule&status=completed&per_page=3`, token)) as { workflow_runs: { conclusion: string | null }[] };
     const last = runs.workflow_runs.map((r) => r.conclusion);
     if (last.length === 3 && last.every((c) => c === "failure")) failingSchedules.push(w.path);
@@ -319,7 +321,10 @@ async function main() {
 
   const problems = healthProblems(snapshot, config);
   results.forEach((r, i) => {
-    if (r.status === "rejected") problems.push({ level: "info", text: `Шалгалт "${names[i]}" ажилласангүй: ${(r.reason as Error)?.message ?? r.reason}` });
+    // The news/database check failing means the database or its secret is broken, and none of the
+    // urgent rules could run: that is urgent itself. GitHub's API failing hides a disabled pipeline.
+    const critical = names[i] === "мэдээ/AI/push" || names[i] === "GitHub workflow";
+    if (r.status === "rejected") problems.push({ level: critical ? "urgent" : "info", text: `Шалгалт "${names[i]}" ажилласангүй: ${(r.reason as Error)?.message ?? r.reason}` });
   });
 
   const c = snapshot.core;

@@ -63,6 +63,15 @@ function sentenceValues(text: string): Set<string> {
   return out;
 }
 
+/** Values of the numbers in `text` written right before a scale word starting with `stem` ("тэрб"). */
+function scaledValues(text: string, stem: string): string[] {
+  const out: string[] = [];
+  for (const m of text.matchAll(/(?<![\d.,])(\d[\d.,\u00a0\u202f ]*\d|\d)\s*(их наяд|наяд|тэрбум|сая|мянга)/gi)) {
+    if (m[2].toLowerCase().startsWith(stem) || (stem === "наяд" && /наяд/i.test(m[2]))) out.push(...numberValues(m[1].replace(/[.,]$/, "")));
+  }
+  return out;
+}
+
 /**
  * The fact sentence that names this number as a whole number (a substring test matched "5" inside
  * "2025" and "15", "1.5" inside "11.5", and "2 их наяд" to a sitting's start time), preferring one
@@ -73,7 +82,10 @@ export function contextFor(number: string, unit: string, facts: string[]): strin
   if (wanted.size === 0) return null;
   const matches = facts.filter((f) => [...sentenceValues(f)].some((v) => wanted.has(v)));
   const scale = unit.split(/\s+/).find((w) => /^(наяд|тэрбум|сая|мянга)/i.test(w));
-  const named = scale ? matches.find((f) => f.toLowerCase().includes(scale.toLowerCase().slice(0, 4))) : undefined;
+  // The scale word must follow this very number ("5 тэрбум"), not just appear somewhere in the
+  // sentence: "2025 онд 5 сургууль барихад 12 тэрбум…" is not about "5 тэрбум" (Nov 2026 audit).
+  const stem = scale?.toLowerCase().slice(0, 4);
+  const named = stem ? matches.find((f) => scaledValues(f, stem).some((v) => wanted.has(v))) : undefined;
   // "5", "12", "20" are common in dates, counts and article numbers: a sentence must also name the
   // scale word ("тэрбум") to be about this amount. A specific number ("186.2", "4 500 000") need not.
   // Judged on the value ("3.0" is 3, as common as "3").

@@ -153,9 +153,16 @@ function aboutCount(count: number, unitSay: string, unit: string): { say: string
  * argument in parliament, shown without his name as if it were the site's own finding. Such a
  * story stays on the site, where the article says who said it; it never becomes a video.
  */
+/**
+ * Words that name a charge, a crime or a judgement. A video never puts a person or a body next to
+ * one (Nov 2026 audit: "…төгрөгийн хахууль авсан албан тушаалтныг шүүхэд шилжүүллээ" passed the
+ * older list). Shared by the money and impact videos.
+ */
+export const CHARGE = /(хулгай|авлиг|хахуул|завш|мөнгө угаа|баривчл|яллагд|ял оноо|ял шийтг|шийтгүүл|хэрэгт холбогд|шалгагдаж|сэжигт|шүүмж|буруутга|үрэн таран|дэмий|луйвар|хууль бус)/i;
+
 export function weighsOrAccuses(title: string): boolean {
   const t = ` ${title.toLowerCase().replace(/[.,!?;:«»"“”()]/g, " ")} `;
-  return /\s(ч|л)\s/.test(t) || /(ердөө|гэвч|харин|хэдий ч|зөвхөн|хулгай|авлиг|шүүмж|буруутга|үрэн таран|дэмий)/.test(t);
+  return /\s(ч|л)\s/.test(t) || /(ердөө|гэвч|харин|хэдий ч|зөвхөн)/.test(t) || CHARGE.test(t);
 }
 
 /** The spec for one story, or null when its headline names no big ₮ amount the story also holds. */

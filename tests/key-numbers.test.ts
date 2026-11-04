@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { keyNumbers, numberValues } from "@/lib/key-numbers";
+import { contextFor, keyNumbers, numberValues } from "@/lib/key-numbers";
 
 describe("keyNumbers", () => {
   it("splits digits from units, sorts by value and shares amounts of 1 тэрбум and more", () => {
@@ -59,5 +59,13 @@ describe("keyNumbers", () => {
   });
   it("caps the list", () => {
     assert.equal(keyNumbers(["1 сая ₮", "2 сая ₮", "3 сая ₮", "4 сая ₮", "5 сая ₮", "6 сая ₮"], []).length, 5);
+  });
+});
+
+describe("the scale word must follow the number (Nov 2026 audit)", () => {
+  it("does not pair 5 тэрбум with a sentence about 5 schools and 12 тэрбум", () => {
+    const facts = ["2025 онд 5 сургууль барихад 12 тэрбум төгрөг зарцуулна.", "Нийт 5 тэрбум төгрөгийн хөрөнгө оруулалт."];
+    assert.equal(contextFor("5", "тэрбум ₮", facts), facts[1]);
+    assert.equal(contextFor("5", "тэрбум ₮", [facts[0]]), null);
   });
 });

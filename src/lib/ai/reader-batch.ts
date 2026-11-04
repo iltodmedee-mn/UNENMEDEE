@@ -59,8 +59,16 @@ const stems5 = (text: string) => new Set((text.toLowerCase().match(/\p{L}{5,}/gu
  * no word stem with the story's own headline, summary and facts is dropped.
  */
 function aboutItem(answer: string, own: Set<string>): boolean {
-  return [...stems5(answer)].some((st) => own.has(st));
+  const mine = [...stems5(answer)].filter((st) => !COMMON_STEMS.has(st));
+  const shared = mine.filter((st) => own.has(st)).length;
+  // One shared stem was enough, and "засги" (Засгийн газар) or "монго" let a shifted answer through
+  // (Nov 2026 audit). Common stems do not count; two shared stems are needed unless the answer is
+  // that short.
+  return shared >= Math.min(2, mine.length) && shared > 0;
 }
+
+/** Stems nearly every government story has: they say nothing about which story an answer is for. */
+const COMMON_STEMS = new Set(["засги", "монго", "төрий", "хурал", "улсын", "аймаг", "нийсл", "байгу", "газры", "газар", "яамны", "сайда", "дарга", "ажлын", "хүрээ", "зохио", "хэрэг", "иргэд", "иргэн", "тухай", "өдөрт", "оноос", "сарын", "хийгд", "болно", "байна", "талаа"]);
 
 /** The model's answer for one item, grounded in that item's own text. */
 export function readerViewFor(item: ReaderItem, answer: unknown): ReaderView {

@@ -12,7 +12,7 @@ import { PRODUCTION_URL } from "@/lib/site";
 import type { ReaderImpact } from "@/lib/types";
 
 import { hashtags } from "./hashtags";
-import { maybePublished, UnknownOutcomeError } from "./outcome";
+import { maybePublished, UnknownOutcomeError, publishStep } from "./outcome";
 import { factShareLine, impactLines, keyFacts } from "./story-lines";
 
 export const GRAPH_VERSION = process.env.FB_GRAPH_VERSION || "v26.0";
@@ -216,13 +216,17 @@ export async function publishReel(opts: {
     "reel upload",
   );
   if (upload.success !== true) throw new FacebookError("Facebook reel upload was not accepted", 200);
-  await read(
-    await f(edge, {
-      method: "POST",
-      body: new URLSearchParams({ upload_phase: "finish", video_id: videoId, video_state: "PUBLISHED", description: opts.description, access_token: opts.token }),
-      signal: AbortSignal.timeout(60_000),
-    }),
-    "reel finish",
+  // "finish" is the call that makes the reel public: a 5xx or transient error here may have
+  // published it, so it is an unknown outcome, never a refusal to retry (Nov 2026 audit).
+  await publishStep(async () =>
+    read(
+      await f(edge, {
+        method: "POST",
+        body: new URLSearchParams({ upload_phase: "finish", video_id: videoId, video_state: "PUBLISHED", description: opts.description, access_token: opts.token }),
+        signal: AbortSignal.timeout(60_000),
+      }),
+      "reel finish",
+    ),
   );
   // Published asynchronously: report a processing error, otherwise the reel is on its way.
   for (let i = 0; i < 12; i++) {

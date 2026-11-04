@@ -127,8 +127,11 @@ export function digestPayload(d: { title: string; intro: string; kind: string; g
  * towards its removal. 429, 5xx and network errors are the service's problem: never count them, or
  * a few hours of outage would delete every subscriber.
  */
-export function classifyPushFailure(status: number | undefined): "gone" | "permanent" | "transient" {
+export function classifyPushFailure(status: number | undefined, message = ""): "gone" | "permanent" | "transient" {
   if (status === 404 || status === 410) return "gone";
+  // web-push refuses a malformed stored key locally, before any request (no status): that row can
+  // never succeed, so it counts towards MAX_PUSH_FAILURES instead of being retried for ever.
+  if (status === undefined && /p256dh|auth secret|subscription keys|should be \d+ bytes/i.test(message)) return "permanent";
   if (status !== undefined && status >= 400 && status < 500 && status !== 429 && status !== 408) return "permanent";
   return "transient";
 }

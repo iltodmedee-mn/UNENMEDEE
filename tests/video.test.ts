@@ -420,4 +420,13 @@ describe("money video headlines", () => {
     ])
       assert.equal(weighsOrAccuses(t), false, t);
   });
+  it("refuses bribery, embezzlement and arrests (Nov 2026 audit)", () => {
+    for (const t of [
+      "Б.Бат 12 тэрбум төгрөг завшсан хэргээр баривчлагдлаа",
+      "Хээл хахуулийн хэрэгт 3 тэрбум₮",
+      "46.8 сая төгрөгийн хахууль авсан албан тушаалтныг шүүхэд шилжүүллээ",
+      "5 тэрбум төгрөгийн мөнгө угаасан хэрэгт яллагдагчаар татлаа",
+    ])
+      assert.equal(weighsOrAccuses(t), true, t);
+  });
 });

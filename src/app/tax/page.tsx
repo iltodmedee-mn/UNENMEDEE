@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { cacheLife } from "next/cache";
 import Link from "next/link";
 import { Suspense } from "react";
 
@@ -17,6 +18,13 @@ export const metadata: Metadata = {
   alternates: { canonical: "/tax" },
   description: "Цалингаа оруулаад ХХОАТ, НДШ, НӨАТ-аа тооцоол, тэр мөнгө улсын төсөвт юунд зарцуулагддагийг 1 минутад хар. Үндэсний статистикийн хорооны албан тоогоор, тооцоо зөвхөн таны төхөөрөмж дээр.",
 };
+
+/** Has the passed PIT change taken effect (Ulaanbaatar day)? A daily cached clock keeps the page static. */
+async function pitChangeStarted(): Promise<boolean> {
+  "use cache";
+  cacheLife("hours");
+  return PIT_CHANGE !== null && Date.now() >= Date.parse(`${PIT_CHANGE.effective}T00:00:00+08:00`);
+}
 
 async function Calculator() {
   const nso = await getIndicator<BudgetNsoSnapshot>("budget_nso");
@@ -44,7 +52,7 @@ const TAX_LD = {
   ],
 };
 
-export default function TaxPage() {
+export default async function TaxPage() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(TAX_LD) }} />
@@ -65,8 +73,18 @@ export default function TaxPage() {
       </PageHeader>
       {PIT_CHANGE && (
         <aside className="mb-6 border-l-2 border-line pl-3 text-sm text-tertiary">
-          УИХ {PIT_CHANGE.passed}-нд татварын багц хуулийг баталсан: ХХОАТ {PIT_CHANGE.effective}-нээс өөрчлөгдөнө (сарын 792,000 ₮ хүртэлх орлого чөлөөлөгдөнө гэж
-          мэдээлсэн). Доорх тооцоо одоогийн хувь хэмжээгээр; батлагдсан эх бичвэр legalinfo.mn-д нийтлэгдмэгц шинэчилнэ. Эх сурвалж:{" "}
+          {(await pitChangeStarted()) ? (
+            <>
+              <strong className="text-secondary">Анхаар:</strong> УИХ {PIT_CHANGE.passed}-нд баталсан татварын багц хуулиар ХХОАТ {PIT_CHANGE.effective}-нээс өөрчлөгдсөн
+              (сарын 792,000 ₮ хүртэлх орлого чөлөөлөгдөнө гэж мэдээлсэн). Доорх тооцоо өмнөх хувь хэмжээгээр хийгдэж байгаа тул таны ХХОАТ үүнээс бага байж магадгүй;
+              батлагдсан эх бичвэрийн дагуу шинэчлэх хүртэл лавлагаа болгон ашиглана уу. Эх сурвалж:{" "}
+            </>
+          ) : (
+            <>
+              УИХ {PIT_CHANGE.passed}-нд татварын багц хуулийг баталсан: ХХОАТ {PIT_CHANGE.effective}-нээс өөрчлөгдөнө (сарын 792,000 ₮ хүртэлх орлого чөлөөлөгдөнө гэж
+              мэдээлсэн). Доорх тооцоо одоогийн хувь хэмжээгээр; батлагдсан эх бичвэр legalinfo.mn-д нийтлэгдмэгц шинэчилнэ. Эх сурвалж:{" "}
+            </>
+          )}
           {PIT_CHANGE.sources.map((src, i) => (
             <span key={src.url}>
               {i > 0 && ", "}

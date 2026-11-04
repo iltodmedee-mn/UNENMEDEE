@@ -95,6 +95,18 @@ describe("reader view grounding", () => {
     // Another story's answer under this id (the model shifted its list by one): dropped.
     const shifted = readerViewFor(item, { title: "Улаанбаатарын агаарын бохирдол буурлаа", who: "Нийслэлийн оршин суугчид", change: "Агаарын чанар сайжирна", when: null, action: null });
     assert.deepEqual(shifted, { title: null, impact: null });
+    // Sharing only a stem every government story has ("засги") is not enough (Nov 2026 audit).
+    const common = readerViewFor(item, { title: "Засгийн газар сургуулийн хоолны төсвийг баталлаа", who: null, change: null, when: null, action: null });
+    assert.equal(common.title, null);
     assert.equal(sourceDigits("600, 000 ба 4 500"), "600000 ба 4500");
+  });
+});
+
+describe("numbersGrounded compares values, not digits (Nov 2026 audit)", () => {
+  it("refuses 15 % for a source saying 1.5 % and 5 for 0.5", () => {
+    assert.equal(numbersGrounded("Хүү 15 хувь болно", "Бодлогын хүүг 1.5 хувиар нэмэв"), false);
+    assert.equal(numbersGrounded("5 хувь", "0.5 хувь"), false);
+    assert.equal(numbersGrounded("1.5 хувь", "Бодлогын хүүг 1.5 хувиар нэмэв"), true);
+    assert.equal(numbersGrounded("₮600,000", "600000 төгрөг"), true);
   });
 });
