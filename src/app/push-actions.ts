@@ -16,7 +16,9 @@ import { sendToEndpoint } from "@/lib/push/server";
  */
 
 // Abuse limits: a public action could otherwise fill the 500 MB free database with fake rows.
-const PER_IP_PER_HOUR = 10;
+// Mongolian mobile carriers put many readers behind one shared IP (carrier-grade NAT): 10 an hour
+// turned real readers away (Nov 2026 audit). NEW_PER_HOUR and MAX_SUBSCRIPTIONS still bound growth.
+const PER_IP_PER_HOUR = 60;
 const NEW_PER_HOUR = Number(process.env.PUSH_NEW_PER_HOUR ?? 500);
 const MAX_SUBSCRIPTIONS = Number(process.env.PUSH_MAX_SUBSCRIPTIONS ?? 50_000);
 const recentByIp = new Map<string, number[]>();

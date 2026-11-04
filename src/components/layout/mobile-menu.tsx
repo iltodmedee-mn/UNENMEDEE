@@ -24,11 +24,15 @@ export function MobileMenu() {
       toggle.current?.focus();
     };
     const onDown = (e: PointerEvent) => root.current && !root.current.contains(e.target as Node) && setOpen(false);
+    // Browser Back/Forward changes the page without a tap on a menu link: close it then too.
+    const onPop = () => setOpen(false);
     document.addEventListener("keydown", onKey);
     document.addEventListener("pointerdown", onDown);
+    window.addEventListener("popstate", onPop);
     return () => {
       document.removeEventListener("keydown", onKey);
       document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("popstate", onPop);
     };
   }, [open]);
   return (

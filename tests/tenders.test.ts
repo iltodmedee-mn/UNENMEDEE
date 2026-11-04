@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { recentMonths } from "@/lib/procurement/fetch";
-import { amount, methodLabel, parseTenders, resultDate, tenderQuery, unitSuspect } from "@/lib/procurement/tenders";
+import { amount, mergeByKey, methodLabel, namesNoWinner, parseTenders, resultDate, tenderQuery, unitSuspect } from "@/lib/procurement/tenders";
 
 // Real rows from Шилэн данс form 1831 (Nov 2026): awarded lots, an empty-code row, an undated lot,
 // "оролцогч ирээгүй", a "-" code, a 2029 typo date, a month-only date, a decimal amount, ШХА.
@@ -104,5 +104,23 @@ describe("tenders: Шилэн данс form 1831", () => {
     ]);
     // 2026-10-31 20:00 UTC is already November 1 in Ulaanbaatar.
     assert.deepEqual(recentMonths(new Date("2026-10-31T20:00:00Z"), 1), [{ year: 2026, month: 11 }]);
+  });
+});
+
+describe("tenders: Nov 2026 audit", () => {
+  const lot = (G: string, D: string | null) => ({ A: "ТЕСТ/20260101001", B: "Багц 1. Сургуулийн барилга", C: "500000000", D, E: "НТШ", G, J: "2026.08.10", name: "Тест яам", registerNo: "1234567", refTypeName: null });
+
+  it("a later \"-\" never replaces a named winner", () => {
+    const [t] = parseTenders([[lot("Тест ХХК", "480000000")], [lot("-", null)]], 2026, TODAY);
+    assert.equal(t.winner, "Тест ХХК");
+    assert.equal(t.awarded, true);
+    assert.equal(namesNoWinner("-"), true);
+    assert.equal(namesNoWinner("Тест ХХК"), false);
+  });
+
+  it("merges one lot carried over into the next year's filing", () => {
+    const a = parseTenders([[lot("Тест ХХК", "480000000")]], 2025, TODAY);
+    const b = parseTenders([[lot("Тест ХХК", "480000000")]], 2026, TODAY);
+    assert.equal(mergeByKey([...a, ...b]).length, 1);
   });
 });

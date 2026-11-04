@@ -155,6 +155,16 @@ export function parseGovMnArticle(html: string): { title: string; text: string; 
   };
 }
 
+/**
+ * The portal answers 200 for a story that does not exist (Nov 2026 audit): a generic "Мэдээ - …"
+ * title and no `news` object in the page payload. A real story page carries both its headline in
+ * the title and the object.
+ */
+export function isGovMnNotFound(html: string): boolean {
+  const title = html.match(/<title>([^<]*)<\/title>/)?.[1]?.trim() ?? "";
+  return /^Мэдээ\s*-\s*Цахим үйлчилгээний нэгдсэн портал$/.test(title) && !rscStream(html).includes('"news":{"id":');
+}
+
 export function govMnListUrl(slug: string, pageSize: number): string {
   const q = new URLSearchParams({ page: "0", pageSize: String(pageSize), language: "MN", organizationSlug: slug });
   return `${ORIGIN}/api/routes/news?${q}`;

@@ -11,6 +11,12 @@ import { ShareButton } from "@/components/iltod/share-button";
 import { FeedSkeleton } from "@/components/iltod/skeletons";
 import { WP_SITES } from "@/lib/documents/watch";
 import { formatDateMn } from "@/lib/format";
+
+/**
+ * WordPress `modified` is the site's own clock with no zone ("2026-08-13T16:46:13"); these are
+ * Mongolian sites, so it is Ulaanbaatar time. Read as UTC it showed some edits a day late.
+ */
+const siteTime = (v: string): string => (/[zZ]|[+-]\d{2}:?\d{2}$/.test(v) ? v : `${v}+08:00`);
 import { getDocuments } from "@/lib/queries";
 import { safeHttpUrl } from "@/lib/site";
 
@@ -100,7 +106,7 @@ async function Documents() {
                   {p.title}
                 </ExternalLink>
                 <p className="label-mono normal-case text-tertiary">
-                  {SITE_NAME.get(p.domain) ?? p.domain} · {p.fileCount} файл · засварласан {formatDateMn(p.modified)}
+                  {SITE_NAME.get(p.domain) ?? p.domain} · {p.fileCount} файл · засварласан {formatDateMn(siteTime(p.modified))}
                 </p>
               </li>
             ))}

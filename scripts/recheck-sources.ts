@@ -17,7 +17,7 @@ import { and, asc, eq, gte, isNull, notInArray, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { articles, sources } from "@/db/schema";
-import { parseGovMnArticle } from "@/lib/scraper/adapters/govmn";
+import { isGovMnNotFound, parseGovMnArticle } from "@/lib/scraper/adapters/govmn";
 import { legalinfoDetailText } from "@/lib/scraper/adapters/legalinfo";
 import { parsePoliceArticle } from "@/lib/scraper/adapters/police";
 import { extractArticleSafe } from "@/lib/scraper/extract-safe";
@@ -81,7 +81,8 @@ async function readPage(row: Row): Promise<FetchResult> {
   if (row.domain === "police.gov.mn") return { kind: "text", text: parsePoliceArticle(html).text };
   if (row.domain === "legalinfo.mn") return { kind: "text", text: legalinfoDetailText(html) };
   // Stories read from the www.gov.mn portal (govmn.ts) are re-read from its page payload the same way.
-  if (from.host === "www.gov.mn") return { kind: "text", text: parseGovMnArticle(html)?.text ?? "" };
+  // The portal answers 200 with its "page not found" screen for a deleted story (Nov 2026 audit).
+  if (from.host === "www.gov.mn") return isGovMnNotFound(html) ? { kind: "missing" } : { kind: "text", text: parseGovMnArticle(html)?.text ?? "" };
   // WordPress posts were stored from the REST API's `content.rendered` (crawl.ts handleWpApi):
   // read them the same way. Readability drops paragraphs that are on the page, which made
   // unchanged mod.gov.mn posts read as "changed" by the government (Nov 2026 audit).
