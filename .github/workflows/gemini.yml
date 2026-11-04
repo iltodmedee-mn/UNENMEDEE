@@ -102,6 +102,10 @@ jobs:
         if: steps.cred.outputs.ok == 'true'
         id: gemini
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0.1.22
+        env:
+          # Gemini CLI 0.66+ refuses to run headless in a folder it has not been told to trust. This
+          # is our own checkout of main, and the tools it may use are limited by tools.core below.
+          GEMINI_CLI_TRUST_WORKSPACE: "true"
         with:
           gemini_api_key: ${{ secrets.GEMINI_AGENT_API_KEY }}
           gemini_model: ${{ vars.GEMINI_AGENT_MODEL }}
