@@ -5,6 +5,7 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/iltod/page-header";
 import { ShareButton } from "@/components/iltod/share-button";
 import { DonateCard } from "@/components/layout/donate";
+import { EmailLink } from "@/components/iltod/email-link";
 import { CONTACT_EMAIL } from "@/lib/site";
 
 export const metadata: Metadata = {
@@ -76,9 +77,9 @@ export default function SupportPage() {
         </h2>
         <p className="text-sm text-secondary">
           Сайттай холбоотой санал хүсэлт, алдаа засвар, шинэ эх сурвалж, хамтын ажиллагаа, хэвлэл мэдээллийн асуудлаар{" "}
-          <a href={`mailto:${CONTACT_EMAIL}`} className="font-semibold text-brand-secondary hover:underline">
+          <EmailLink className="font-semibold text-brand-secondary hover:underline">
             {CONTACT_EMAIL}
-          </a>{" "}
+          </EmailLink>{" "}
           хаягаар бичээрэй.
         </p>
       </section>
