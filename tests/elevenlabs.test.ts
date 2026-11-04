@@ -101,10 +101,10 @@ describe("speakElevenLabs", () => {
 describe("elevenLabsFromEnv", () => {
   const KEY = "sk_" + "a1b2c3d4".repeat(6);
   it("reads the key from ELEVENLABS_API_KEY", () => {
-    assert.deepEqual(elevenLabsFromEnv({ ELEVENLABS_API_KEY: KEY }), { key: KEY, voice: "EXAVITQu4vr4xnSDxMaL" });
+    assert.deepEqual(elevenLabsFromEnv({ ELEVENLABS_API_KEY: KEY }), { key: KEY, voice: "dJy4ovDyOEaI4kHP7CFP" });
   });
   it("finds a key saved under the voice-id secret, and never uses it as the voice", () => {
-    assert.deepEqual(elevenLabsFromEnv({ ELEVENLABS_SECRET_VOICE_ID: KEY }), { key: KEY, voice: "EXAVITQu4vr4xnSDxMaL" });
+    assert.deepEqual(elevenLabsFromEnv({ ELEVENLABS_SECRET_VOICE_ID: KEY }), { key: KEY, voice: "dJy4ovDyOEaI4kHP7CFP" });
   });
   it("uses a real voice id from the variable or the secret", () => {
     assert.equal(elevenLabsFromEnv({ ELEVENLABS_API_KEY: KEY, ELEVENLABS_VOICE_ID: "cgSgspJ2msm6clMCkdW9" }).voice, "cgSgspJ2msm6clMCkdW9");

@@ -9,6 +9,7 @@
  */
 import type { VideoSpec } from "./price-video";
 import { BLOCK_STEP_S, BLOCKS_AFTER_S, captionWords, type Timeline } from "./timing";
+import { CINEMA_BG_JS, CINEMA_CSS, CINEMA_LAYERS } from "./theme";
 
 export interface SceneAssets {
   /** Absolute directory holding inter-var.woff2, inter-display-var.woff2, jetbrains-mono-500.woff2. */
@@ -54,32 +55,32 @@ html,body{width:${FRAME.width}px;height:${FRAME.height}px;overflow:hidden;backgr
 .disp{font-family:Disp;font-weight:850;letter-spacing:-.035em}
 .sticker{border:6px solid #000;box-shadow:10px 10px 0 #000;border-radius:26px}
 #bar{left:60px;right:60px;top:60px;height:12px;border-radius:6px;background:rgba(255,255,255,.18);overflow:hidden}
-#bar i{display:block;height:100%;background:#ffd400}
+#bar i{display:block;height:100%;background:#ffd166}
 #head{left:60px;right:60px;top:104px;display:flex;align-items:center;gap:18px}
 #head img{width:64px;height:64px;border-radius:14px;border:4px solid #000}
 #head b{font-family:Disp;font-weight:800;font-size:34px;letter-spacing:-.02em}
-#tag{margin-left:auto;background:#ffd400;color:#000;font-family:Mono;font-size:26px;padding:8px 16px;border:4px solid #000;box-shadow:6px 6px 0 #000;border-radius:10px;transform:rotate(-3deg)}
+#tag{margin-left:auto;background:#ffd166;color:#000;font-family:Mono;font-size:26px;padding:8px 16px;border:4px solid #000;box-shadow:6px 6px 0 #000;border-radius:10px;transform:rotate(-3deg)}
 #title{left:60px;right:60px;top:210px;font-size:112px;line-height:1;text-shadow:0 8px 0 #000}
 #sub{left:60px;right:60px;top:336px;font-size:30px;color:#c9cbd0}
 #src{left:60px;right:60px;top:380px;font-size:22px;color:#9ea1a8}
 .layer{position:absolute;left:60px;right:60px;top:440px;height:860px;opacity:0}
 #q{width:740px;font-size:62px;line-height:1.08;text-shadow:0 6px 0 #000}
 .opt{position:absolute;left:0;right:0;height:150px;background:#fff;color:#000;display:flex;align-items:center;gap:30px;padding:0 34px;transform-origin:center}
-.opt .l{width:92px;height:92px;border-radius:50%;background:#ffd400;border:5px solid #000;display:grid;place-items:center;font-family:Disp;font-weight:850;font-size:54px}
+.opt .l{width:92px;height:92px;border-radius:50%;background:#ffd166;border:5px solid #000;display:grid;place-items:center;font-family:Disp;font-weight:850;font-size:54px}
 .opt .v{font-family:Mono;font-size:76px;letter-spacing:-.03em}
 .opt .x{position:absolute;left:-10px;right:-10px;top:50%;height:10px;background:#ff3d6e;transform:rotate(-4deg) scaleX(0);transform-origin:left;border-radius:5px}
 .opt .ok{position:absolute;right:30px;width:96px;height:96px;border-radius:50%;background:#000;display:grid;place-items:center;opacity:0}
-#count{position:absolute;right:0;top:-10px;width:176px;height:176px;border-radius:50%;background:#ffd400;color:#000;display:grid;place-items:center;font-family:Disp;font-weight:850;font-size:116px;opacity:0}
+#count{position:absolute;right:0;top:-10px;width:176px;height:176px;border-radius:50%;background:#ffd166;color:#000;display:grid;place-items:center;font-family:Disp;font-weight:850;font-size:116px;opacity:0}
 .p{position:absolute;width:26px;height:26px;border:4px solid #000;border-radius:6px}
 #nowTag{display:inline-block;background:#ff4fa3;color:#fff;font-family:Disp;font-weight:850;font-size:64px;padding:6px 26px;transform:rotate(2deg)}
-#nowNum{position:absolute;left:0;top:120px;font-family:Mono;font-size:196px;letter-spacing:-.05em;color:#ffd400;text-shadow:0 10px 0 #000,0 0 40px rgba(0,0,0,.4)}
+#nowNum{position:absolute;left:0;top:120px;font-family:Mono;font-size:196px;letter-spacing:-.05em;color:#ffd166;text-shadow:0 10px 0 #000,0 0 40px rgba(0,0,0,.4)}
 #ratio{position:absolute;right:0;top:330px;background:#2de2b0;color:#000;font-family:Disp;font-weight:850;font-size:84px;padding:4px 26px;opacity:0}
 #chart{position:absolute;left:0;top:470px;width:960px;height:360px}
 #rel h2{font-size:70px;text-shadow:0 6px 0 #000}
 .row{display:flex;align-items:center;gap:22px;margin-top:40px}
 .row .y{font-family:Mono;font-size:44px;width:130px;color:#c9cbd0}
 .blocks{display:flex;flex-wrap:wrap;gap:14px;width:540px}
-.blk{width:74px;height:74px;background:#ffd400;border:5px solid #000;box-shadow:6px 6px 0 #000;border-radius:12px;transform:scale(0)}
+.blk{width:74px;height:74px;background:#ffd166;border:5px solid #000;box-shadow:6px 6px 0 #000;border-radius:12px;transform:scale(0)}
 .row .n{font-family:Mono;font-size:56px;margin-left:auto;white-space:nowrap}
 #big{position:absolute;left:50%;top:150px;transform:translateX(-50%) rotate(-6deg);background:#ff3d6e;padding:24px 50px 34px;text-align:center}
 #big .s{font-family:Disp;font-weight:850;font-size:64px}
@@ -87,14 +88,14 @@ html,body{width:${FRAME.width}px;height:${FRAME.height}px;overflow:hidden;backgr
 #bubble{background:#fff;color:#000;font-family:Disp;font-weight:850;font-size:84px;line-height:1.05;padding:40px 44px;position:relative}
 #bubble:after{content:"";position:absolute;left:90px;bottom:-46px;border:22px solid transparent;border-top:24px solid #fff}
 .chips{display:flex;gap:20px;margin-top:70px}
-.chip{background:#ffd400;color:#000;font-family:Disp;font-weight:850;font-size:46px;padding:14px 26px}
-#link{margin-top:56px;font-family:Disp;font-weight:850;font-size:66px;color:#ffd400;text-shadow:0 6px 0 #000}
+.chip{background:#ffd166;color:#000;font-family:Disp;font-weight:850;font-size:46px;padding:14px 26px}
+#link{margin-top:56px;font-family:Disp;font-weight:850;font-size:66px;color:#ffd166;text-shadow:0 6px 0 #000}
 #cap{left:70px;right:70px;top:1330px;height:230px;display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:0 26px;font-family:Disp;font-weight:850;font-size:76px;line-height:1.12;text-align:center}
 #cap span{display:inline-block;color:#fff;text-shadow:-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000,4px 4px 0 #000,0 9px 0 #000}
-#cap span.hl{color:#ffd400}
+#cap span.hl{color:#ffd166}
 #cap span.on{transform:translateY(-8px)}
-</style></head><body>
-<div id="bg"></div>
+${CINEMA_CSS}</style></head><body>
+<div id="bg"></div>${CINEMA_LAYERS}
 <div id="bar" class="abs"><i></i></div>
 <div id="head" class="abs"><img src="file://${assets.logo}" alt=""><b>ИЛ ТОД МЭДЭЭ</b><span id="tag"></span></div>
 <div id="title" class="abs disp"></div>
@@ -102,7 +103,7 @@ html,body{width:${FRAME.width}px;height:${FRAME.height}px;overflow:hidden;backgr
 <div id="src" class="abs mono"></div>
 <div id="L-quiz" class="layer"><div id="q" class="disp"></div><div id="count" class="sticker"></div></div>
 <div id="L-now" class="layer"><span id="nowTag" class="sticker">ОДОО</span><div id="nowNum"></div><div id="ratio" class="sticker"></div>
- <svg id="chart" viewBox="0 0 960 360"><path id="area" fill="rgba(255,255,255,.14)"/><path id="line" fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/><circle id="dot" r="16" fill="#ffd400" stroke="#000" stroke-width="5"/><text id="y0" x="0" y="350" fill="#c9cbd0" font-family="Mono" font-size="30"></text><text id="y1" x="960" y="350" text-anchor="end" fill="#c9cbd0" font-family="Mono" font-size="30"></text></svg></div>
+ <svg id="chart" viewBox="0 0 960 360"><path id="area" fill="rgba(255,255,255,.14)"/><path id="line" fill="none" stroke="#fff" stroke-width="10" stroke-linejoin="round" stroke-linecap="round"/><circle id="dot" r="16" fill="#ffd166" stroke="#000" stroke-width="5"/><text id="y0" x="0" y="350" fill="#c9cbd0" font-family="Mono" font-size="30"></text><text id="y1" x="960" y="350" text-anchor="end" fill="#c9cbd0" font-family="Mono" font-size="30"></text></svg></div>
 <div id="L-relate" class="layer"><div id="rel"><h2 class="disp">Энэ мөнгөөр:</h2>
  <div class="row"><span class="y" id="rY0"></span><div class="blocks" id="bThen"></div><span class="n" id="nThen"></span></div>
  <div class="row"><span class="y" id="rY1"></span><div class="blocks" id="bNow"></div><span class="n" id="nNow"></span></div></div></div>
@@ -113,6 +114,7 @@ html,body{width:${FRAME.width}px;height:${FRAME.height}px;overflow:hidden;backgr
  <div id="link"></div></div>
 <div id="cap" class="abs"></div>
 <script>
+${CINEMA_BG_JS}
 const D=${data};
 const T=D.tl, S=T.starts;
 const $=id=>document.getElementById(id);
@@ -123,7 +125,7 @@ const spring=t=>{t=clamp(t);return 1-Math.exp(-6*t)*Math.cos(9*t)};
 const fmt=n=>Math.round(n).toLocaleString('en-US').replace(/,/g,'\\u2009');
 $('tag').textContent=D.series;$('title').textContent=D.title;$('sub').textContent=D.sub;$('src').textContent=D.source;
 $('q').textContent=D.question;
-const COLORS={quiz:['#ffd400','#0fb5ae'],reveal:['#2de2b0','#ffd400'],now:['#ff4fa3','#7b5cff'],relate:['#3a7bff','#2de2b0'],change:['#2de2b0','#3a7bff'],year:['#ff3d6e','#ffd400'],cta:['#0fb5ae','#ff4fa3']};
+const COLORS={quiz:['#ffd166','#0fb5ae'],reveal:['#2de2b0','#ffd166'],now:['#ff4fa3','#7b5cff'],relate:['#3a7bff','#2de2b0'],change:['#2de2b0','#3a7bff'],year:['#ff3d6e','#ffd166'],cta:['#0fb5ae','#ff4fa3']};
 // Options
 const L=$('L-quiz');const opts=D.options.map((o,i)=>{const e=document.createElement('div');e.className='opt sticker';e.style.top=(200+i*184)+'px';
  const l=document.createElement('div');l.className='l';l.textContent='ABC'[i];const v=document.createElement('div');v.className='v';v.textContent=o.text;
@@ -131,7 +133,7 @@ const L=$('L-quiz');const opts=D.options.map((o,i)=>{const e=document.createElem
  ok.innerHTML='<svg width="56" height="56" viewBox="0 0 24 24"><path d="M4 12.5l5 5L20 6.5" fill="none" stroke="#2de2b0" stroke-width="3.6" stroke-linecap="round" stroke-linejoin="round"/></svg>';
  e.append(l,v,x,ok);L.appendChild(e);return {e,o,x,ok}});
 // Confetti squares
-const PC=['#ffd400','#ff4fa3','#2de2b0','#3a7bff','#fff'];
+const PC=['#ffd166','#ff4fa3','#2de2b0','#3a7bff','#fff'];
 const parts=Array.from({length:16},(_,i)=>{const p=document.createElement('div');p.className='p';p.style.background=PC[i%PC.length];L.appendChild(p);return {p,a:i*(Math.PI*2/16)+0.2*Math.sin(i*7),d:260+60*((i*37)%5)}});
 // Chart
 const V=D.values,W=960,H=320,max=Math.max(...V.filter(v=>v!=null))*1.08,min=0;
@@ -155,8 +157,8 @@ const LAYERS=['quiz','now','relate','change','year','cta'];
 window.render=function(t){
  const s=sceneAt(t),sc=D.scenes[s],start=S[s];
  // Background: two drifting colour fields per scene.
- const [c1,c2]=COLORS[sc];const a=t*0.6;
- $('bg').style.background='radial-gradient(circle at '+(30+12*Math.sin(a))+'% '+(28+8*Math.cos(a*1.3))+'%,'+c1+'cc 0,transparent 46%),radial-gradient(circle at '+(76+10*Math.cos(a*0.8))+'% '+(74+9*Math.sin(a))+'%,'+c2+'aa 0,transparent 50%),#0d0e11';
+ const c1=COLORS[sc][0];
+ $('bg').style.background=cinemaBg(t,c1);
  $('bar').firstElementChild.style.width=(100*clamp(t/T.total))+'%';
  for(const id of LAYERS){const e=$('L-'+id),on=layerOf(sc)===id;let from=start;for(let j=s;j>=0&&layerOf(D.scenes[j])===id;j--)from=S[j];
   const v=on?spring((t-from)/0.45):0;e.style.opacity=on?Math.min(1,(t-from)/0.12):0;e.style.transform='translateY('+((1-v)*60)+'px) scale('+(0.94+0.06*v)+')'}
