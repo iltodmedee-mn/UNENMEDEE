@@ -14,7 +14,7 @@ import "dotenv/config";
 import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
-import { API_ADAPTERS } from "@/lib/scraper/adapters";
+import { API_ADAPTERS, groupByApiHost } from "@/lib/scraper/adapters";
 import { crawlSources, type ArticleSink } from "@/lib/scraper/crawl";
 import { createDbSink, loadDueSources, recordSourceResults } from "@/lib/scraper/db-sink";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "@/lib/scraper/types";
@@ -37,7 +37,7 @@ const dryRun = values["dry-run"];
 const domains = values.source?.split(",").map((d) => d.trim()).filter(Boolean);
 const perSourceLimit = Math.max(1, Number(values.limit));
 const budgetMs = Math.max(1, Number(values.budget)) * 60_000;
-/** Share of the run the JSON API sources may use (Nov 2026: ~20 gov.mn portal sources share one 8 s host). */
+/** Share of the run the JSON API sources may use (Nov 2026: 40 gov.mn portal sources share one 8 s host; each host has its own queue). */
 const API_BUDGET_SHARE = 0.35;
 const concurrency = Math.max(1, Number(values.concurrency));
 const backfillDays = values.days ? Math.max(1, Math.min(90, Number(values.days) || 0)) : 0;
@@ -122,10 +122,16 @@ async function main() {
   // JSON API sources first (fast), then one shared Crawlee run for every HTML site.
   // The JSON API sources get at most API_BUDGET_SHARE of the budget, so the HTML crawl always runs.
   const apiDeadline = started + budgetMs * API_BUDGET_SHARE;
-  for (const s of sourceRefs) {
-    const adapter = API_ADAPTERS[s.domain];
-    if (adapter) results.push(await runApiSource(s, sink, adapter, apiDeadline));
-  }
+  // One queue per host, run side by side: politeFetch keeps 8 s between requests to the same host.
+  const apiQueues = groupByApiHost(sourceRefs.filter((s) => API_ADAPTERS[s.domain]));
+  const apiResults = await Promise.all(
+    apiQueues.map(async (queue) => {
+      const done: SourceRunResult[] = [];
+      for (const s of queue) done.push(await runApiSource(s, sink, API_ADAPTERS[s.domain], apiDeadline));
+      return done;
+    }),
+  );
+  results.push(...apiResults.flat());
   const htmlSources = sourceRefs.filter((s) => !API_ADAPTERS[s.domain]);
   if (htmlSources.length) {
     results.push(
