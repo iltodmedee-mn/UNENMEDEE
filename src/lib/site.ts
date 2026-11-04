@@ -12,6 +12,8 @@ export const SITE_NAME = "ИЛ ТОД МЭДЭЭ";
 export const PRODUCTION_URL = "https://iltodmedee.mn";
 /** The public source code (MIT). Linked from the footer, /method and /transparency. */
 export const REPO_URL = "https://github.com/tmorius-eng/UNENMEDEE";
+/** Better Stack's public status page (checks the site and feed.xml every 3 minutes; docs/RUNBOOK.md). */
+export const STATUS_URL = "https://status.iltodmedee.mn";
 /**
  * The page background per mode (viewport theme-color, manifest) and the brand teal (manifest
  * theme_color, the logo). Must match --color-bg-primary / --color-brand-600 in src/styles/theme.css.

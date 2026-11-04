@@ -2,7 +2,7 @@ import { Mail01 } from "@untitledui/icons";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { CONTACT_EMAIL, REPO_URL, repoFile } from "@/lib/site";
+import { CONTACT_EMAIL, REPO_URL, repoFile, STATUS_URL } from "@/lib/site";
 
 import { DonateCard } from "./donate";
 import { Logo } from "./logo";
@@ -44,6 +44,9 @@ export function SiteFooter() {
                 </Link>
                 <a className={footerLink} href={REPO_URL} target="_blank" rel="noreferrer">
                   Нээлттэй код (GitHub) ↗
+                </a>
+                <a className={footerLink} href={STATUS_URL} target="_blank" rel="noreferrer">
+                  Сайтын төлөв ↗
                 </a>
               </>
             )}
