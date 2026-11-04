@@ -10,6 +10,8 @@ on:
   pull_request:
   schedule:
     - cron: "23 4 * * 2" # Tuesday 12:23 Ulaanbaatar
+  # gemini.yml starts it on the branch it pushed: a push or PR made with the workflow token runs no workflow.
+  workflow_dispatch:
 
 permissions:
   contents: read
