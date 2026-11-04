@@ -18,7 +18,7 @@
  */
 import type { ReaderImpact } from "@/lib/types";
 
-import { amountWords, weighsOrAccuses } from "./money-video";
+import { amountWords, CHARGE, weighsOrAccuses } from "./money-video";
 import type { Sentence } from "./price-video";
 
 /** Notices and ceremonies score lower; a decision people feel scores 65+. */
@@ -55,7 +55,6 @@ export interface ImpactSpec {
 }
 
 /** Words that charge someone: such a story stays on the site, where the article says who said it. */
-const CHARGE = /(хулгай|авлиг|шүүмж|буруутга|үрэн таран|дэмий|луйвар|хууль бус)/i;
 
 const MONTHS = ["нэгдүгээр", "хоёрдугаар", "гуравдугаар", "дөрөвдүгээр", "тавдугаар", "зургаадугаар", "долоодугаар", "наймдугаар", "есдүгээр", "аравдугаар", "арван нэгдүгээр", "арван хоёрдугаар"];
 const SCALE: Record<string, number> = { "их наяд": 1e12, тэрбум: 1e9, сая: 1e6 };
@@ -80,8 +79,9 @@ export function spokenText(text: string): string {
     const n = Number(m);
     return n >= 1 && n <= 12 ? `${MONTHS[n - 1]} сар` : all;
   });
-  // Thousands separators first ("1,250.5 сая" was read as "1," + "250.5 сая").
-  t = t.replace(/(\d)[,\u00a0 ](?=\d{3}\b)/g, "$1");
+  // Thousands separators ("1,250.5 сая" was read as "1," + "250.5 сая"): only a real group of
+  // 1–3 digits, never a day after a date ("…сарын 1 100 айл" was said as "1100 айл", Nov 2026 audit).
+  t = t.replace(/(?<![\d\-.:/]|сарын |оны |өдрийн )(\d{1,3})((?:[,\u00a0 ]\d{3})+)(?!\d)/g, (_, a: string, rest: string) => a + rest.replace(/[,\u00a0 ]/g, ""));
   // A decimal before a scale word is said in words, to the same amount (amountWords).
   t = t.replace(/(?<![\d.,])(\d+[.,]\d+)\s*(их наяд|тэрбум|сая)/g, (all, v, unit) => {
     const value = Number(v.replace(",", ".")) * SCALE[unit];

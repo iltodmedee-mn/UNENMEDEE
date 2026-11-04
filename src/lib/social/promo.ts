@@ -7,8 +7,8 @@
  */
 export const LAUNCHPAD_URL = "https://launchpad.mn/products/il-tod-medee";
 
-/** A day is posted only inside this window after its time (GitHub starts runs late; never at night). */
-export const PROMO_WINDOW_H = 8;
+/** A day is posted only inside this window after its time (GitHub starts runs late; 19:00–23:00, never at night). */
+export const PROMO_WINDOW_H = 4;
 
 export interface PromoPost {
   day: number;

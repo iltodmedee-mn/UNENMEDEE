@@ -57,8 +57,10 @@ export function cutLeakedJson(text: string): string {
 
 export function tldrSentences(tldr: string, max = 3): string[] {
   // Nov 2026: teasers read "- Шүүхийн ерөнхий зөвлөл…" because the model wrote its lines as a list.
-  const byLine = cutLeakedJson(tldr).split(/\n+/).map(stripBullet).filter(Boolean);
-  const parts = byLine.length >= 2 ? byLine : tldr.split(/(?<=[.!?])\s+(?=[А-ЯӨҮЁA-Z0-9"“«])/u).map((s) => s.trim()).filter(Boolean);
+  const cut = cutLeakedJson(tldr);
+  const byLine = cut.split(/\n+/).map(stripBullet).filter(Boolean);
+  // The one-line case splits the cut text too (it split the raw tldr and showed the leak again).
+  const parts = byLine.length >= 2 ? byLine : cut.split(/(?<=[.!?])\s+(?=[А-ЯӨҮЁA-Z0-9"“«])/u).map((s) => s.trim()).filter(Boolean);
   return parts.slice(0, max);
 }
 

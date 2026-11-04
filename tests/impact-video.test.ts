@@ -133,3 +133,11 @@ describe("spoken amounts equal the written ones (Nov 2026 audit)", () => {
     for (const v of [400_000, 999_999, 1_000_000, 1_499_999, 999_999_999, 1_000_000_000, 2_999_999_999_999]) assert.ok(!/тэг/.test(amountWords(v)), String(v));
   });
 });
+
+describe("Nov 2026 audit: voice and filters", () => {
+  it("never merges a date's day with the next number", () => {
+    assert.equal(spokenText("2026-11-01 100 айл"), "2026 оны арван нэгдүгээр сарын 1 100 айл");
+    assert.equal(spokenText("11 дүгээр сарын 1 500 хүнд"), "арван нэгдүгээр сарын 1 500 хүнд");
+    assert.equal(spokenText("2 500 000 төгрөг"), "2500000 төгрөг");
+  });
+});

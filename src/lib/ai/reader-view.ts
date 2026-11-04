@@ -34,6 +34,8 @@ interface NumberToken {
   digits: string;
   /** The value with its scale word: "1.5 тэрбум" → 1.5e9, "600,000" → 600000. */
   value: number;
+  /** The number as written, without its scale word: "1.5 тэрбум" → 1.5, "600,000" → 600000. */
+  base: number;
   /** Followed by a scale word (мянга, сая, тэрбум, их наяд). */
   scaled: boolean;
 }
@@ -54,7 +56,8 @@ function numberTokens(text: string, months: boolean): NumberToken[] {
     const after = text.slice(m.index + m[0].length, m.index + m[0].length + 14);
     if (!months && /^\s*-?\s*(р|дүгээр|дугаар|дүгээр)?\s*сар/i.test(after) && Number(m[0]) <= 12) continue;
     const scale = SCALES.find(([re]) => re.test(after))?.[1];
-    out.push({ digits: m[0].replace(/\D/g, "").replace(/^0+(?=\d)/, ""), value: parseNumber(m[0]) * (scale ?? 1), scaled: scale !== undefined });
+    const base = parseNumber(m[0]);
+    out.push({ digits: m[0].replace(/\D/g, "").replace(/^0+(?=\d)/, ""), value: base * (scale ?? 1), base, scaled: scale !== undefined });
   }
   return out;
 }
@@ -73,9 +76,11 @@ export function sourceDigits(source: string): string {
 export function numbersGrounded(text: string, source: string | null): boolean {
   if (source === null) return true;
   const own = numberTokens(source, true);
-  const digits = new Set(own.map((t) => t.digits));
+  // Compared by value, not by digits: "1.5" and "15" share the digits "15" (Nov 2026 audit: a
+  // "15 хувь" headline passed for a source saying "1.5 хувь").
+  const bases = new Set(own.map((t) => t.base));
   return numberTokens(text, false).every(
-    (n) => digits.has(n.digits) || own.some((t) => (n.scaled || t.scaled) && t.value >= 1000 && Math.abs(n.value - t.value) <= 0.05 * t.value),
+    (n) => bases.has(n.base) || own.some((t) => (n.scaled || t.scaled) && t.value >= 1000 && Math.abs(n.value - t.value) <= 0.05 * t.value),
   );
 }
 
