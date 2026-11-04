@@ -14,12 +14,12 @@ describe("creditPlan: the month's credits last until the reset", () => {
     const p = creditPlan(sub(2_329), 230, NOW, {});
     assert.equal(p.ok, true);
     assert.equal(p.daysLeft, 30);
-    assert.equal(p.available, 40_000 - 2_329 - 10_000);
+    assert.equal(p.available, 40_000 - 2_329 - 5_000);
     assert.equal(p.perVideo, Math.floor(p.available / 60));
   });
   it("keeps the reserve for the owner's own use", () => {
-    assert.equal(creditPlan(sub(29_900, 1), 230, NOW, {}).ok, false);
-    assert.equal(creditPlan(sub(29_900, 1), 230, NOW, { ELEVENLABS_RESERVE_CHARS: "0" }).ok, true);
+    assert.equal(creditPlan(sub(34_900, 1), 230, NOW, {}).ok, false);
+    assert.equal(creditPlan(sub(34_900, 1), 230, NOW, { ELEVENLABS_RESERVE_CHARS: "0" }).ok, true);
   });
   it("refuses a narration that would outrun the month", () => {
     // 3 000 left above the reserve over 20 days × 2 videos = 75 a video.

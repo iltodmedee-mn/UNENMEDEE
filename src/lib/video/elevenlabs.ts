@@ -4,7 +4,7 @@
  * unless `ELEVENLABS_VOICE_ID` says otherwise. The plan is a monthly credit allowance, so every
  * call is paced to last until the allowance resets (`creditPlan`):
  *
- * - `ELEVENLABS_RESERVE_CHARS` (10 000) stay untouched for the owner's own use;
+ * - `ELEVENLABS_RESERVE_CHARS` (5 000; 10 000 until Nov 2026, when long narrations fell back to Gemini) stay untouched for the owner's own use;
  * - what is left is shared over the days until the reset, `VIDEOS_PER_DAY` videos a day;
  * - a narration longer than its share (counted as 1 credit per character, the worst case) goes to
  *   Gemini instead, so a video is never skipped because the month's credits ran low.
@@ -102,7 +102,7 @@ function envNumber(env: Record<string, string | undefined>, name: string, fallba
  * reports it, the clock and the env. Spends evenly to the reset day, keeping the reserve.
  */
 export function creditPlan(sub: Subscription, chars: number, now: Date = new Date(), env: Record<string, string | undefined> = process.env): CreditPlan {
-  const reserve = envNumber(env, "ELEVENLABS_RESERVE_CHARS", 10_000);
+  const reserve = envNumber(env, "ELEVENLABS_RESERVE_CHARS", 5_000);
   const resetMs = (sub.next_character_count_reset_unix ?? 0) * 1000;
   const untilReset = (resetMs - now.getTime()) / 86_400_000;
   // No reset date, one in the past or more than a month away (a lapsed plan, an API change): the
