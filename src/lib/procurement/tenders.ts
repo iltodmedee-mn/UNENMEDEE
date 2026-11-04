@@ -58,7 +58,12 @@ const Row = z.object({ A: text, B: text, C: text, D: text, E: text, G: text, J: 
 const CODE = /^[\p{L}\d-]{1,24}\/\d{8,14}$/u;
 
 /** Winner cells that say no contract was signed. */
-const NO_AWARD = /ирээгүй|ирүүлээгүй|хүчингүй|цуцал|зарлаагүй|байхгүй|шалгараагүй|үнэлээгүй|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.\s]*$/iu;
+export const NO_AWARD = /ирээгүй|ирүүлээгүй|хүчингүй|цуцал|зарлаагүй|байхгүй|шалгараагүй|үнэлээгүй|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.\s]*$/iu;
+/** The same test for Postgres (`~*`), used by the /tenders "no winner" count. */
+export const NO_AWARD_SQL = "ирээгүй|ирүүлээгүй|хүчингүй|цуцал|зарлаагүй|байхгүй|шалгараагүй|үнэлээгүй|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.[:space:]]*$";
+
+/** True when a winner cell names nobody ("-", "оролцогч ирээгүй"…). */
+export const namesNoWinner = (winner: string | null): boolean => winner !== null && NO_AWARD.test(winner);
 
 /** Method abbreviations as the bodies type them; anything else keeps its own wording. */
 const METHODS: [RegExp, string][] = [
@@ -148,22 +153,37 @@ export function parseTenders(answers: unknown[], year: number, today: string): T
       };
       t.unitSuspect = unitSuspect(t.budgetMnt, t.contractMnt);
       const prev = byKey.get(key);
-      byKey.set(
-        key,
-        prev
-          ? {
-              ...prev,
-              budgetMnt: prev.budgetMnt ?? t.budgetMnt,
-              contractMnt: t.contractMnt ?? prev.contractMnt,
-              method: prev.method ?? t.method,
-              winner: t.winner ?? prev.winner,
-              awarded: t.awarded || prev.awarded,
-              resultDate: t.resultDate ?? prev.resultDate,
-              unitSuspect: unitSuspect(prev.budgetMnt ?? t.budgetMnt, t.contractMnt ?? prev.contractMnt),
-            }
-          : t,
-      );
+      byKey.set(key, prev ? mergeLot(prev, t) : t);
     }
+  }
+  return [...byKey.values()];
+}
+
+/** A later row of the same lot fills what an earlier one left empty. */
+function mergeLot(prev: Tender, t: Tender): Tender {
+  return {
+    ...prev,
+    budgetMnt: prev.budgetMnt ?? t.budgetMnt,
+    contractMnt: t.contractMnt ?? prev.contractMnt,
+    method: prev.method ?? t.method,
+    // A later "-" never replaces a named winner (43 lots read "Шалгарсан: -", Nov 2026 audit).
+    winner: t.winner && !(namesNoWinner(t.winner) && prev.winner && !namesNoWinner(prev.winner)) ? t.winner : (prev.winner ?? t.winner),
+    awarded: t.awarded || prev.awarded,
+    resultDate: t.resultDate ?? prev.resultDate,
+    unitSuspect: unitSuspect(prev.budgetMnt ?? t.budgetMnt, t.contractMnt ?? prev.contractMnt),
+  };
+}
+
+/**
+ * One row per key across several report years: a lot carried over into the next year is in both
+ * years' filings, and two rows with one key in one upsert batch make Postgres refuse the whole
+ * batch ("ON CONFLICT DO UPDATE command cannot affect row a second time", Nov 2026 audit).
+ */
+export function mergeByKey(lots: Tender[]): Tender[] {
+  const byKey = new Map<string, Tender>();
+  for (const t of lots) {
+    const prev = byKey.get(t.key);
+    byKey.set(t.key, prev ? mergeLot(prev, t) : t);
   }
   return [...byKey.values()];
 }

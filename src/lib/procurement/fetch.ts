@@ -1,6 +1,6 @@
 import { politeFetch } from "@/lib/scraper/http";
 
-import { parseTenders, type Tender, TENDER_GROUPS, tenderQuery } from "./tenders";
+import { mergeByKey, parseTenders, type Tender, TENDER_GROUPS, tenderQuery } from "./tenders";
 
 /**
  * Network half of the tender sync: Шилэн данс's open-data call (the portal's own front end sends
@@ -55,6 +55,7 @@ export async function fetchTenders(now = new Date(), months = 3): Promise<Tender
       }
     }
   }
-  const tenders = [...byYear].flatMap(([year, answers]) => parseTenders(answers, year, today));
+  // Older year first, so the newer filing fills what the older one left empty.
+  const tenders = mergeByKey([...byYear].sort(([a], [b]) => a - b).flatMap(([year, answers]) => parseTenders(answers, year, today)));
   return { tenders, calls, failed };
 }

@@ -162,8 +162,16 @@ function AllSections({ pathname, active }: { pathname: string | null; active: st
     const outside = (e: globalThis.PointerEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpenOn(null);
     };
+    // Escape closes a panel the mouse opened too, while focus is still on the page.
+    const escape = (e: globalThis.KeyboardEvent) => {
+      if (e.key === "Escape" && !root.current?.contains(document.activeElement)) setOpenOn(null);
+    };
     document.addEventListener("pointerdown", outside);
-    return () => document.removeEventListener("pointerdown", outside);
+    document.addEventListener("keydown", escape);
+    return () => {
+      document.removeEventListener("pointerdown", outside);
+      document.removeEventListener("keydown", escape);
+    };
   }, [open]);
   useEffect(() => () => clearTimeout(timer.current), []);
 
@@ -200,7 +208,12 @@ function AllSections({ pathname, active }: { pathname: string | null; active: st
       onPointerEnter={(e) => hover(e, true, 80)}
       onPointerLeave={(e) => hover(e, false, 150)}
       onBlur={(e) => {
-        if (!root.current?.contains(e.relatedTarget as Node | null)) setOpenOn(null);
+        // Only focus moving to another element outside closes it (Tab away). A blur to nothing is a
+        // click on empty space or a heading inside the panel, or Safari's click on a link, which
+        // does not focus it: closing then unmounted the link before its click (Nov 2026 audit).
+        // Clicks outside are handled by the pointerdown listener.
+        const next = e.relatedTarget as Node | null;
+        if (next && !root.current?.contains(next)) setOpenOn(null);
       }}
     >
       <button

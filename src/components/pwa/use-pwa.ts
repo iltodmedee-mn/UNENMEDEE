@@ -69,7 +69,16 @@ const subscribeSub = (l: () => void) => {
   subListeners.add(l);
   if (!subLoaded && typeof navigator !== "undefined" && "serviceWorker" in navigator && "PushManager" in window) {
     subLoaded = true;
-    navigator.serviceWorker.ready.then((reg) => reg.pushManager.getSubscription()).then(setSharedSub, () => {});
+    navigator.serviceWorker.ready
+      .then((reg) => reg.pushManager.getSubscription())
+      .then((sub) => {
+        setSharedSub(sub);
+        // The browser dropped or replaced the subscription while no tab was open (Chrome never
+        // fires pushsubscriptionchange): the reader turned push on and still allows it, so it is
+        // renewed quietly instead of the bell showing "off" and alerts stopping (Nov 2026 audit).
+        if (sub) rememberPush(true);
+        else if (pushWasOn()) void renewSubscription();
+      }, () => {});
     // sw.js posts this on `pushsubscriptionchange`: the browser replaced the subscription, so the
     // server must learn the new endpoint or alerts stop without a word.
     navigator.serviceWorker.addEventListener("message", (e: MessageEvent) => {
@@ -78,6 +87,24 @@ const subscribeSub = (l: () => void) => {
   }
   return () => subListeners.delete(l);
 };
+
+/** Set when the reader turns push on here, cleared when they turn it off. */
+const PUSH_ON_KEY = "iltod-push-on";
+function pushWasOn(): boolean {
+  try {
+    return localStorage.getItem(PUSH_ON_KEY) === "1" && Notification.permission === "granted";
+  } catch {
+    return false;
+  }
+}
+function rememberPush(on: boolean) {
+  try {
+    if (on) localStorage.setItem(PUSH_ON_KEY, "1");
+    else localStorage.removeItem(PUSH_ON_KEY);
+  } catch {
+    // Private mode: only the quiet renewal is lost.
+  }
+}
 
 async function renewSubscription() {
   try {
@@ -133,14 +160,17 @@ export function usePwa() {
         return;
       }
       const reg = await navigator.serviceWorker.ready;
-      const sub = (await reg.pushManager.getSubscription()) ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) }));
+      const existing = await reg.pushManager.getSubscription();
+      const sub = existing ?? (await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) }));
       const res = await subscribePush(JSON.parse(JSON.stringify(sub)));
       if (!res.ok) {
-        await sub.unsubscribe();
+        // Only undo a subscription made just now: one the browser already had may be registered.
+        if (!existing) await sub.unsubscribe();
         setError(res.error ?? "Бүртгэж чадсангүй.");
         return;
       }
       setSharedSub(sub);
+      rememberPush(true);
       const follows = parseFollows(localStorage.getItem(FOLLOW_KEY));
       if (follows.length) await setFollows(sub.endpoint, follows);
     } catch {
@@ -158,6 +188,7 @@ export function usePwa() {
       await unsubscribePush(subscription.endpoint);
       await subscription.unsubscribe();
       setSharedSub(null);
+      rememberPush(false);
     } catch {
       setError("Мэдэгдэл унтрааж чадсангүй. Дахин оролдоно уу.");
     } finally {

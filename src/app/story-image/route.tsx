@@ -1,4 +1,5 @@
 import { formatDateMn } from "@/lib/format";
+import { STORY_PAGE_PATHS } from "@/lib/story-pages";
 import { storyImage } from "@/lib/og";
 import { getArticleBySlug, getPolitician } from "@/lib/queries";
 import { canonicalImageQuery } from "@/lib/site";
@@ -9,7 +10,8 @@ import { digestWindowsLabel } from "@/lib/edition";
  * own data, never from the query string, so the endpoint cannot print arbitrary words under
  * the site's name.
  */
-const PAGES: Record<string, { eyebrow: string; title: string; footer: string }> = {
+// Keyed by STORY_PAGE_PATHS so the share menu offers "Story" exactly where an image exists.
+const PAGES: Record<(typeof STORY_PAGE_PATHS)[number], { eyebrow: string; title: string; footer: string }> = {
   "/": { eyebrow: "Шинэ мэдээ", title: "Төрийн шинэ мэдээ: баримтыг пи-араас салгасан", footer: "Цаг тутам шинэчлэгдэнэ" },
   "/budget": { eyebrow: "Улсын төсөв", title: "Татварын мөнгө хаашаа явдаг вэ? 1990 оноос хойшхи улсын төсөв", footer: "ҮСХ, Сангийн яамны албан тоо" },
   "/tax": { eyebrow: "Миний татвар", title: "Таны төлсөн татвар юунд зарцуулагддаг вэ? 1 минутад тооцоол", footer: "Улсын төсвийн албан тоогоор" },
@@ -20,7 +22,7 @@ const PAGES: Record<string, { eyebrow: string; title: string; footer: string }> 
 };
 
 async function contentFor(path: string) {
-  if (PAGES[path]) return PAGES[path];
+  if (path in PAGES) return PAGES[path as keyof typeof PAGES];
   const article = path.match(/^\/article\/([\w-]{1,200})$/);
   if (article) {
     const a = await getArticleBySlug(article[1]);

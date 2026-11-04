@@ -5,6 +5,7 @@ import { getDb, hasDatabase } from "@/db";
 import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, tenders, documents, watchedPages, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
 import { ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
+import { NO_AWARD_SQL } from "@/lib/procurement/tenders";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
 import type { DonationsSummary } from "@/lib/donations";
 import { ABOUT_KEY, type About, DEFAULT_ABOUT, parseAbout } from "@/lib/about";
@@ -883,10 +884,35 @@ export function paidDailySpend(rows: { day: string; provider: string; usd: strin
     d[r.provider] = (d[r.provider] ?? 0) + usd;
     days.set(r.day, d);
   }
-  const paidProviders = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p);
-  const dailySpend = [...days.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([day, costs]) => ({ day, costs }));
+  let paidProviders = [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([p]) => p);
+  // The chart has four validated colours: a fifth provider would reuse the first and two providers
+  // would read as one (Nov 2026 audit). Beyond four, the smallest are summed as "бусад".
+  if (paidProviders.length > SPEND_SERIES) {
+    const keep = new Set(paidProviders.slice(0, SPEND_SERIES - 1));
+    for (const costs of days.values()) {
+      for (const [p, usd] of Object.entries(costs)) {
+        if (keep.has(p)) continue;
+        costs[OTHER_PROVIDERS] = (costs[OTHER_PROVIDERS] ?? 0) + usd;
+        delete costs[p];
+      }
+    }
+    paidProviders = [...keep, OTHER_PROVIDERS];
+  }
+  const sorted = [...days.keys()].sort();
+  // A day with no paid call is a bar of 0, not a missing day (10-26…10-29 vanished from the chart).
+  const dailySpend: TransparencyData["dailySpend"] = [];
+  if (sorted.length) {
+    for (let t = Date.parse(`${sorted[0]}T00:00:00Z`); t <= Date.parse(`${sorted.at(-1)}T00:00:00Z`); t += 86_400_000) {
+      const day = new Date(t).toISOString().slice(0, 10);
+      dailySpend.push({ day, costs: days.get(day) ?? {} });
+    }
+  }
   return { dailySpend, paidProviders };
 }
+
+/** Colour slots of the daily spend chart (charts.tsx `SERIES`, src/styles/charts.css). */
+const SPEND_SERIES = 4;
+const OTHER_PROVIDERS = "бусад";
 
 export async function getTransparency(): Promise<TransparencyData> {
   "use cache";
@@ -1475,28 +1501,36 @@ export async function getTenders(limit = 60): Promise<TendersOverview | null> {
   return safe("getTenders", null, async () => {
     const db = getDb();
     const yearStart = sql`date_trunc('year', now() at time zone 'Asia/Ulaanbaatar')::date`;
-    const thisYear = sql`coalesce(${tenders.resultDate}, (${tenders.firstSeenAt} at time zone 'Asia/Ulaanbaatar')::date) >= ${yearStart}`;
+    // A lot without a result date belongs to its code's year ("…/2026…"), not to the day we first
+    // saw it: the 12-month first sync counted 119 lots with 2025 codes as this year's (Nov 2026 audit).
+    const codeYear = sql`make_date(nullif(substring(${tenders.code} from '/(\d{4})'), '')::int, 1, 1)`;
+    const thisYear = sql`coalesce(${tenders.resultDate}, ${codeYear}) >= ${yearStart}`;
+    // A lot re-filed under an edited title has a new key: the same organisation, code, amount and
+    // winner is one contract, counted and listed once (53 such pairs, ~5 тэрбум₮, Nov 2026 audit).
+    const firstOfSame = sql`not exists (select 1 from ${tenders} t2 where t2.awarded and t2.code = ${tenders.code} and t2.org_name = ${tenders.orgName} and t2.contract_mnt is not distinct from ${tenders.contractMnt} and t2.winner is not distinct from ${tenders.winner} and t2.id < ${tenders.id})`;
     const [latest, largest, [totals], [synced]] = await Promise.all([
       db
         .select(tenderColumns)
         .from(tenders)
-        .where(eq(tenders.awarded, true))
+        .where(and(eq(tenders.awarded, true), firstOfSame))
         .orderBy(sql`coalesce(${tenders.awardedSeenAt}, ${tenders.resultDate}::timestamptz) desc nulls last`, desc(tenders.id))
         .limit(limit),
       db
         .select(tenderColumns)
         .from(tenders)
-        .where(and(eq(tenders.awarded, true), eq(tenders.unitSuspect, false), thisYear))
+        .where(and(eq(tenders.awarded, true), eq(tenders.unitSuspect, false), thisYear, firstOfSame))
         .orderBy(desc(tenders.contractMnt))
         .limit(15),
       db
         .select({
           year: sql<number>`extract(year from now() at time zone 'Asia/Ulaanbaatar')::int`,
-          awarded: sql<number>`count(*) filter (where ${tenders.awarded})::int`,
-          sum: sql<string>`coalesce(sum(${tenders.contractMnt}) filter (where ${tenders.awarded} and not ${tenders.unitSuspect}), 0)::text`,
-          suspect: sql<number>`count(*) filter (where ${tenders.awarded} and ${tenders.unitSuspect})::int`,
+          awarded: sql<number>`count(*) filter (where ${tenders.awarded} and ${firstOfSame})::int`,
+          sum: sql<string>`coalesce(sum(${tenders.contractMnt}) filter (where ${tenders.awarded} and not ${tenders.unitSuspect} and ${firstOfSame}), 0)::text`,
+          suspect: sql<number>`count(*) filter (where ${tenders.awarded} and ${tenders.unitSuspect} and ${firstOfSame})::int`,
           orgs: sql<number>`count(distinct ${tenders.orgName})::int`,
-          noAward: sql<number>`count(*) filter (where not ${tenders.awarded} and ${tenders.winner} is not null)::int`,
+          // Only lots whose result says nobody won ("оролцогч ирээгүй", "-"): a named winner with no
+          // amount yet is not "no winner" (it was 263 of the 501 on the card, Nov 2026 audit).
+          noAward: sql<number>`count(*) filter (where not ${tenders.awarded} and ${tenders.winner} ~* ${NO_AWARD_SQL})::int`,
         })
         .from(tenders)
         .where(thisYear),

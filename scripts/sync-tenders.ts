@@ -89,7 +89,8 @@ async function main() {
           budgetMnt: sql`coalesce(excluded.budget_mnt, ${tenders.budgetMnt})`,
           contractMnt: sql`coalesce(excluded.contract_mnt, ${tenders.contractMnt})`,
           method: sql`coalesce(excluded.method, ${tenders.method})`,
-          winner: sql`coalesce(excluded.winner, ${tenders.winner})`,
+          // A later filing that says "-" keeps the stored winner of an awarded lot.
+          winner: sql`case when ${tenders.awarded} and not excluded.awarded then ${tenders.winner} else coalesce(excluded.winner, ${tenders.winner}) end`,
           awarded: sql`${tenders.awarded} or excluded.awarded`,
           unitSuspect: sql`excluded.unit_suspect`,
           resultDate: sql`coalesce(excluded.result_date, ${tenders.resultDate})`,

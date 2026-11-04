@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { API_ADAPTERS } from "@/lib/scraper/adapters";
-import { GOVMN_ORGS, govMnListUrl, parseGovMnArticle, parseGovMnList, rscStream } from "@/lib/scraper/adapters/govmn";
+import { GOVMN_ORGS, govMnListUrl, isGovMnNotFound, parseGovMnArticle, parseGovMnList, rscStream } from "@/lib/scraper/adapters/govmn";
 import { parseNhrcmList } from "@/lib/scraper/adapters/nhrcm";
 import { SOURCE_SEEDS } from "@/lib/sources";
 
@@ -43,6 +43,12 @@ describe("www.gov.mn portal news (govmn.ts)", () => {
     const a = parseGovMnArticle(fixture("govmn-photo.html"));
     assert.ok(a);
     assert.equal(a.text, "");
+  });
+
+  it("tells a deleted story (200 + generic title, no news object) from a real one", () => {
+    assert.equal(isGovMnNotFound("<html><head><title>Мэдээ - Цахим үйлчилгээний нэгдсэн портал</title></head><body></body></html>"), true);
+    assert.equal(isGovMnNotFound(fixture("govmn-article.html")), false);
+    assert.equal(isGovMnNotFound(fixture("govmn-photo.html")), false);
   });
 
   it("a page without the payload is null", () => {
