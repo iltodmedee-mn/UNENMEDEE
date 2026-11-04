@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from "react";
 
 import { formatMntShort, formatNumber } from "@/lib/format";
-import { type BudgetShare, looksLikeSalary, payrollFromInputs, payrollParts, PIT_RATE, RATES_CHECKED, SI_RATE, taxReceipt } from "@/lib/tax/receipt";
+import { type BudgetShare, looksLikeSalary, payrollFromInputs, payrollParts, pitSchedule, RATES_CHECKED, SI_RATE, taxReceipt, upcomingSchedules } from "@/lib/tax/receipt";
 
 const toNumber = (s: string) => Number(s.replace(/[^\d]/g, "")) || 0;
 const pct = (x: number) => `${(x * 100).toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
@@ -30,15 +30,22 @@ function MoneyInput({ id, label, hint, value, onChange }: { id: string; label: s
 }
 
 /** Calculator for /tax. Nothing typed here leaves the browser. */
-export function TaxReceiptCalculator({ shares, year }: { shares: BudgetShare[]; year: string }) {
+/** "0% / 10%" style summary of the rates on a schedule's bands, lowest first. */
+function ratesLabel(day: string): string {
+  return [...new Set(pitSchedule(day).bands.map((b) => b.rate))].map(pct).join(" / ");
+}
+
+/** `day` = today in Ulaanbaatar (from the page's cached clock): picks the ХХОАТ schedule. */
+export function TaxReceiptCalculator({ shares, year, day }: { shares: BudgetShare[]; year: string; day: string }) {
   const [salary, setSalary] = useState("");
   const [exact, setExact] = useState("");
   // Controlled: `open={exact > 0}` collapsed the box (and its input) the moment the field was
   // cleared, and a box closed by hand with a value in it never reopened.
   const [exactOpen, setExactOpen] = useState(false);
   const [purchases, setPurchases] = useState("");
-  const parts = payrollParts(toNumber(salary));
-  const payroll = payrollFromInputs({ salary: toNumber(salary), exact: toNumber(exact) });
+  const parts = payrollParts(toNumber(salary), day);
+  const later = upcomingSchedules(day).map((from) => ({ from, pit: payrollParts(toNumber(salary), from).pit }));
+  const payroll = payrollFromInputs({ salary: toNumber(salary), exact: toNumber(exact), day });
   const suspicious = looksLikeSalary(toNumber(exact), toNumber(salary));
   const r = taxReceipt({ payrollMonthly: payroll.monthly, purchasesMonthly: toNumber(purchases) }, shares);
   const max = r.lines[0]?.amount || 1;
@@ -53,10 +60,15 @@ export function TaxReceiptCalculator({ shares, year }: { shares: BudgetShare[]; 
             hint={
               parts.total > 0 ? (
                 <>
-                  ≈ НДШ {formatNumber(parts.si)} + ХХОАТ {formatNumber(parts.pit)} = <strong className="font-semibold text-secondary">{formatNumber(parts.total)} ₮</strong> сард суутгагдана (НДШ {pct(SI_RATE)}, ХХОАТ {pct(PIT_RATE)} НДШ хассаны дараа; хувь хэмжээг {RATES_CHECKED}-нд шалгасан).
+                  ≈ НДШ {formatNumber(parts.si)} + ХХОАТ {formatNumber(parts.pit)} = <strong className="font-semibold text-secondary">{formatNumber(parts.total)} ₮</strong> сард суутгагдана (НДШ {pct(SI_RATE)}, ХХОАТ {ratesLabel(day)} шатлалаар НДШ хассаны дараа; хөнгөлөлтгүй; хувь хэмжээг {RATES_CHECKED}-нд шалгасан).
+                  {later.map((l) => (
+                    <span key={l.from} className="block">
+                      {l.from}-нээс ижил цалинд ХХОАТ ≈ <strong className="font-semibold text-secondary">{formatNumber(l.pit)} ₮</strong> / сар.
+                    </span>
+                  ))}
                 </>
               ) : (
-                "Цалингүй бол хоосон орхи. Хөнгөлөлт, 2026 оны өөрчлөлтийг тооцоогүй тул ойролцоо."
+                "Цалингүй бол хоосон орхи. Татварын хөнгөлөлтийг тооцоогүй тул ойролцоо."
               )
             }
             value={salary}

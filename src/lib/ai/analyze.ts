@@ -1,6 +1,7 @@
 import { and, desc, eq, gte, inArray, isNotNull, ne, sql } from "drizzle-orm";
 
 import type { DB } from "@/db";
+import { retryTransientRead } from "@/db/retry";
 import { articles, clusters, sources } from "@/db/schema";
 import { extractMntAmounts } from "@/lib/scraper/adapters/tender";
 
@@ -204,22 +205,25 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
   const result = new Map<number, number | null>();
   if (ids.length === 0) return result;
   const since = new Date(Date.now() - CLUSTER_WINDOW_DAYS * 86_400_000);
-  const pool = await db
-    .select({
-      id: articles.id,
-      title: articles.title,
-      tldr: articles.tldrSummary,
-      facts: articles.factVsSpin,
-      entities: articles.extractedEntities,
-      clusterId: articles.clusterId,
-      sourceId: articles.sourceId,
-      publishedAt: articles.publishedAt,
-    })
-    .from(articles)
-    // Publication time, not the time we found the row: a backfill or a slow source found an old
-    // notice "this week" and joined it to a new one (cluster 6, Oct 2026).
-    .where(and(isNotNull(articles.tldrSummary), eq(articles.isPublished, true), gte(articles.publishedAt, since)))
-    .orderBy(desc(articles.publishedAt));
+  // One retry when the connection, not the query, failed (Nov 4 2026: "Query read timeout" after the AI calls).
+  const pool = await retryTransientRead(() =>
+    db
+      .select({
+        id: articles.id,
+        title: articles.title,
+        tldr: articles.tldrSummary,
+        facts: articles.factVsSpin,
+        entities: articles.extractedEntities,
+        clusterId: articles.clusterId,
+        sourceId: articles.sourceId,
+        publishedAt: articles.publishedAt,
+      })
+      .from(articles)
+      // Publication time, not the time we found the row: a backfill or a slow source found an old
+      // notice "this week" and joined it to a new one (cluster 6, Oct 2026).
+      .where(and(isNotNull(articles.tldrSummary), eq(articles.isPublished, true), gte(articles.publishedAt, since)))
+      .orderBy(desc(articles.publishedAt)),
+  );
 
   const toDoc = (r: (typeof pool)[number]): ClusterDoc => ({
     id: r.id,
