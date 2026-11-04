@@ -37,6 +37,8 @@ const dryRun = values["dry-run"];
 const domains = values.source?.split(",").map((d) => d.trim()).filter(Boolean);
 const perSourceLimit = Math.max(1, Number(values.limit));
 const budgetMs = Math.max(1, Number(values.budget)) * 60_000;
+/** Share of the run the JSON API sources may use (Nov 2026: ~20 gov.mn portal sources share one 8 s host). */
+const API_BUDGET_SHARE = 0.35;
 const concurrency = Math.max(1, Number(values.concurrency));
 const backfillDays = values.days ? Math.max(1, Math.min(90, Number(values.days) || 0)) : 0;
 const since = backfillDays ? new Date(Date.now() - backfillDays * 86_400_000) : undefined;
@@ -63,13 +65,17 @@ function createDryRunSink(): ArticleSink {
   };
 }
 
-async function runApiSource(source: SourceRef, sink: ArticleSink, fetchItems: (limit: number) => Promise<ScrapedItem[]>): Promise<SourceRunResult> {
+async function runApiSource(source: SourceRef, sink: ArticleSink, fetchItems: (limit: number) => Promise<ScrapedItem[]>, deadline: number): Promise<SourceRunResult> {
   const result: SourceRunResult = { sourceId: source.id, domain: source.domain, found: 0, inserted: 0, skippedDuplicates: 0, error: null, completed: true };
+  // Past the API share of the budget: not reached, so the source keeps its place in line.
+  if (Date.now() > deadline) return { ...result, completed: false };
   try {
     const items = (await fetchItems(perSourceLimit * 3)).filter((i) => !since || (i.publishedAt !== null && i.publishedAt >= since));
     const fresh = await sink.filterNewUrls(items.map((i) => i.url));
     result.skippedDuplicates = items.length - fresh.size;
     for (const listed of items.filter((i) => fresh.has(i.url)).slice(0, perSourceLimit)) {
+      // Detail pages cost 8 s each on one host (www.gov.mn serves ~20 sources): stop at the deadline.
+      if (Date.now() > deadline) break;
       result.found += 1;
       const loaded = listed.loadText ? await listed.loadText() : listed.text;
       if (!loaded) continue;
@@ -114,9 +120,11 @@ async function main() {
 
   const results: SourceRunResult[] = [];
   // JSON API sources first (fast), then one shared Crawlee run for every HTML site.
+  // The JSON API sources get at most API_BUDGET_SHARE of the budget, so the HTML crawl always runs.
+  const apiDeadline = started + budgetMs * API_BUDGET_SHARE;
   for (const s of sourceRefs) {
     const adapter = API_ADAPTERS[s.domain];
-    if (adapter) results.push(await runApiSource(s, sink, adapter));
+    if (adapter) results.push(await runApiSource(s, sink, adapter, apiDeadline));
   }
   const htmlSources = sourceRefs.filter((s) => !API_ADAPTERS[s.domain]);
   if (htmlSources.length) {
