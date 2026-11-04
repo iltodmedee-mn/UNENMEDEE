@@ -1,6 +1,6 @@
 /**
  * Video narration with ElevenLabs (the owner's paid Starter plan, Oct 31 2026): model `eleven_v4`
- * (the first ElevenLabs model that speaks Mongolian; v3 does not), voice "Sarah" (the owner's pick)
+ * (the first ElevenLabs model that speaks Mongolian; v3 does not), voice "Sukh" (a native Mongolian voice, the owner's pick)
  * unless `ELEVENLABS_VOICE_ID` says otherwise. The plan is a monthly credit allowance, so every
  * call is paced to last until the allowance resets (`creditPlan`):
  *
@@ -20,8 +20,12 @@ import type { UsageLogger } from "@/lib/ai/router";
 import { pcmToWav, SpeechError } from "./tts";
 
 export const ELEVENLABS_MODEL = process.env.ELEVENLABS_MODEL?.trim() || "eleven_v4";
-/** "Sarah": the owner chose her among the Mongolian samples (Oct 2026). */
-export const ELEVENLABS_VOICE = "EXAVITQu4vr4xnSDxMaL";
+/**
+ * "Sukh", a native Mongolian voice from the shared library: the owner preferred it to "Sarah"
+ * (`EXAVITQu4vr4xnSDxMaL`, an English voice reading Mongolian, which sounded robotic) after the
+ * Launchpad videos (Nov 2026).
+ */
+export const ELEVENLABS_VOICE = "dJy4ovDyOEaI4kHP7CFP";
 
 const isApiKey = (v: string) => /^sk_[A-Za-z0-9]{20,}$/.test(v);
 /**
@@ -55,7 +59,7 @@ export function describeSecret(v: string | undefined): string {
  * ELEVENLABS_VOICE_ID when that holds a key ("sk_…"): the owner saved the key under that name
  * (Nov 1 2026) and every video fell back to Gemini without a word. Pasted extras (quotes, spaces,
  * a "xi-api-key:" label) are removed. A voice id comes from the repository variable
- * ELEVENLABS_VOICE_ID or that secret; anything else keeps Sarah.
+ * ELEVENLABS_VOICE_ID or that secret; anything else keeps Sukh.
  */
 export function elevenLabsFromEnv(env: Record<string, string | undefined>): { key: string; voice: string } {
   const own = cleanSecret(env.ELEVENLABS_API_KEY);
@@ -193,7 +197,8 @@ export async function speakElevenLabs(opts: {
       text,
       model_id: model,
       language_code: "mn",
-      voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.2, use_speaker_boost: true },
+      // Livelier than the defaults: a friend telling news, not an announcer (Launchpad videos, Nov 2026).
+      voice_settings: { stability: 0.3, similarity_boost: 0.85, style: 0.45, speed: 1.06, use_speaker_boost: true },
     }),
     signal: AbortSignal.timeout(180_000),
   });

@@ -9,10 +9,11 @@
 import type { ImpactSpec } from "./impact-video";
 import { FRAME, type SceneAssets } from "./scene-html";
 import { captionWords, type Timeline } from "./timing";
+import { CINEMA_BG_JS, CINEMA_CSS, CINEMA_LAYERS } from "./theme";
 
 const CARD_COLORS: Record<ImpactSpec["cards"][number]["scene"], string> = {
   who: "#2de2b0",
-  change: "#ffd400",
+  change: "#ffd166",
   when: "#ff4fa3",
   action: "#7cc4ff",
 };
@@ -42,32 +43,32 @@ html,body{width:${FRAME.width}px;height:${FRAME.height}px;overflow:hidden;backgr
 .disp{font-family:Disp;font-weight:850;letter-spacing:-.035em}
 .sticker{border:6px solid #000;box-shadow:10px 10px 0 #000;border-radius:26px}
 #bar{left:60px;right:60px;top:60px;height:12px;border-radius:6px;background:rgba(255,255,255,.18);overflow:hidden}
-#bar i{display:block;height:100%;background:#ffd400}
+#bar i{display:block;height:100%;background:#ffd166}
 #head{left:60px;right:60px;top:104px;display:flex;align-items:center;gap:18px}
 #head img{width:64px;height:64px;border-radius:14px;border:4px solid #000}
 #head b{font-family:Disp;font-weight:800;font-size:34px;letter-spacing:-.02em}
-#tag{margin-left:auto;background:#ffd400;color:#000;font-family:Mono;font-size:26px;padding:8px 16px;border:4px solid #000;box-shadow:6px 6px 0 #000;border-radius:10px;transform:rotate(-3deg)}
+#tag{margin-left:auto;background:#ffd166;color:#000;font-family:Mono;font-size:26px;padding:8px 16px;border:4px solid #000;box-shadow:6px 6px 0 #000;border-radius:10px;transform:rotate(-3deg)}
 #card{left:60px;right:70px;top:206px;height:260px;background:#fff;color:#000;padding:26px 32px;overflow:hidden}
 #hl{font-family:Disp;font-weight:800;font-size:50px;line-height:1.1;letter-spacing:-.02em}
 #sub{left:66px;right:60px;top:494px;font-size:28px;color:#e4e5e8}
 .layer{position:absolute;left:60px;right:60px;top:570px;height:740px;opacity:0}
-#ask{display:inline-block;background:#ff3d6e;color:#fff;font-size:118px;line-height:.98;padding:26px 40px 34px;transform-origin:left center}
-#ask small{display:block;font-size:44px;letter-spacing:-.01em;margin-top:18px;color:#fff}
+#ask{display:inline-block;background:#ffd166;color:#141413;font-size:118px;line-height:.98;padding:26px 40px 34px;transform-origin:left center}
+#ask small{display:block;font-size:44px;letter-spacing:-.01em;margin-top:18px;color:#5c1526}
 .lbl{display:inline-block;color:#000;font-family:Mono;font-size:38px;padding:10px 22px;border:5px solid #000;box-shadow:6px 6px 0 #000;border-radius:12px;transform:rotate(-2deg)}
 .box{margin-top:34px;background:#fff;color:#000;padding:34px 38px;max-height:560px;overflow:hidden}
 .box p{font-family:Disp;font-weight:800;font-size:66px;line-height:1.12;letter-spacing:-.02em}
 #bubble{background:#fff;color:#000;font-family:Disp;font-weight:850;font-size:84px;line-height:1.05;padding:40px 44px;position:relative}
 #bubble:after{content:"";position:absolute;left:90px;bottom:-46px;border:22px solid transparent;border-top:24px solid #fff}
 .chips{display:flex;gap:20px;margin-top:70px}
-.chip{background:#ffd400;color:#000;font-family:Disp;font-weight:850;font-size:46px;padding:14px 26px}
-#link{margin-top:50px;font-family:Disp;font-weight:850;font-size:62px;color:#ffd400;text-shadow:0 6px 0 #000}
+.chip{background:#ffd166;color:#000;font-family:Disp;font-weight:850;font-size:46px;padding:14px 26px}
+#link{margin-top:50px;font-family:Disp;font-weight:850;font-size:62px;color:#ffd166;text-shadow:0 6px 0 #000}
 #src{margin-top:26px;font-size:24px;color:#e4e5e8;line-height:1.35}
 #cap{left:70px;right:70px;top:1330px;height:230px;display:flex;flex-wrap:wrap;justify-content:center;align-content:center;gap:0 26px;font-family:Disp;font-weight:850;font-size:76px;line-height:1.12;text-align:center}
 #cap span{display:inline-block;color:#fff;text-shadow:-4px -4px 0 #000,4px -4px 0 #000,-4px 4px 0 #000,4px 4px 0 #000,0 9px 0 #000}
-#cap span.hl{color:#ffd400}
+#cap span.hl{color:#ffd166}
 #cap span.on{transform:translateY(-8px)}
-</style></head><body>
-<div id="bg"></div>
+${CINEMA_CSS}</style></head><body>
+<div id="bg"></div>${CINEMA_LAYERS}
 <div id="bar" class="abs"><i></i></div>
 <div id="head" class="abs"><img src="file://${assets.logo}" alt=""><b>ИЛ ТОД МЭДЭЭ</b><span id="tag"></span></div>
 <div id="card" class="abs sticker"><div id="hl"></div></div>
@@ -79,6 +80,7 @@ html,body{width:${FRAME.width}px;height:${FRAME.height}px;overflow:hidden;backgr
  <div id="link"></div><div id="src" class="mono"></div></div>
 <div id="cap" class="abs"></div>
 <script>
+${CINEMA_BG_JS}
 const D=${data};
 const T=D.tl, S=T.starts;
 const $=id=>document.getElementById(id);
@@ -89,13 +91,13 @@ for(const c of D.cards){const l=document.createElement('div');l.className='layer
  const b=document.createElement('span');b.className='lbl';b.style.background=c.color;b.textContent=c.label;
  const box=document.createElement('div');box.className='box sticker';const p=document.createElement('p');p.textContent=c.text;box.appendChild(p);
  l.append(b,box);$('cards').appendChild(l)}
-const COLORS={hook:['#ff3d6e','#ffd400'],who:['#2de2b0','#3a7bff'],change:['#ffd400','#ff4fa3'],when:['#ff4fa3','#7b5cff'],action:['#3a7bff','#2de2b0'],cta:['#0fb5ae','#ff4fa3']};
+const COLORS={hook:['#ff3d6e','#ffd166'],who:['#2de2b0','#3a7bff'],change:['#ffd166','#ff4fa3'],when:['#ff4fa3','#7b5cff'],action:['#3a7bff','#2de2b0'],cta:['#0fb5ae','#ff4fa3']};
 const LAYERS=['hook',...D.cards.map(c=>c.scene),'cta'];
 function sceneAt(t){let s=0;for(let i=0;i<S.length;i++)if(t>=S[i]-0.12)s=i;return s}
 window.render=function(t){
  const s=sceneAt(t),sc=D.scenes[s],start=S[s];
- const [c1,c2]=COLORS[sc]||COLORS.hook;const a=t*0.6;
- $('bg').style.background='radial-gradient(circle at '+(30+12*Math.sin(a))+'% '+(28+8*Math.cos(a*1.3))+'%,'+c1+'cc 0,transparent 46%),radial-gradient(circle at '+(76+10*Math.cos(a*0.8))+'% '+(74+9*Math.sin(a))+'%,'+c2+'aa 0,transparent 50%),#0d0e11';
+ const c1=(COLORS[sc]||COLORS.hook)[0];
+ $('bg').style.background=cinemaBg(t,c1);
  $('bar').firstElementChild.style.width=(100*clamp(t/T.total))+'%';
  const ck=spring(t/0.5);$('card').style.transform='rotate('+(-1.2*ck)+'deg) scale('+(0.85+0.15*ck)+')';$('card').style.opacity=Math.min(1,t/0.1);
  for(const id of LAYERS){const e=$('L-'+id);if(!e)continue;const on=sc===id;const v=on?spring((t-start)/0.45):0;
