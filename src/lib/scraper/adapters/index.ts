@@ -1,5 +1,7 @@
 import type { ScrapedItem } from "../types";
+import { fetchGovMn, GOVMN_ORGS } from "./govmn";
 import { fetchLegalinfo } from "./legalinfo";
+import { fetchNhrcm } from "./nhrcm";
 import { fetchOpendata } from "./opendata";
 import { fetchParliament } from "./parliament";
 import { fetchPolice } from "./police";
@@ -16,4 +18,7 @@ export const API_ADAPTERS: Record<string, (limit: number) => Promise<ScrapedItem
   "zasag.mn": fetchZasag,
   "legalinfo.mn": fetchLegalinfo,
   "police.gov.mn": fetchPolice,
+  "nhrcm.gov.mn": fetchNhrcm,
+  // Bodies whose own site fails but which post on the www.gov.mn portal (govmn.ts).
+  ...Object.fromEntries(Object.entries(GOVMN_ORGS).map(([domain, slug]) => [domain, (limit: number) => fetchGovMn(slug, limit)])),
 };

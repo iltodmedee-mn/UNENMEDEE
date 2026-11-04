@@ -17,6 +17,7 @@ import { and, asc, eq, gte, isNull, notInArray, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { articles, sources } from "@/db/schema";
+import { parseGovMnArticle } from "@/lib/scraper/adapters/govmn";
 import { legalinfoDetailText } from "@/lib/scraper/adapters/legalinfo";
 import { parsePoliceArticle } from "@/lib/scraper/adapters/police";
 import { extractArticleSafe } from "@/lib/scraper/extract-safe";
@@ -34,7 +35,8 @@ const { values } = parseArgs({
   },
 });
 const dry = values["dry-run"];
-const SKIP_DOMAINS = ["opendata.gov.mn", "parliament.mn", "zasag.mn"];
+// nhrcm.gov.mn: stories are hash routes of an Angular app, the page HTML never holds the text.
+const SKIP_DOMAINS = ["opendata.gov.mn", "parliament.mn", "zasag.mn", "nhrcm.gov.mn"];
 const HOSTS_IN_PARALLEL = 8;
 const deadline = Date.now() + Number(values.budget) * 60_000;
 
@@ -78,6 +80,8 @@ async function readPage(row: Row): Promise<FetchResult> {
   const html = await res.text();
   if (row.domain === "police.gov.mn") return { kind: "text", text: parsePoliceArticle(html).text };
   if (row.domain === "legalinfo.mn") return { kind: "text", text: legalinfoDetailText(html) };
+  // Stories read from the www.gov.mn portal (govmn.ts) are re-read from its page payload the same way.
+  if (from.host === "www.gov.mn") return { kind: "text", text: parseGovMnArticle(html)?.text ?? "" };
   // WordPress posts were stored from the REST API's `content.rendered` (crawl.ts handleWpApi):
   // read them the same way. Readability drops paragraphs that are on the page, which made
   // unchanged mod.gov.mn posts read as "changed" by the government (Nov 2026 audit).
