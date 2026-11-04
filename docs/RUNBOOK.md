@@ -64,11 +64,34 @@ Watchdog өдөрт нэг л удаа шалгадаг. Better Stack-ийн ү�
   - CI ногоон, «security» гэсэн бол: **Merge** дар. Дараа нь сайтыг нээж хэвийн эсэхийг хар. Эвдэрвэл PR дээрх **Revert** товч.
   - CI улаан бол: бүү нэгтгэ. §5-ын дагуу Copilot-оос засуулах эсвэл PR-ийг хаах.
 
-## 5. Код засах шаардлагатай бол: GitHub Copilot агент
+## 5. Код засах шаардлагатай бол: `@claude` (эсвэл Copilot агент)
 
-GitHub-ийн өөрийн AI агент ([github.com](https://github.com) нүүр хуудасны **Agent** товч) энэ репог
-уншиж засвар хийн PR нээж чадна. Үнэгүй багцад сард хязгаартай хүсэлт байдаг, агент горим нь таны
-багцад байгаа эсэхийг GitHub-ийн тохиргооноос шалгана уу. `.github/copilot-instructions.md` агентад
+### 5.1 `@claude` (үндсэн арга)
+
+Issue эсвэл PR дээр **`@claude`** гэж эхэлсэн сэтгэгдэл бичихэд Claude репог уншиж, засвар хийгээд
+`npm run check`-ийг ажиллуулж, PR нээнэ (`.github/workflows/claude.yml`). Зөвхөн та болон
+collaborator-ууд ажиллуулж чадна; гадны хүн бичсэн `@claude` юу ч хийхгүй.
+
+Нэг удаа тохируулах:
+1. https://github.com/apps/claude → **Install** → зөвхөн `tmorius-eng/UNENMEDEE` репог сонго.
+2. Репо → Settings → Secrets and variables → Actions → **New repository secret**. Аль нэгийг нь нэм:
+   - `CLAUDE_CODE_OAUTH_TOKEN`: Claude Pro/Max захиалгатай бол компьютер дээрээ `claude setup-token`
+     ажиллуулж гарсан утгыг энд хуулна (захиалгын эрхээс хасагдана, нэмэлт төлбөргүй).
+   - эсвэл `ANTHROPIC_API_KEY`: console.anthropic.com-оос (хэрэглэсэн хэмжээгээр төлнө).
+   Түлхүүрийг зөвхөн GitHub Secrets-д хадгална, чат эсвэл issue-д хэзээ ч бүү бич.
+
+Хэрэглэх:
+1. Watchdog issue дээр (эсвэл шинэ issue нээгээд) ингэж бич:
+   > @claude энэ issue-ийн асуудлыг засаад PR нээ
+2. Claude issue дээр явцаа бичиж, дуусмагц PR-ийн холбоос өгнө (5–30 минут).
+3. PR-ийн доор **check, mobile-layout** бүгд ✅ болмогц **Squash and merge**. Улаан бол PR дээр
+   «@claude CI улаан байна, логийг уншаад зас» гэж бич.
+4. Vercel 2–3 минутын дараа шинэ хувилбарыг гаргана. Эвдэрвэл PR дээрх **Revert**.
+
+### 5.2 GitHub Copilot агент (Copilot Pro багцтай бол)
+
+Copilot Free (VS Code-ийн chat, нөхөлт) агент горимгүй; issue-г Copilot-д оноож PR нээлгэх нь
+Copilot Pro ба түүнээс дээш багцад л байдаг. `.github/copilot-instructions.md` агентад
 төслийн дүрмийг автоматаар өгнө.
 
 1. Watchdog issue-ээс засах мөрийг хуул.
