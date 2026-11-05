@@ -73,12 +73,25 @@ export function buildSnapshot(raw: { policy: Row[]; inflation: Row[]; fx: Row[];
   };
 }
 
+/**
+ * One more try after a 5xx (politeFetch waits the host's 8 s first): Mongolbank answered a single
+ * 502 on Nov 5 2026 and the whole snapshot stayed half a day old.
+ */
+export async function onceMoreOn5xx(request: () => Promise<Response>): Promise<Response> {
+  const res = await request();
+  if (res.status < 500) return res;
+  await res.body?.cancel().catch(() => {});
+  return request();
+}
+
 async function post(name: string, start: string, end: string): Promise<Row[]> {
-  const res = await politeFetch(`${BASE}/${name}/data?startDate=${start}&endDate=${end}`, {
-    method: "POST",
-    headers: { "content-type": "application/json", accept: "application/json" },
-    body: "{}",
-  });
+  const res = await onceMoreOn5xx(() =>
+    politeFetch(`${BASE}/${name}/data?startDate=${start}&endDate=${end}`, {
+      method: "POST",
+      headers: { "content-type": "application/json", accept: "application/json" },
+      body: "{}",
+    }),
+  );
   if (!res.ok) throw new Error(`mongolbank ${name} returned HTTP ${res.status}`);
   return Envelope.parse(await res.json()).data;
 }
