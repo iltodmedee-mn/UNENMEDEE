@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
-import { buildSnapshot, parseNumber } from "@/lib/mongolbank/client";
+import { buildSnapshot, onceMoreOn5xx, parseNumber } from "@/lib/mongolbank/client";
 
 type Env = { data: Record<string, unknown>[] };
 const fx = JSON.parse(readFileSync(new URL("./fixtures/mongolbank.json", import.meta.url), "utf8")) as Record<string, Env>;
@@ -35,5 +35,31 @@ describe("Mongolbank snapshot", () => {
   it("returns nulls, not errors, for empty responses", () => {
     const s = buildSnapshot({ policy: [], inflation: [], fx: [], gold: [], reserves: [] });
     assert.deepEqual(s, { policyRate: null, inflation: null, fx: null, gold: null, reserves: null });
+  });
+});
+
+describe("Mongolbank request retry", () => {
+  const answers = (...statuses: number[]) => {
+    let calls = 0;
+    const request = async () => new Response("{}", { status: statuses[Math.min(calls++, statuses.length - 1)] });
+    return { request, calls: () => calls };
+  };
+
+  it("asks once more after a 5xx and returns the second answer", async () => {
+    const a = answers(502, 200);
+    assert.equal((await onceMoreOn5xx(a.request)).status, 200);
+    assert.equal(a.calls(), 2);
+  });
+
+  it("does not repeat a success or a 4xx, and stops after the second 5xx", async () => {
+    const ok = answers(200);
+    assert.equal((await onceMoreOn5xx(ok.request)).status, 200);
+    assert.equal(ok.calls(), 1);
+    const notFound = answers(404);
+    assert.equal((await onceMoreOn5xx(notFound.request)).status, 404);
+    assert.equal(notFound.calls(), 1);
+    const down = answers(503, 503, 200);
+    assert.equal((await onceMoreOn5xx(down.request)).status, 503);
+    assert.equal(down.calls(), 2);
   });
 });
