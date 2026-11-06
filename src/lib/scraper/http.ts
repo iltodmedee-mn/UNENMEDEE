@@ -57,6 +57,14 @@ export class ResponseTooLargeError extends Error {
  * A response body as text, refused once it passes `maxBytes` (counted after decompression, so a
  * small gzip bomb is stopped too). `res.text()` buffers whatever the server sends.
  */
+/** The most an API answer, a feed or a story page may be (publishers and redirects choose what we read). */
+export const API_MAX_BYTES = 5 * 1024 * 1024;
+
+/** `res.json()` with a size limit: the body is read through `readTextLimited` first. */
+export async function readJsonLimited(res: Response, maxBytes = API_MAX_BYTES): Promise<unknown> {
+  return JSON.parse(await readTextLimited(res, maxBytes));
+}
+
 export async function readTextLimited(res: Response, maxBytes: number): Promise<string> {
   if (!res.body) return "";
   const reader = res.body.getReader();

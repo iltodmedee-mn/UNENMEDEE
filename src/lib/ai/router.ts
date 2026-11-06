@@ -485,6 +485,10 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
           const costUsd = reportedCost ?? estimateCostUsd(p.provider, promptTokens, completionTokens, p.model);
           await log({ provider: p.provider, model: p.model, purpose: opts.purpose, articleId: opts.articleId, promptTokens, completionTokens, estimatedCostUsd: costUsd, success: false });
           budget.record(p.provider, costUsd);
+        } else {
+          // A 429 or a timeout is still a request against the account's quota (OpenRouter: 50 a
+          // day): counted in memory for the daily cap, not in ai_usage_logs (no tokens, no cost).
+          budget.record(p.provider, 0);
         }
         if (isBadReply(err, message)) {
           // One repair attempt on the same provider, then move on (a cut-off reply gets twice the tokens).
@@ -500,6 +504,9 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
           // Only paid ones left: wait once and retry this free one instead of paying.
           // A tripped provider later in the chain is not "another free one": it would be skipped,
           // and the call would fall through to the paid providers without waiting for this one.
+          // By the price table on purpose, not `isPaid`: Requesty's default model costs $0 per token
+          // (it "is paid" only so another model would stay inside the USD budget), and a 429 on a
+          // free provider should move to it at once rather than wait (tests/limits.test.ts).
           if (chain.slice(index + 1).some((next) => getPrice(next.provider).input === 0 && getPrice(next.provider).output === 0 && tripCount(next.provider) < PROVIDER_TRIP)) break;
           await new Promise((r) => setTimeout(r, Number(process.env.AI_RATE_LIMIT_WAIT_MS ?? 20_000)));
           continue;

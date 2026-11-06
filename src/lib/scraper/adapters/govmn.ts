@@ -1,5 +1,5 @@
 import { htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
-import { politeFetch } from "../http";
+import { API_MAX_BYTES, politeFetch, readJsonLimited, readTextLimited } from "../http";
 import type { ScrapedItem } from "../types";
 
 /**
@@ -173,7 +173,7 @@ export function govMnListUrl(slug: string, pageSize: number): string {
 export async function fetchGovMn(slug: string, limit: number): Promise<ScrapedItem[]> {
   const res = await politeFetch(govMnListUrl(slug, Math.min(Math.max(limit, 1), 20)));
   if (!res.ok) throw new Error(`gov.mn news list (${slug}) returned HTTP ${res.status}`);
-  const list = parseGovMnList(await res.json());
+  const list = parseGovMnList(await readJsonLimited(res));
   return list.map((item) => ({
     url: item.url,
     title: item.title,
@@ -182,8 +182,9 @@ export async function fetchGovMn(slug: string, limit: number): Promise<ScrapedIt
     // The story page is read only for URLs not stored yet (runApiSource).
     loadText: async () => {
       const page = await politeFetch(item.url);
-      if (!page.ok) return null;
-      const a = parseGovMnArticle(await page.text());
+      // An HTTP error is thrown (counted, retried next run); null below means "no text" (skipped for good).
+      if (!page.ok) throw new Error(`HTTP ${page.status} for ${item.url}`);
+      const a = parseGovMnArticle(await readTextLimited(page, API_MAX_BYTES));
       // Photo and video posts carry no text ("<p><br></p>"): skipped, like police.gov.mn's.
       if (!a || a.text.length < MIN_ARTICLE_CHARS) return null;
       return { text: a.text, publishedAt: a.publishedAt ?? item.publishedAt };

@@ -17,6 +17,8 @@ export interface ArticleSink {
   /** Returns the subset of URLs not yet stored. */
   filterNewUrls(urls: string[]): Promise<Set<string>>;
   save(source: SourceRef, item: ScrapedItem): Promise<"inserted" | "duplicate">;
+  /** A URL whose page holds no article text (a photo post): remembered so it is never fetched again. */
+  markNoText?(source: SourceRef, url: string): Promise<void>;
 }
 
 export interface CrawlOptions {

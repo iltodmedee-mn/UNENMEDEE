@@ -3,7 +3,7 @@ import { z } from "zod";
 import { normalizeText } from "@/lib/text";
 
 import { htmlFragmentToText } from "../extractor";
-import { politeFetch } from "../http";
+import { politeFetch, readJsonLimited } from "../http";
 import type { ScrapedItem } from "../types";
 
 /**
@@ -77,5 +77,5 @@ export async function fetchOpendata(limit: number): Promise<ScrapedItem[]> {
     body: JSON.stringify({ page: { page: 1, page_size: Math.min(limit, 50), sort: "created_at desc" } }),
   });
   if (!res.ok) throw new Error(`opendata.gov.mn API returned HTTP ${res.status}`);
-  return parseOpendataResponse(await res.json()).map(opendataItemToScraped);
+  return parseOpendataResponse(await readJsonLimited(res)).map(opendataItemToScraped);
 }

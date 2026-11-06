@@ -21,7 +21,7 @@ import { createDbSink, loadDueSources, recordSourceResults } from "@/lib/scraper
 import type { ScrapedItem, SourceRef, SourceRunResult } from "@/lib/scraper/types";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { contentHash } from "@/lib/text";
-import { errorLine } from "@/lib/log-safe";
+import { errorLine, oneLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -75,16 +75,35 @@ async function runApiSource(source: SourceRef, sink: ArticleSink, fetchItems: (l
     const items = (await fetchItems(perSourceLimit * 3)).filter((i) => !since || (i.publishedAt !== null && i.publishedAt >= since));
     const fresh = await sink.filterNewUrls(items.map((i) => i.url));
     result.skippedDuplicates = items.length - fresh.size;
-    for (const listed of items.filter((i) => fresh.has(i.url)).slice(0, perSourceLimit)) {
+    let detailErrors = 0;
+    let lastDetailError: unknown;
+    for (const listed of items.filter((i) => fresh.has(i.url))) {
+      // The limit counts stories read, not pages tried: photo posts and failed pages do not use it up.
+      if (result.found >= perSourceLimit) break;
       // Detail pages cost 8 s each on one host (www.gov.mn serves ~20 sources): stop at the deadline.
       if (Date.now() > deadline) break;
+      let loaded: Awaited<ReturnType<NonNullable<ScrapedItem["loadText"]>>> | string;
+      try {
+        loaded = listed.loadText ? await listed.loadText() : listed.text;
+      } catch (err) {
+        // One slow or failed page (a 30 s portal timeout) used to end the whole source and start
+        // its backoff, after it had already stored stories.
+        detailErrors += 1;
+        lastDetailError = err;
+        console.log(`  ⚠ ${source.domain}: ${oneLine(listed.url, 120)}: ${errorLine(err, 160)}`);
+        continue;
+      }
+      if (!loaded) {
+        await sink.markNoText?.(source, listed.url);
+        continue;
+      }
       result.found += 1;
-      const loaded = listed.loadText ? await listed.loadText() : listed.text;
-      if (!loaded) continue;
       const item = { ...listed, ...(typeof loaded === "string" ? { text: loaded } : loaded), loadText: undefined };
       if ((await sink.save(source, item)) === "inserted") result.inserted += 1;
       else result.skippedDuplicates += 1;
     }
+    // Only when every page failed and nothing was stored is the source failing (backoff applies).
+    if (detailErrors && result.found === 0 && result.inserted === 0) result.error = `every story page failed (${detailErrors}): ${errorLine(lastDetailError, 200)}`;
   } catch (err) {
     // One line (it reaches the Actions log and `last_error`), with the cause: "fetch failed" alone
     // hid ECONNREFUSED / ETIMEDOUT / a certificate error.

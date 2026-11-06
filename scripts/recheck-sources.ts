@@ -23,7 +23,7 @@ import { legalinfoDetailText } from "@/lib/scraper/adapters/legalinfo";
 import { parsePoliceArticle } from "@/lib/scraper/adapters/police";
 import { extractArticleSafe } from "@/lib/scraper/extract-safe";
 import { htmlFragmentToText } from "@/lib/scraper/extractor";
-import { politeFetch } from "@/lib/scraper/http";
+import { API_MAX_BYTES, politeFetch, readTextLimited } from "@/lib/scraper/http";
 import { isWordPress, sameSite, wordPressApiBase, wordPressPostId, wordPressPostsUrl } from "@/lib/scraper/links";
 import { decide, type FetchResult, MIN_FRESH_CHARS, type SourceDiff, type SourceStatus } from "@/lib/scraper/recheck";
 import { errorLine } from "@/lib/log-safe";
@@ -81,7 +81,7 @@ async function readPage(row: Row): Promise<FetchResult> {
   if (to.host.replace(/^www\./, "") !== from.host.replace(/^www\./, "") || (to.pathname.replace(/\/+$/, "") === "" && from.pathname.replace(/\/+$/, "") !== "")) {
     return { kind: "missing" };
   }
-  const html = await res.text();
+  const html = await readTextLimited(res, API_MAX_BYTES);
   if (row.domain === "police.gov.mn") return { kind: "text", text: parsePoliceArticle(html).text };
   if (row.domain === "legalinfo.mn") return { kind: "text", text: legalinfoDetailText(html) };
   // Stories read from the www.gov.mn portal (govmn.ts) are re-read from its page payload the same way.
@@ -112,6 +112,9 @@ async function wordPressText(html: string, row: Row): Promise<string | null> {
     return null;
   }
 }
+
+/** Fetch errors in a row after which a host's remaining rows wait for the next run. */
+const MAX_HOST_ERRORS = 3;
 
 async function main() {
   if (!hasDatabase()) {
@@ -159,9 +162,24 @@ async function main() {
 
   async function worker() {
     for (let q = queues.shift(); q; q = queues.shift()) {
-      for (const row of q) {
+      let hostErrors = 0;
+      for (const [i, row] of q.entries()) {
         if (Date.now() > deadline) return;
         const result = await fetchText(row);
+        // Rows that fail to fetch keep a null checked_at and stay first in line: a dead host with
+        // 100 rows (30 s timeout + 8 s each) held a worker for the whole run, every week. After a
+        // few errors in a row the rest of that host waits for the next run.
+        if (result.kind === "error") {
+          if (++hostErrors >= MAX_HOST_ERRORS) {
+            const left = q.length - i - 1;
+            skipped["host skipped after errors"] = (skipped["host skipped after errors"] ?? 0) + left;
+            counts.skip += left;
+            console.warn(`  ⚠ ${new URL(row.url).host}: ${MAX_HOST_ERRORS} fetch errors in a row, ${left} row(s) left for the next run`);
+            counts.skip++;
+            skipped["fetch error"] = (skipped["fetch error"] ?? 0) + 1;
+            break;
+          }
+        } else hostErrors = 0;
         const now = new Date();
         const d = decide({ status: row.status as SourceStatus | null, missingCount: row.missingCount, checkedAt: row.checkedAt }, row.text, result, now);
         counts[d.status ?? "skip"]++;
