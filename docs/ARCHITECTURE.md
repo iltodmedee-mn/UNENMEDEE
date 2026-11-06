@@ -43,16 +43,16 @@ database is the only shared state between the two halves.
 | Job | Schedule | Script | Writes |
 |---|---|---|---|
 | News pipeline | every 30 min (four crons: :17 and :32 on even UTC hours, :02 and :47 on odd ones; GitHub may skip some, and a pg_cron fallback dispatches the workflow after 60 min without a start, `docs/PIPELINE-FALLBACK.md`) | `scripts/run-scraper.ts`, `scripts/process-ai.ts` | `articles`, `clusters`, `ai_usage_logs` |
-| Digest + data | 08:07, 20:07 Ulaanbaatar | `digest`, `data:sync`, `macro:sync`, `budget:sync`, `tenders:sync`, `docs:watch`, `db:prune` | `digests`, `open_datasets`, `indicator_snapshots`, `tenders`, `documents`, `watched_pages` |
+| Digest + data | 08:07, 20:07 Ulaanbaatar | `digest`, `data:sync`, `macro:sync`, `budget:sync`, `tenders:sync`, `docs:watch`, `petitions:sync`, `db:prune` | `digests`, `open_datasets`, `indicator_snapshots`, `tenders`, `documents`, `watched_pages` |
 | Officials | weekly | `officials:sync` | `politicians`, `asset_declarations` |
 | Source discovery | weekly | `sources:discover` | `sources` |
 | Source re-check | weekly | `sources:recheck` | `articles.source_status`, `source_diff` |
-| Social posts | after each pipeline / digest run | `social:post` (news, digest, quiz, weekly) | `social_posts` |
-| Videos | slots 12–16 / 19–23 Ulaanbaatar (`video.yml` + pipeline, `--slot`) | `video:make` (midday: a fresh story's ₮ amount ÷ population; evening: a fresh decision's "who / what changes / when / what to do", else NSO prices; → ElevenLabs voice paced by the monthly credits, else Gemini → Playwright frames → ffmpeg MP4), then `social:post --mode video` (Facebook / Instagram Reels, Threads) | `videos`, `social_posts`, `ai_usage_logs` |
-| Watchdog | daily | `npm run health` | a GitHub issue when something is stale |
+| Social posts | after each pipeline / digest run | `social:post` (news, digest, quiz, weekly top list, Sunday `weekly-quiz` carousel with the answers the next evening) | `social_posts`, `app_settings.weekly_quiz` |
+| Videos | slots 12–16 / 19–23 Ulaanbaatar (`video.yml` + pipeline, `--slot`) | `video:make` ("30 СЕК МЭДЭЭ": the most important fresh story told like a news creator, headline → what happened → who / what changes / when / what to do → source, else the NSO price quiz; the per-person money video is off since Nov 2026; → ElevenLabs voice paced by the monthly credits, else Gemini → Playwright frames → ffmpeg MP4), then `social:post --mode video` (Facebook / Instagram Reels, Threads) | `videos`, `social_posts`, `ai_usage_logs` |
+| Watchdog | daily | `npm run health` | a `watchdog` GitHub issue when something is stale (🔴 urgent / 🟡 info), a separate `tax-rates` issue when a story may change the /tax rates |
 | Vercel cleanup | daily | `vercel:cleanup` | deletes old Vercel deployments (10 GB Hobby storage) |
-| Keepalive | monthly | GitHub API | re-enables scheduled workflows |
-| Maintenance | manual | `refetch-dates`, `recluster`, `ai-sample` | repairs, dry run by default |
+| Keepalive | daily | GitHub API | re-enables scheduled workflows, red when one stays off |
+| Maintenance | manual | `refetch-dates`, `recluster`, `ai-sample`, `db-check`, `reanalyse`, `tenders-sync`, `docs-watch` | repairs, dry run by default |
 | CI | every PR | `npm run check`, `npm run build`, dependency review, CodeQL | nothing |
 
 ## Data model
@@ -73,7 +73,7 @@ migrations in [`drizzle/`](../drizzle) (`IF NOT EXISTS` everywhere, so a rerun i
 | `tenders` | Tender results each budget body files to Шилэн данс (form 1831): code, item, budget, contract, method, winner, date; amounts in an unclear unit are flagged, never rescaled (`/tenders`) |
 | `documents`, `watched_pages` | New audit.mn reports and file links added to watched WordPress report/tender pages (link, text, page only; never the file) (`/documents`) |
 | `push_subscriptions` | Web Push endpoints and followed MPs |
-| `videos` | Generated price videos: the MP4 for a few days (served at `/reel?v=<id>` for the platforms to fetch), then only the key and the numbers it showed |
+| `videos` | Generated videos (news, prices): the MP4 for a few days (served at `/reel?v=<id>` for the platforms to fetch), then only the key and the numbers it showed |
 | `social_posts` | What was posted to Facebook, Instagram, Threads, Telegram and Discord (one row per platform + kind + item, so nothing posts twice) |
 | `app_settings` | Server-side settings shared by Vercel and Actions (VAPID keys, donation account, refreshed Threads/Instagram tokens, hidden declaration years) |
 | `transparency_ledger` | Income and costs shown on `/transparency` (keeps each month's AI total after its call logs are pruned) |
