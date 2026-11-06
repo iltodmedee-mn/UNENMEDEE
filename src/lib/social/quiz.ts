@@ -30,7 +30,7 @@ export interface Quiz {
 }
 
 /** Significant digits of an amount (186.2 тэрбум → 4, 3 их наяд → 1), between 2 and 4. */
-function significantDigits(v: number): number {
+export function significantDigits(v: number): number {
   const digits = v.toPrecision(15).replace(/e.*$/, "").replace(".", "").replace(/^0+/, "").replace(/0+$/, "");
   return Math.min(4, Math.max(2, digits.length));
 }
@@ -39,13 +39,13 @@ function significantDigits(v: number): number {
  * The wrong options get as many significant digits as the right one, so precision never gives the
  * answer away ("186.2" next to "18.62" and "558.6", not next to "19" and "560").
  */
-function roundLike(v: number, sig: number): number {
+export function roundLike(v: number, sig: number): number {
   const p = 10 ** (Math.floor(Math.log10(v)) - sig + 1);
   return Math.round(v / p) * p;
 }
 
 /** An amount in a headline: the number, an optional unit word with its suffix, an optional ₮ / төгрөг. */
-const TITLE_AMOUNT = /\d[\d\s.,]*\s*(?:их наяд|тэрбум|сая|мянга)[\p{L}-]*(?:\s*(?:₮|төгрөг)[\p{L}-]*)?|\d[\d\s.,]*\s*(?:₮|төгрөг)[\p{L}-]*/giu;
+export const TITLE_AMOUNT = /\d[\d\s.,]*\s*(?:их наяд|тэрбум|сая|мянга)[\p{L}-]*(?:\s*(?:₮|төгрөг)[\p{L}-]*)?|\d[\d\s.,]*\s*(?:₮|төгрөг)[\p{L}-]*/giu;
 
 /** The headline with every amount replaced by "❓" ("186.2 тэрбум төгрөгийн" → "❓"). */
 export function maskAmounts(title: string): string {

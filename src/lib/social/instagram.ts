@@ -119,29 +119,64 @@ export async function publishInstagram(opts: { token: string; post: InstagramPos
     method: "POST",
     body: new URLSearchParams({ ...media, caption: opts.post.caption, access_token: token }),
   });
-  const checks = opts.post.videoUrl ? 36 : 12;
   const id = String(created.id ?? "");
   if (!id) throw new Error("Instagram returned no container id");
+  await waitFinished(f, base, id, token, opts.post.videoUrl ? 36 : 12, sleep);
+  return publishCreation(f, base, id, token, sleep);
+}
+
+/** Polls a container until FINISHED; a 9007 on the status read counts as still processing. */
+async function waitFinished(f: Fetch, base: string, id: string, token: string, checks: number, sleep: (ms: number) => Promise<void>): Promise<void> {
   for (let i = 0; ; i++) {
-    // A 9007 on the status read counts as "still processing", like IN_PROGRESS.
     const s = await call(f, `${base}/${encodeURIComponent(id)}?${new URLSearchParams({ fields: "status_code,status", access_token: token })}`).catch((err: unknown) => {
       if (notReady(err)) return { status_code: "NOT_AVAILABLE_YET" } as Record<string, unknown>;
       throw err;
     });
-    if (s.status_code === "FINISHED") break;
+    if (s.status_code === "FINISHED") return;
     if (s.status_code === "ERROR" || s.status_code === "EXPIRED") throw new Error(`Instagram container ${String(s.status_code)}: ${String(s.status ?? "")}`);
     // Never publish a container that is not ready (media_publish would fail or post without the image).
     if (i >= checks - 1) throw new Error(`Instagram container not finished after ${i + 1} checks (${String(s.status_code ?? "?")})`);
     await sleep(5_000);
   }
+}
+
+/** media_publish; a 9007 right after FINISHED is a few more seconds, not a failure. */
+async function publishCreation(f: Fetch, base: string, id: string, token: string, sleep: (ms: number) => Promise<void>): Promise<string> {
   for (let attempt = 1; ; attempt++) {
     try {
       const published = await publishStep(() => call(f, `${base}/me/media_publish`, { method: "POST", body: new URLSearchParams({ creation_id: id, access_token: token }) }));
       return String(published.id ?? id);
     } catch (err) {
-      // FINISHED, yet the publish endpoint has not seen the container: a few more seconds, not a failure.
       if (!notReady(err) || attempt >= PUBLISH_RETRIES) throw err;
       await sleep(5_000);
     }
   }
+}
+
+/** Instagram's limit for one carousel. */
+export const CAROUSEL_MAX = 10;
+
+/**
+ * A carousel of our JPEG cards (the weekly quiz): one item container per image, each waited for,
+ * then the CAROUSEL container with the caption, waited for and published. Returns the media id.
+ */
+export async function publishInstagramCarousel(opts: { token: string; imageUrls: string[]; caption: string; fetchImpl?: Fetch; sleep?: (ms: number) => Promise<void> }): Promise<string> {
+  const f = opts.fetchImpl ?? fetch;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const base = `${INSTAGRAM_API}/${INSTAGRAM_VERSION}`;
+  const token = opts.token;
+  if (opts.imageUrls.length < 2 || opts.imageUrls.length > CAROUSEL_MAX) throw new Error(`Instagram carousel needs 2–${CAROUSEL_MAX} images, got ${opts.imageUrls.length}`);
+  const children: string[] = [];
+  for (const imageUrl of opts.imageUrls) {
+    const item = await call(f, `${base}/me/media`, { method: "POST", body: new URLSearchParams({ image_url: imageUrl, is_carousel_item: "true", access_token: token }) });
+    const id = String(item.id ?? "");
+    if (!id) throw new Error("Instagram returned no carousel item id");
+    children.push(id);
+  }
+  for (const id of children) await waitFinished(f, base, id, token, 12, sleep);
+  const parent = await call(f, `${base}/me/media`, { method: "POST", body: new URLSearchParams({ media_type: "CAROUSEL", children: children.join(","), caption: opts.caption, access_token: token }) });
+  const id = String(parent.id ?? "");
+  if (!id) throw new Error("Instagram returned no carousel container id");
+  await waitFinished(f, base, id, token, 12, sleep);
+  return publishCreation(f, base, id, token, sleep);
 }

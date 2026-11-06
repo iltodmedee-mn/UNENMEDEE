@@ -28,7 +28,7 @@ export interface WeeklyTop {
 const UB_OFFSET_MS = 8 * 3_600_000;
 
 /** The Ulaanbaatar calendar day of an instant, as a UTC date at midnight. */
-function ubDay(now: Date): Date {
+export function ubDay(now: Date): Date {
   const d = new Date(now.getTime() + UB_OFFSET_MS);
   return new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
 }

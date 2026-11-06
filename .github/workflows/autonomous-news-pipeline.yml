@@ -287,3 +287,10 @@ jobs:
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode promo
+
+      # Sunday 19:00 Ulaanbaatar the weekly quiz carousel, from 19:00 the next day its answers
+      # (src/lib/social/weekly-quiz.ts); a no-op without platform calls on every other run.
+      - name: Post the weekly quiz carousel or its answers when due
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '') }}
+        continue-on-error: true
+        run: npm run social:post -- --mode weekly-quiz
