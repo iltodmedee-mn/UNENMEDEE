@@ -3,7 +3,7 @@ import { cacheLife, cacheTag } from "next/cache";
 
 import { getDb, hasDatabase } from "@/db";
 import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, tenders, documents, watchedPages, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
-import { ubDateKey, ubDayBounds } from "@/lib/archive";
+import { shiftDate, ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { type BuyerSign, buyerSigns, type BuyerStats, isNonCompetitive, nationalShares, type NationalShares } from "@/lib/procurement/signs";
 import { NO_AWARD_SQL } from "@/lib/procurement/tenders";
@@ -381,7 +381,9 @@ export async function getArchiveDays(days = 60): Promise<ArchiveDay[]> {
         lastModified: sql<Date>`max(greatest(${articles.createdAt}, coalesce(${articles.editedAt}, ${articles.createdAt})))`.mapWith(articles.createdAt),
       })
       .from(articles)
-      .where(and(visible, isNotNull(articles.publishedAt), sql`${articles.publishedAt} >= now() - make_interval(days => ${days})`))
+      // From the Ulaanbaatar midnight `days` days back, so the oldest listed day is a whole day
+      // (a rolling `now() - interval` cut it mid-day and its count disagreed with its archive page).
+      .where(and(visible, isNotNull(articles.publishedAt), gte(articles.publishedAt, new Date(ubDayBounds(shiftDate(ubDateKey(Date.now()), -(days - 1)))[0]))))
       .groupBy(UB_DAY)
       .orderBy(desc(UB_DAY));
     return rows.map((r) => ({ date: r.date, stories: Number(r.stories), lastModified: r.lastModified }));
@@ -455,7 +457,8 @@ export async function getClusters(limit = 30, sinceDays?: number): Promise<Clust
       .from(clusters)
       .where(and(gte(clusters.articleCount, 2), since ? gte(clusters.updatedAt, since) : undefined))
       .orderBy(desc(clusters.updatedAt))
-      .limit(limit);
+      // Over-fetched: clusters with one source left (below) are dropped after the query.
+      .limit(limit * 2);
     if (rows.length === 0) return [];
     const members = await db
       .select({ clusterId: articles.clusterId, name: sources.name })
@@ -468,7 +471,9 @@ export async function getClusters(limit = 30, sinceDays?: number): Promise<Clust
     return rows.flatMap((r) => {
       const mine = members.filter((m) => m.clusterId === r.id);
       const names = [...new Set(mine.map((m) => m.name))];
-      if (names.length === 0) return [];
+      // One source left (the other withdrawn) is not "reported by several sources": the header's
+      // cluster count (getSiteStats, distinct sources >= 2) and this list agree.
+      if (names.length < 2) return [];
       return [
         {
           id: r.id,
@@ -480,7 +485,7 @@ export async function getClusters(limit = 30, sinceDays?: number): Promise<Clust
           sources: names,
         },
       ];
-    });
+    }).slice(0, limit);
   });
 }
 
@@ -1054,7 +1059,11 @@ export async function getDigests(kind: "12h" | "30d", limit = 10, withStories = 
         stories.set(a.id, { tldr: a.tldr, summaryFallback: a.summaryFallback, originalUrl: a.originalUrl, amounts: a.entities?.amounts_mnt ?? [] });
       }
     }
-    return rows.map((d) => ({
+    return rows.flatMap((d) => {
+      const items = d.items.filter((it) => live.has(it.articleId));
+      // An edition whose every story was withdrawn is gone too (it read "✓ уншиж дууслаа" over 0/0).
+      if (items.length === 0) return [];
+      return [{
       id: d.id,
       kind: d.kind,
       periodStart: d.periodStart,
@@ -1063,16 +1072,15 @@ export async function getDigests(kind: "12h" | "30d", limit = 10, withStories = 
       intro: d.intro,
       // Withdrawn stories stay withdrawn: an article unpublished after the edition was written
       // (Nov 2026: 72 empty gov.mn image posts) left its line in /digest, linking to a 404 page.
-      items: d.items
-        .filter((it) => live.has(it.articleId))
-        .map((it) => {
-          const story = stories.get(it.articleId);
-          return story ? { ...it, story } : it;
-        }),
+      items: items.map((it) => {
+        const story = stories.get(it.articleId);
+        return story ? { ...it, story } : it;
+      }),
       candidateCount: d.candidateCount,
       generatedBy: d.generatedBy,
       costUsd: Number(d.costUsd),
-    }));
+      }];
+    });
   });
 }
 
@@ -1082,11 +1090,16 @@ export async function getDigestById(id: number): Promise<Pick<DigestView, "id" |
   cacheLife("hours");
   cacheTag("digests");
   return safe("getDigestById", null, async () => {
-    const [d] = await getDb()
+    const db = getDb();
+    const [d] = await db
       .select({ id: digests.id, kind: digests.kind, periodEnd: digests.periodEnd, title: digests.title, items: digests.items })
       .from(digests)
       .where(eq(digests.id, id));
-    return d ?? null;
+    if (!d) return null;
+    // As in getDigests: a story unpublished after the edition was written is not on the card.
+    const ids = d.items.map((it) => it.articleId);
+    const live = ids.length ? new Set((await db.select({ id: articles.id }).from(articles).where(and(inArray(articles.id, ids), eq(articles.isPublished, true)))).map((a) => a.id)) : new Set<number>();
+    return { ...d, items: d.items.filter((it) => live.has(it.articleId)) };
   });
 }
 

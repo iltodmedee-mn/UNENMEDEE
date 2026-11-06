@@ -468,7 +468,8 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         return { data: parsed.data, provider: p.provider, model: p.model, costUsd };
       } catch (err) {
         const message = errorMessage(err);
-        attempts.push(`${p.provider}/${p.model}: ${message.slice(0, 200)}`);
+        // One line: a JSON.parse error quotes the model's reply, which an article text can steer.
+        attempts.push(`${p.provider}/${p.model}: ${oneLine(message, 200)}`);
         if (isTransportFailure(err, message)) {
           const n = tripCount(p.provider) + 1;
           tripped.set(p.provider, { n, at: Date.now() });

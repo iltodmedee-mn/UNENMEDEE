@@ -1,9 +1,10 @@
 "use client";
 
 import { Mail01 } from "@untitledui/icons";
-import { useId, useState } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
 
 import { CopyText } from "@/components/iltod/copy-text";
+import { ubDateKey } from "@/lib/archive";
 import { addWorkingDays, ANSWER_DAYS, buildLetter, DELIVERY_LABEL, type DeliveryForm, EXTENSION_DAYS, letterDate, missingFields, type RequestInput } from "@/lib/info-request";
 
 const FIELD = "w-full rounded-lg bg-primary px-3.5 py-2.5 text-md text-primary ring-1 ring-line-strong outline-none ring-inset focus:ring-2 focus:ring-brand";
@@ -23,9 +24,15 @@ function Field({ label, hint, children }: { label: string; hint?: string; childr
  * copies the letter or opens it in their own mail app. `day` = today in Ulaanbaatar (the page's
  * cached clock), so prerendered HTML never reads the clock.
  */
+const noop = () => () => {};
+
 export function InfoRequestForm({ orgs, day }: { orgs: string[]; day: string }) {
   const listId = useId();
-  const [r, setR] = useState<RequestInput>({ org: "", name: "", address: "", phone: "", email: "", question: "", form: "electronic", date: day });
+  // The page's cached day is only the server snapshot: a page rendered at 22:00 and opened after
+  // midnight (or a tab kept overnight) dated the letter, and its legal deadline, a day early.
+  const today = useSyncExternalStore(noop, () => ubDateKey(Date.now()), () => day);
+  const [draft, setR] = useState<RequestInput>({ org: "", name: "", address: "", phone: "", email: "", question: "", form: "electronic", date: day });
+  const r: RequestInput = draft.date === day ? { ...draft, date: today } : draft;
   const set = <K extends keyof RequestInput>(k: K) => (v: RequestInput[K]) => setR((prev) => ({ ...prev, [k]: v }));
   const letter = buildLetter(r);
   const missing = missingFields(r);

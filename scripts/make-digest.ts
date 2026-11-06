@@ -19,6 +19,7 @@ import { closeDb, getDb, hasDatabase } from "@/db";
 import { digests } from "@/db/schema";
 import { createDigest, type DigestKind, isDigestDue } from "@/lib/ai/digest";
 import { dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-log";
+import { oneLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -49,9 +50,10 @@ async function main() {
     return;
   }
   const d = res.digest;
-  console.log(`📰 ${d.title}  (${d.items.length}/${d.candidateCount} stories, ${d.generatedBy}, $${Number(d.costUsd).toFixed(6)})`);
-  console.log(`   ${d.intro}`);
-  for (const [i, it] of d.items.entries()) console.log(`   ${String(i + 1).padStart(2)}. ${it.headline}  [#${it.articleId} ${it.sourceName}]`);
+  // Model-written text (open to a steered reply) on one line each, so it cannot start a workflow command.
+  console.log(`📰 ${oneLine(d.title)}  (${d.items.length}/${d.candidateCount} stories, ${d.generatedBy}, $${Number(d.costUsd).toFixed(6)})`);
+  console.log(`   ${oneLine(d.intro, 500)}`);
+  for (const [i, it] of d.items.entries()) console.log(`   ${String(i + 1).padStart(2)}. ${oneLine(it.headline)}  [#${it.articleId} ${oneLine(it.sourceName, 80)}]`);
   await syncLedgerAiCost(db);
 }
 

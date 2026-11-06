@@ -234,6 +234,14 @@ describe("clustering", () => {
   it("re-synthesizes clusters only at growth milestones", () => {
     assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15].map((n) => shouldResynthesize(n - 1, n)), [false, true, true, false, true, false, false, true, false, true, true]);
     assert.equal(shouldResynthesize(3, 3), false);
+    // A jump over a milestone counts (a cluster born with 4 members in one --recluster run).
+    assert.equal(shouldResynthesize(0, 4), true);
+    assert.equal(shouldResynthesize(3, 6), true);
+    assert.equal(shouldResynthesize(3, 4), false);
+    assert.equal(shouldResynthesize(8, 9), false);
+    // Two members and no synthesis yet: always.
+    assert.equal(shouldResynthesize(4, 6, false), true);
+    assert.equal(shouldResynthesize(1, 1, false), false);
   });
 
   it("groups the same story from different outlets and separates unrelated news", () => {

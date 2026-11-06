@@ -11,6 +11,7 @@ import { digestMessages, type DigestCandidate } from "./prompts";
 import { AIUnavailableError, callAIWithFallback, chainFor, type UsageLogger } from "./router";
 import { DigestSchema } from "./schemas";
 import { DIGEST_WINDOWS } from "@/lib/edition";
+import { oneLine } from "@/lib/log-safe";
 
 /**
  * AI news digest: picks the most nationally important stories of a period and writes a
@@ -328,7 +329,7 @@ export async function createDigest(db: DB, opts: DigestOptions): Promise<DigestR
       }
     } catch (err) {
       const why = err instanceof AIUnavailableError ? err.attempts.join(" | ") || err.message : err instanceof Error ? err.message : String(err);
-      console.warn(`[digest] AI unavailable, using the rule-based ranking: ${why.slice(0, 300)}`);
+      console.warn(`[digest] AI unavailable, using the rule-based ranking: ${oneLine(why, 300)}`);
       ({ title, intro, items } = ruleBasedDigest(candidates, plan));
     }
   }

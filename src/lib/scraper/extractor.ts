@@ -93,7 +93,8 @@ export function cleanTitle(title: string): string {
 }
 
 /** "11-р сар": the month number, never read as "1-р сар" (the lookbehind keeps "11" whole). */
-const MONTH_LABEL = /(20\d{2}).{0,6}(?<!\d)(1[0-2]|[1-9])-р сар.{0,6}(\d{1,2})/;
+// The day is a whole number too: the greedy gap used to take the first digit of "15" and read 5.
+const MONTH_LABEL = /(20\d{2}).{0,6}(?<!\d)(1[0-2]|[1-9])-р сар.{0,6}?(?<!\d)(\d{1,2})(?!\d)/;
 
 /** Dates this long before now are archive material, not a publication date read from body text. */
 const STALE_TEXT_DATE_MS = 365 * 86_400_000;
@@ -109,28 +110,24 @@ function validDate(y: number, m: number, d: number, hour?: number, minute?: numb
 
 /** Finds a "2026-10-21", "2026.10.21", "2026 оны 10 сарын 21", "2026 ... 10-р сар ... 21" or "10 сарын 21, 2026" date in text. */
 export function dateFromText(text: string): Date | null {
-  const iso = text.match(/(20\d{2})[./-](\d{1,2})[./-](\d{1,2})(?:[ T]+(\d{1,2}):(\d{2}))?/);
-  if (iso) {
-    const d = validDate(+iso[1], +iso[2], +iso[3], iso[4] === undefined ? undefined : +iso[4], iso[5] === undefined ? undefined : +iso[5]);
-    if (d) return d;
-  }
-  const mn = text.match(/(20\d{2})\s*оны\s*(\d{1,2})\s*(?:-р|дугаар|дүгээр)?\s*сарын\s*(\d{1,2})/);
-  if (mn) {
-    const d = validDate(+mn[1], +mn[2], +mn[3]);
-    if (d) return d;
-  }
-  const m = text.match(MONTH_LABEL);
-  if (m) {
-    const d = validDate(+m[1], +m[2], +m[3]);
-    if (d) return d;
-  }
-  // Month and day first, the year after a comma: "10 сарын 20, 2026" (iaac.mn).
-  const md = text.match(/(?<![\d.])(\d{1,2})\s*(?:-р|дугаар|дүгээр)?\s*сарын\s*(\d{1,2})(?:-?(?:ны|ний|нд))?\s*,\s*(20\d{2})(?!\d)/);
-  if (md) {
-    const d = validDate(+md[3], +md[1], +md[2]);
-    if (d) return d;
-  }
-  return null;
+  // The first VALID match of each pattern: an event date in the future ("2026-12-01-нд болох") or
+  // an archive year before the real date used to end the search and leave the story undated.
+  const first = (re: RegExp, pick: (m: RegExpMatchArray) => Date | null): Date | null => {
+    for (const m of text.matchAll(re)) {
+      const d = pick(m);
+      if (d) return d;
+    }
+    return null;
+  };
+  return (
+    first(/(20\d{2})[./-](\d{1,2})[./-](\d{1,2})(?:[ T]+(\d{1,2}):(\d{2}))?/g, (iso) =>
+      validDate(+iso[1], +iso[2], +iso[3], iso[4] === undefined ? undefined : +iso[4], iso[5] === undefined ? undefined : +iso[5]),
+    ) ??
+    first(/(20\d{2})\s*оны\s*(\d{1,2})\s*(?:-р|дугаар|дүгээр)?\s*сарын\s*(\d{1,2})/g, (mn) => validDate(+mn[1], +mn[2], +mn[3])) ??
+    first(new RegExp(MONTH_LABEL.source, "g"), (m) => validDate(+m[1], +m[2], +m[3])) ??
+    // Month and day first, the year after a comma: "10 сарын 20, 2026" (iaac.mn).
+    first(/(?<![\d.])(\d{1,2})\s*(?:-р|дугаар|дүгээр)?\s*сарын\s*(\d{1,2})(?:-?(?:ны|ний|нд))?\s*,\s*(20\d{2})(?!\d)/g, (md) => validDate(+md[3], +md[1], +md[2]))
+  );
 }
 
 /**

@@ -19,6 +19,7 @@ import { articles, pressItems, pressLinks } from "@/db/schema";
 import { OUTLETS, parseNewsMn, parseRssItems, type FeedItem } from "@/lib/press/feeds";
 import { matchPress, PRESS_AFTER_DAYS, type GovDoc, type PressDoc } from "@/lib/press/match";
 import { politeFetch } from "@/lib/scraper/http";
+import { errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 const DRY = values["dry-run"];
@@ -46,7 +47,7 @@ async function main() {
       for (const item of items) fetched.push({ outlet: o.domain, item });
       console.log(`📰 ${o.domain}: ${items.length} items`);
     } catch (err) {
-      console.log(`::warning::press feed ${o.domain} failed: ${err instanceof Error ? err.message : String(err)}`);
+      console.log(`::warning::press feed ${o.domain} failed: ${errorLine(err, 300)}`);
     }
   }
   if (!hasDatabase()) {

@@ -91,17 +91,25 @@ const ArticleEdit = z.object({
   tldr: z.string().trim().max(2_000),
   content: z.string().trim().min(50).max(MAX_STORED_CHARS * 2),
   published: z.enum(["on"]).optional(),
+  /** Drop the AI's plain headline and "Танд хамаатай юу?" so the edited title and summary are what readers see. */
+  clearReader: z.enum(["on"]).optional(),
 });
 
 export async function saveArticle(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   await requireAdmin();
   const parsed = ArticleEdit.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { ok: false, message: parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; ") };
-  const { id, title, tldr, content, published } = parsed.data;
+  const { id, title, tldr, content, published, clearReader } = parsed.data;
   const db = getDb();
-  const [current] = await db.select({ cleanContent: articles.cleanContent, slug: articles.slug }).from(articles).where(eq(articles.id, id));
+  const [current] = await db
+    .select({ title: articles.title, cleanContent: articles.cleanContent, slug: articles.slug, readerTitle: articles.readerTitle })
+    .from(articles)
+    .where(eq(articles.id, id));
   if (!current) return { ok: false, message: "Нийтлэл олдсонгүй." };
   const newContent = truncate(normalizeText(content), MAX_STORED_CHARS);
+  // Readers see coalesce(reader_title, title): a corrected title would otherwise stay hidden under
+  // the AI's plain headline (and show only as "Эх гарчиг"). A changed title drops it.
+  const dropReaderTitle = clearReader === "on" || (title !== current.title && current.readerTitle !== null);
   await db
     .update(articles)
     .set({
@@ -109,12 +117,14 @@ export async function saveArticle(_prev: ActionResult | null, formData: FormData
       tldrSummary: tldr || null,
       cleanContent: newContent,
       isPublished: published === "on",
+      ...(dropReaderTitle ? { readerTitle: null } : {}),
+      ...(clearReader === "on" ? { readerImpact: null } : {}),
       // content_hash keeps proving the original scrape; mark the edit openly instead.
       ...(newContent !== current.cleanContent ? { editedAt: new Date() } : {}),
     })
     .where(eq(articles.id, id));
   refreshPublic(current.slug);
-  return { ok: true, message: "Хадгаллаа." };
+  return { ok: true, message: dropReaderTitle ? "Хадгаллаа. AI-ийн энгийн гарчгийг хасав: уншигчид таны гарчгийг харна." : "Хадгаллаа." };
 }
 
 /* ------------------------------------------------------------------ ledger */

@@ -22,7 +22,8 @@ const PAGES: Record<(typeof STORY_PAGE_PATHS)[number], { eyebrow: string; title:
 };
 
 async function contentFor(path: string) {
-  if (path in PAGES) return PAGES[path as keyof typeof PAGES];
+  // Own keys only: `in` found "constructor" / "__proto__" on Object.prototype and crashed the render.
+  if (Object.hasOwn(PAGES, path)) return PAGES[path as keyof typeof PAGES];
   const article = path.match(/^\/article\/([\w-]{1,200})$/);
   if (article) {
     const a = await getArticleBySlug(article[1]);

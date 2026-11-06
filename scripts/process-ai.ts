@@ -258,7 +258,7 @@ main()
   .catch((err) => {
     if (err instanceof AIUnavailableError) {
       console.error(`✗ ${err.message}`);
-      for (const a of err.attempts) console.error(`   - ${a}`);
+      for (const a of err.attempts) console.error(`   - ${oneLine(a)}`);
     } else {
       console.error(`::error::AI pipeline crashed: ${errorDetail(err)}`);
     }
