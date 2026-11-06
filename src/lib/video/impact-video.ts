@@ -1,20 +1,17 @@
 /**
- * "ЧАМД ХАМААТАЙ ЮУ?" videos (Reels / Threads, 1080×1920, ~30 s), the evening slot since Oct 31
- * 2026 (the owner asked for fresh political and civic news instead of price quizzes, made for
- * Gen Z and young viewers; the price video only runs when no story qualifies). Built like the
- * other videos for people who scroll: a stop-the-scroll line and the headline on screen in the
- * first second, a new card every few seconds, the informal "чи" young people use with each other,
- * and an ending that asks for a comment and a send. One fresh decision (a law, a resolution, a budget
- * line, a tariff, a benefit) read the way the site's "Танд хамаатай юу?" block reads it: the
- * headline, who it touches, what changes, from when, what the reader can do.
+ * "30 СЕК МЭДЭЭ" videos (Reels / Threads, 1080×1920, ~30 s), both daily slots since Nov 6 2026:
+ * one fresh story told the way a news creator or a journalist tells it on Facebook (the owner's
+ * ask): "Сайн байна уу, Ил тод мэдээ" and the headline in the first second, what happened in one
+ * or two sentences, who it touches and what changes, the source, and a sign-off ("Энэ бол Ил тод
+ * мэдээ"). A new card every few seconds, read with the sound off from the first frame.
  *
- * Facts only, the site's own rules: the texts are the story's grounded `reader_title` and
- * `reader_impact` (src/lib/ai/reader-view.ts: every number in them appears in the source), the
- * frame names the source and says the summary is AI-written, a headline that weighs, contrasts or
- * accuses (`weighsOrAccuses`) or any field naming a charge never becomes a video, and nothing is
- * added: no score, no verdict, no person singled out. The voice reads the same texts; the forms a
- * speech model misreads (a decimal before тэрбум, "2026-11-01", "11-р сар") are turned into words
- * first (`spokenText`), the rest it reads correctly (tested Oct 31 2026).
+ * Facts only, the site's own rules: the texts are the story's grounded `reader_title`, the AI
+ * summary (`tldr_summary`, written from the source) and `reader_impact` (src/lib/ai/reader-view.ts:
+ * every number in them appears in the source); the frame names the source and says the summary is
+ * AI-written; a headline that weighs, contrasts or accuses (`weighsOrAccuses`) or any text naming
+ * a charge never becomes a video, and nothing is added: no score, no verdict, no person singled
+ * out. The voice reads the same texts; the forms a speech model misreads (a decimal before
+ * тэрбум, "2026-11-01", "11-р сар") are turned into words first (`spokenText`, tested Oct 31 2026).
  */
 import type { ReaderImpact } from "@/lib/types";
 
@@ -32,6 +29,8 @@ export interface ImpactStory {
   /** The headline readers see (reader_title or the source's). */
   title: string;
   impact: ReaderImpact | null;
+  /** The AI summary's sentences (tldrSentences), the "what happened" card. */
+  summary?: string[];
   sourceName: string;
   /** Ulaanbaatar day, "2026-10-28". */
   day: string;
@@ -46,12 +45,20 @@ export interface ImpactSpec {
   /** "Засгийн газар · 2026.10.28" */
   sub: string;
   /** The info cards in order: label + text, as on the site. */
-  cards: { scene: "who" | "change" | "when" | "action"; label: string; text: string }[];
+  cards: { scene: "what" | "who" | "change" | "when" | "action"; label: string; text: string }[];
+  /** The opening sticker's lines and its small line. */
+  sticker: { lines: string[]; small: string };
+  /** The closing card's text. */
+  outro: string;
   sentences: Sentence[];
   source: string;
   link: string;
   topic: string | null;
-  impact: { who: string | null; change: string; when: string | null; action: string | null };
+  impact: { who: string | null; change: string | null; when: string | null; action: string | null };
+  /** The summary sentences the "what happened" card may use, as stored. */
+  summary: string[];
+  /** The "what happened" text (the first one or two summary sentences), or null. */
+  what: string | null;
 }
 
 /** Words that charge someone: such a story stays on the site, where the article says who said it. */
@@ -95,49 +102,89 @@ export function spokenText(text: string): string {
 /** Digits in a caption are highlighted ("*600*"), as in the other videos. */
 const highlight = (s: string) => s.replace(/(\S*\d\S*)/g, "*$1*");
 
-/** The spec for one story, or null when it has no usable impact or must not become a video. */
+/** At most this much summary on the "what happened" card. */
+const WHAT_MAX = 210;
+
+/** The first summary sentence, and the second when both fit WHAT_MAX. */
+function whatHappened(summary: string[], headline: string): string | null {
+  const usable = summary.map((x) => clean(x)).filter((x): x is string => x !== null && x.length >= 25 && x !== headline);
+  if (!usable.length || usable[0].length > WHAT_MAX) return null;
+  const two = usable[1] ? `${sentence(usable[0])} ${sentence(usable[1])}` : null;
+  return two && two.length <= WHAT_MAX ? two : sentence(usable[0]);
+}
+
+/** A source name as said and shown: no "(gov.mn)", no domain. */
+const sourceLabel = (name: string) => name.replace(/\s*\([^)]*\)/g, "").replace(/\s+/g, " ").trim();
+
+/** The spec for one story, or null when it has too little to tell or must not become a video. */
 export function impactVideoSpec(story: ImpactStory): ImpactSpec | null {
   const headline = clean(story.title);
+  if (!headline || weighsOrAccuses(headline)) return null;
   const imp = story.impact;
-  if (!headline || !imp || weighsOrAccuses(headline)) return null;
-  const who = clean(imp.who);
-  const change = clean(imp.change);
-  const when = clean(imp.when);
-  const action = clean(imp.action);
-  if (!change || (!who && !when && !action)) return null;
-  if ([headline, who, change, when, action].some((f) => f && CHARGE.test(f))) return null;
+  const who = clean(imp?.who);
+  const change = clean(imp?.change);
+  const when = clean(imp?.when);
+  const action = clean(imp?.action);
+  const summary = (story.summary ?? []).map((x) => x.trim()).filter(Boolean);
+  const what = whatHappened(summary, headline);
+  // Something to tell beyond the headline: what happened, or what changes and for whom / when.
+  if (!what && !(change && (who || when || action))) return null;
+  if ([headline, who, change, when, action, what].some((f) => f && CHARGE.test(f))) return null;
 
-  const cards: ImpactSpec["cards"] = [];
-  if (who) cards.push({ scene: "who", label: "ХЭНД", text: who });
-  cards.push({ scene: "change", label: "ЮУ ӨӨРЧЛӨГДӨХ", text: change });
-  if (when) cards.push({ scene: "when", label: "ХЭЗЭЭНЭЭС", text: when });
-  if (action) cards.push({ scene: "action", label: "ЧИ ЮУ ХИЙХ ВЭ", text: action });
-
+  const source = sourceLabel(story.sourceName);
   const asks: Record<ImpactSpec["cards"][number]["scene"], string> = {
+    what: "Юу болсон бэ?",
     who: "Хэнд хамаатай вэ?",
     change: "Юу өөрчлөгдөх вэ?",
     when: "Хэзээнээс?",
-    action: "Тэгэхээр чи юу хийх вэ?",
+    action: "Тэгэхээр юу хийх вэ?",
   };
-  const sentences: Sentence[] = [
-    { scene: "hook", say: sentence(`Хүлээгээрэй, энэ чамд хамаатай байж магадгүй. ${spokenText(headline)}`), caption: `Энэ чамд хамаатай байж магадгүй: ${highlight(headline)}` },
-    ...cards.map((c) => ({ scene: c.scene, say: `${asks[c.scene]} ${sentence(spokenText(c.text))}`, caption: `${asks[c.scene]} ${highlight(c.text)}` })),
-    { scene: "cta", say: "Энэ чамд хамаатай юу?", caption: "Энэ чамд хамаатай юу?" },
-  ];
-  if (sentences.reduce((n, s) => n + s.say.length + 1, 0) > IMPACT_MAX_CHARS) return null;
+  const labels: Record<ImpactSpec["cards"][number]["scene"], string> = {
+    what: "ЮУ БОЛСОН БЭ",
+    who: "ХЭНД",
+    change: "ЮУ ӨӨРЧЛӨГДӨХ",
+    when: "ХЭЗЭЭНЭЭС",
+    action: "ЮУ ХИЙХ ВЭ",
+  };
+  const hook: Sentence = { scene: "hook", say: sentence(`Сайн байна уу, Ил тод мэдээ. ${spokenText(headline)}`), caption: highlight(headline) };
+  const outro: Sentence = { scene: "cta", say: `Эх сурвалж нь ${source}. Энэ бол Ил тод мэдээ.`, caption: `Эх сурвалж: ${source}` };
+  const candidates: ImpactSpec["cards"] = [];
+  if (what) candidates.push({ scene: "what", label: labels.what, text: what });
+  if (who && change) candidates.push({ scene: "who", label: labels.who, text: who });
+  if (change && (who || when || action || !what)) candidates.push({ scene: "change", label: labels.change, text: change });
+  if (when && change) candidates.push({ scene: "when", label: labels.when, text: when });
+  if (action && change) candidates.push({ scene: "action", label: labels.action, text: action });
+  // Cards in order while the narration stays inside IMPACT_MAX_CHARS (ElevenLabs' daily share).
+  const say = (c: ImpactSpec["cards"][number]) => `${asks[c.scene]} ${sentence(spokenText(c.text))}`;
+  let total = hook.say.length + outro.say.length + 2;
+  const cards: ImpactSpec["cards"] = [];
+  for (const c of candidates) {
+    const n = say(c).length + 1;
+    // "who" alone says nothing: it only goes in with the change after it.
+    if (c.scene === "who" && total + n + say({ ...c, scene: "change", text: change ?? "" }).length + 1 > IMPACT_MAX_CHARS) continue;
+    if (total + n > IMPACT_MAX_CHARS) continue;
+    cards.push(c);
+    total += n;
+  }
+  if (!cards.some((c) => c.scene === "what" || c.scene === "change")) return null;
+  const sentences: Sentence[] = [hook, ...cards.map((c) => ({ scene: c.scene, say: say(c), caption: `${asks[c.scene]} ${highlight(c.text)}` })), outro];
 
   return {
     key: `impact:${story.id}`,
     articleId: story.id,
     series: "30 СЕК МЭДЭЭ",
     headline,
-    sub: `${story.sourceName} · ${story.day.replace(/-/g, ".")}`,
+    sub: `${source} · ${story.day.replace(/-/g, ".")}`,
     cards,
+    sticker: { lines: ["ГОЛ", "МЭДЭЭ"], small: "30 секундэд" },
+    outro: "Баримтаар, эх сурвалжтай",
     sentences,
-    source: `Эх сурвалж: ${story.sourceName} · Товчлол: AI (эх мэдээнээс) · Дуу: AI`,
+    source: `Эх сурвалж: ${source} · Товчлол: AI (эх мэдээнээс) · Дуу: AI`,
     link: `iltodmedee.mn/article/${story.slug}`,
     topic: story.topic,
     impact: { who, change, when, action },
+    summary,
+    what,
   };
 }
 
@@ -154,7 +201,9 @@ export function impactNarration(spec: ImpactSpec): string {
 export function verifyImpactSpec(spec: ImpactSpec): string[] {
   const problems: string[] = [];
   const fields = new Set([spec.impact.who, spec.impact.change, spec.impact.when, spec.impact.action].filter(Boolean));
-  for (const c of spec.cards) if (!fields.has(c.text)) problems.push(`card text not from the story: ${c.text}`);
+  // The "what happened" card is the stored summary's first sentence or two, word for word.
+  const fromSummary = (t: string) => spec.what === t && whatHappened(spec.summary, spec.headline) === t;
+  for (const c of spec.cards) if (c.scene === "what" ? !fromSummary(c.text) : !fields.has(c.text)) problems.push(`card text not from the story: ${c.text}`);
   for (const s of spec.sentences) {
     if (/\d{4}-\d{2}-\d{2}|\d+[.,]\d+\s*(их наяд|тэрбум|сая)|\d+\s*-?\s*(р|дүгээр|дугаар)\s+сар/.test(s.say)) problems.push(`the voice would misread: ${s.say}`);
     if (s.say.includes("*")) problems.push(`markup in the narration: ${s.say}`);

@@ -45,6 +45,7 @@ html,body{background:#8f1013}
 .chip+.chip{background:#fff!important}
 .lbl{border:0;box-shadow:none;border-radius:999px;transform:none;background:${YELLOW}!important;color:${INK};font-size:42px;padding:10px 28px}
 #ask{background:${YELLOW};color:${INK};font-size:168px;line-height:.92}
+#ask small{margin-top:30px}
 #sub,#src,.row .y{color:rgba(255,255,255,.86)}
 #cap{font-size:94px;line-height:1.02;gap:0 22px}
 #cap span{color:#fff;text-shadow:0 4px 0 rgba(70,0,6,.55),0 10px 30px rgba(40,0,4,.6)}

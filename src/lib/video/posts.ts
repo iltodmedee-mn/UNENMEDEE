@@ -36,13 +36,15 @@ export interface MoneyVideoMeta {
   link: string;
 }
 
-/** "ЧАМД ХАМААТАЙ ЮУ?" (impact-video.ts): one decision as the site's "Танд хамаатай юу?" block reads it. */
+/** "30 СЕК МЭДЭЭ" (impact-video.ts): one story told the way a news creator tells it. */
 export interface ImpactVideoMeta {
   kind: "impact";
   articleId: number;
   headline: string;
+  /** "What happened": the AI summary's first sentence or two (videos made before Nov 6 2026 have none). */
+  what?: string | null;
   who: string | null;
-  change: string;
+  change: string | null;
   when: string | null;
   action: string | null;
   sourceName: string;
@@ -58,13 +60,13 @@ function core(v: VideoMeta): string[] {
     return [
       `📌 ${v.headline}`,
       "",
+      ...(v.what ? [`📝 Юу болсон бэ: ${v.what}`] : []),
       ...(v.who ? [`👥 Хэнд: ${v.who}`] : []),
-      `🔄 Юу өөрчлөгдөх: ${v.change}`,
+      ...(v.change ? [`🔄 Юу өөрчлөгдөх: ${v.change}`] : []),
       ...(v.when ? [`📅 Хэзээнээс: ${v.when}`] : []),
-      ...(v.action ? [`✅ Чи юу хийх: ${v.action}`] : []),
+      ...(v.action ? [`✅ Юу хийх: ${v.action}`] : []),
       "",
-      `Эх сурвалж: ${v.sourceName}. «Танд хамаатай юу?» хэсгийг AI эх мэдээнээс товчилсон.`,
-      "Энэ чамд хамаатай юу?",
+      `Эх сурвалж: ${v.sourceName}. Товчлолыг AI эх мэдээнээс хийсэн.`,
     ];
   if (v.kind === "money")
     return [

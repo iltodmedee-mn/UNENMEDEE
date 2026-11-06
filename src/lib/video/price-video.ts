@@ -19,7 +19,7 @@ import { numberWords } from "./mn-numbers";
  * "hook" opens the money videos (money-video.ts) before their guess and the impact videos
  * (impact-video.ts); "who" / "when" / "action" (and "change") are the impact video's cards.
  */
-export type Scene = "hook" | "quiz" | "reveal" | "now" | "relate" | "change" | "year" | "cta" | "who" | "when" | "action";
+export type Scene = "hook" | "quiz" | "reveal" | "now" | "relate" | "change" | "year" | "cta" | "who" | "when" | "action" | "what";
 
 export interface Sentence {
   scene: Scene;

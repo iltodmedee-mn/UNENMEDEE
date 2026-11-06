@@ -12,6 +12,7 @@ import { captionWords, type Timeline } from "./timing";
 import { CINEMA_BG_JS, CINEMA_CSS, CINEMA_LAYERS, posterFontFace } from "./theme";
 
 const CARD_COLORS: Record<ImpactSpec["cards"][number]["scene"], string> = {
+  what: "#ffd166",
   who: "#2de2b0",
   change: "#ffd166",
   when: "#ff4fa3",
@@ -25,6 +26,8 @@ export function impactHtml(spec: ImpactSpec, tl: Timeline, assets: SceneAssets):
     sub: spec.sub,
     source: spec.source,
     cards: spec.cards.map((c) => ({ ...c, color: CARD_COLORS[c.scene] })),
+    sticker: spec.sticker,
+    outro: spec.outro,
     link: spec.link.replace(/\/article\/.*$/, ""),
     scenes: spec.sentences.map((s) => s.scene),
     words: spec.sentences.map((s) => captionWords(s.caption)),
@@ -74,9 +77,9 @@ ${CINEMA_CSS}</style></head><body>
 <div id="head" class="abs"><img src="file://${assets.logo}" alt=""><b>ИЛ ТОД МЭДЭЭ</b><span id="tag"></span></div>
 <div id="card" class="abs sticker"><div id="hl"></div></div>
 <div id="sub" class="abs mono"></div>
-<div id="L-hook" class="layer"><div id="ask" class="sticker disp">ЧАМД<br>ХАМААТАЙ<br>ЮУ?<small>30 секундэд ойлгоё</small></div></div>
+<div id="L-hook" class="layer"><div id="ask" class="sticker disp"></div></div>
 <div id="cards"></div>
-<div id="L-cta" class="layer"><div id="bubble" class="sticker">Чамд хамаатай юу?</div>
+<div id="L-cta" class="layer"><div id="bubble" class="sticker"></div>
  <div class="chips"><span class="chip sticker">iltodmedee.mn</span><span class="chip sticker" style="background:#2de2b0">Эх сурвалжтай</span></div>
  <div id="link"></div><div id="src" class="mono"></div></div>
 <div id="cap" class="abs"></div>
@@ -87,12 +90,15 @@ const T=D.tl, S=T.starts;
 const $=id=>document.getElementById(id);
 const clamp=v=>v<0?0:v>1?1:v;
 const spring=t=>{t=clamp(t);return 1-Math.exp(-6*t)*Math.cos(9*t)};
+for(const [i,l] of D.sticker.lines.entries()){if(i)$('ask').appendChild(document.createElement('br'));$('ask').appendChild(document.createTextNode(l))}
+{const sm=document.createElement('small');sm.textContent=D.sticker.small;$('ask').appendChild(sm)}
+$('bubble').textContent=D.outro;
 $('tag').textContent=D.series;$('hl').textContent=D.headline;$('sub').textContent=D.sub;$('link').textContent=D.link;$('src').textContent=D.source;
 for(const c of D.cards){const l=document.createElement('div');l.className='layer';l.id='L-'+c.scene;
  const b=document.createElement('span');b.className='lbl';b.style.background=c.color;b.textContent=c.label;
  const box=document.createElement('div');box.className='box sticker';const p=document.createElement('p');p.textContent=c.text;box.appendChild(p);
  l.append(b,box);$('cards').appendChild(l)}
-const COLORS={hook:['#ff3d6e','#ffd166'],who:['#2de2b0','#3a7bff'],change:['#ffd166','#ff4fa3'],when:['#ff4fa3','#7b5cff'],action:['#3a7bff','#2de2b0'],cta:['#0fb5ae','#ff4fa3']};
+const COLORS={what:['#ffd166','#ff4fa3'],hook:['#ff3d6e','#ffd166'],who:['#2de2b0','#3a7bff'],change:['#ffd166','#ff4fa3'],when:['#ff4fa3','#7b5cff'],action:['#3a7bff','#2de2b0'],cta:['#0fb5ae','#ff4fa3']};
 const LAYERS=['hook',...D.cards.map(c=>c.scene),'cta'];
 function sceneAt(t){let s=0;for(let i=0;i<S.length;i++)if(t>=S[i]-0.12)s=i;return s}
 window.render=function(t){
