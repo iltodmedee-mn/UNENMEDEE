@@ -4,6 +4,9 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
 import { ShareButton } from "@/components/iltod/share-button";
+import { ProgrammeClock } from "@/components/promises/programme-clock";
+import { ubDateKey } from "@/lib/archive";
+import { cacheLife } from "next/cache";
 import { ALL_DIRECTIONS, findDirection, PROGRAMME } from "@/lib/promises";
 import {
   directionGoals,
@@ -13,6 +16,13 @@ import {
   type ProgrammeGoal,
 } from "@/lib/promises/programme";
 import { absoluteUrl, jsonLd, SITE_NAME } from "@/lib/site";
+
+/** Today in Ulaanbaatar for the programme clock: a daily cached entry, so the page stays static. */
+async function programmeToday(): Promise<string> {
+  "use cache";
+  cacheLife("days");
+  return ubDateKey(Date.now());
+}
 
 /** All 16 directions are prerendered: the text never changes between imports. */
 export function generateStaticParams() {
@@ -141,6 +151,7 @@ async function DirectionView({
           Текстийг өөрчлөлтгүй авсан (эх сурвалж: {PROGRAMME.act}); хэрэгжилтийг
           бид дүгнэхгүй.
         </p>
+        <ProgrammeClock today={await programmeToday()} approved={PROGRAMME.approved} compact />
         <ShareButton
           path={path}
           title={`${direction.title}: Засгийн газрын амлалт`}

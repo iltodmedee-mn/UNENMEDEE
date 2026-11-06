@@ -163,3 +163,15 @@ export function directionGoals(d: ProgrammeDirection): ProgrammeGoal[] {
 /** "1.1" → "1-1" for URLs, and back. */
 export const directionSlug = (id: string) => id.replace(".", "-");
 export const directionId = (slug: string) => (/^\d-\d{1,2}$/.test(slug) ? slug.replace("-", ".") : null);
+
+/**
+ * Time on the programme's clock (Nov 2026, the research round's "deadline" ask): 619 of the 620
+ * goals name no date of their own, so the one deadline is the programme's end. Days are
+ * Ulaanbaatar days; `elapsedPct` is time passed, never a share of goals met.
+ */
+export function programmeClock(today: string, approved: string, end: string = PROGRAMME_END): { totalDays: number; daysLeft: number; elapsedPct: number } {
+  const day = (s: string) => Date.parse(`${s}T00:00:00Z`) / 86_400_000;
+  const total = day(end) - day(approved);
+  const passed = Math.min(Math.max(day(today) - day(approved), 0), total);
+  return { totalDays: total, daysLeft: total - passed, elapsedPct: total > 0 ? Math.round((passed / total) * 100) : 100 };
+}

@@ -3,7 +3,7 @@ import { describe, it } from "node:test";
 import { deflateRawSync } from "node:zlib";
 
 import { ALL_DIRECTIONS, ALL_GOALS, PROGRAMME } from "@/lib/promises";
-import { directionId, directionSlug, docxParagraphs, isMeasurable, parseProgramme } from "@/lib/promises/programme";
+import { directionId, directionSlug, docxParagraphs, isMeasurable, parseProgramme, programmeClock } from "@/lib/promises/programme";
 import { readZipEntry } from "@/lib/promises/zip";
 
 // The shape of the official annex (State Great Khural resolution No. 21 of 2024, annex 1).
@@ -128,5 +128,15 @@ describe("imported programme (src/lib/promises/programme-2024.json)", () => {
     assert.equal(new Set(ALL_GOALS.map((g) => g.id)).size, ALL_GOALS.length);
     for (const { direction } of ALL_DIRECTIONS) for (const s of direction.sections) for (const g of s.goals) assert.ok(g.id.startsWith(`${s.id}.`), g.id);
     assert.match(PROGRAMME.sourceUrl, /^https:\/\/legalinfo\.mn\//);
+  });
+});
+
+describe("programme clock", () => {
+  it("counts the days from approval to the programme's end, as time passed and never as goals met", () => {
+    assert.deepEqual(programmeClock("2024-08-27", "2024-08-27"), { totalDays: 1404, daysLeft: 1404, elapsedPct: 0 });
+    assert.deepEqual(programmeClock("2026-11-06", "2024-08-27"), { totalDays: 1404, daysLeft: 603, elapsedPct: 57 });
+    assert.deepEqual(programmeClock("2028-07-01", "2024-08-27"), { totalDays: 1404, daysLeft: 0, elapsedPct: 100 });
+    assert.deepEqual(programmeClock("2030-01-01", "2024-08-27"), { totalDays: 1404, daysLeft: 0, elapsedPct: 100 });
+    assert.equal(programmeClock("2024-01-01", "2024-08-27").elapsedPct, 0, "before approval nothing has passed");
   });
 });
