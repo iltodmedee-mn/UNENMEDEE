@@ -14,6 +14,7 @@ import postgres from "postgres";
 import { closeDb, getDb, isLocalDatabase, isPgliteUrl } from "@/db";
 import { databaseTls, withoutSslParams } from "@/db/tls";
 import { migrateDemo } from "@/db/demo-migrate";
+import { errorDetail } from "@/lib/log-safe";
 
 /** Host, port and user only, so logs help debug a wrong secret without leaking the password. */
 function describe(url: string): string {
@@ -92,4 +93,7 @@ async function main() {
   }
 }
 
-main();
+main().catch((err) => {
+  console.error(`::error::migrate crashed: ${errorDetail(err)}`);
+  process.exitCode = 1;
+});

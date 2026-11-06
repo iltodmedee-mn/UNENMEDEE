@@ -75,6 +75,8 @@ export async function sendTestPush(endpoint: unknown): Promise<{ ok: boolean; er
   if (lastTest.size > 1_000) for (const [k, t] of lastTest) if (now - t > 60_000) lastTest.delete(k);
   const res = await sendToEndpoint(getDb(), endpoint, TEST_PAYLOAD);
   if (res.ok) return { ok: true };
+  // The push service's own words reach the log, not the browser (they can name the VAPID key).
+  if (res.message) console.warn(`[push] test to ${new URL(endpoint).host} failed: ${res.message}`);
   return { ok: false, error: res.status === 404 || res.status === 410 ? "Бүртгэл хүчингүй болсон. Мэдэгдлээ дахин асаана уу." : `Илгээж чадсангүй (${res.status ?? "алдаа"}).` };
 }
 

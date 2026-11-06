@@ -12,6 +12,7 @@ import { parseArgs } from "node:util";
 import { docxParagraphs, parseProgramme, type Programme } from "@/lib/promises/programme";
 import { readZipEntry } from "@/lib/promises/zip";
 import { politeFetch } from "@/lib/scraper/http";
+import { errorDetail } from "@/lib/log-safe";
 
 const SOURCE_URL = "https://legalinfo.mn/mn/detail?lawId=17141368141311";
 const FILE_URL = "https://legalinfo.mn/storage/uploads/process/202409/file_1726126680639198_15996199185590.docx";
@@ -43,6 +44,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("✗", err instanceof Error ? err.message : err);
+  console.error(`::error::promises:import failed: ${errorDetail(err)}`);
   process.exitCode = 1;
 });

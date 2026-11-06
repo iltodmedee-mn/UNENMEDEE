@@ -25,6 +25,7 @@ import { htmlFragmentToText } from "@/lib/scraper/extractor";
 import { politeFetch } from "@/lib/scraper/http";
 import { isWordPress, sameSite, wordPressApiBase, wordPressPostId, wordPressPostsUrl } from "@/lib/scraper/links";
 import { decide, type FetchResult, MIN_FRESH_CHARS, type SourceDiff, type SourceStatus } from "@/lib/scraper/recheck";
+import { errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -57,7 +58,9 @@ interface Row {
 async function fetchText(row: Row): Promise<FetchResult> {
   try {
     return await readPage(row);
-  } catch {
+  } catch (err) {
+    // Skipped, not counted as changed; but say why, or a dead source reads as "never re-read".
+    console.warn(`  ⚠ #${row.id} could not be re-read: ${errorLine(err, 200)}`);
     return { kind: "error" };
   }
 }
@@ -103,7 +106,8 @@ async function wordPressText(html: string, row: Row): Promise<string | null> {
     const posts = JSON.parse(await res.text()) as unknown;
     const rendered = Array.isArray(posts) ? (posts[0] as { content?: { rendered?: unknown } } | undefined)?.content?.rendered : undefined;
     return typeof rendered === "string" ? htmlFragmentToText(rendered) : null;
-  } catch {
+  } catch (err) {
+    console.warn(`  ⚠ WordPress post ${id} at ${base}: ${errorLine(err, 200)}`);
     return null;
   }
 }

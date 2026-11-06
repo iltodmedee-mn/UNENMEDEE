@@ -12,6 +12,7 @@ import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { exportTables, markBackup } from "@/lib/backup";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { mark: { type: "boolean", default: false } } });
 
@@ -36,7 +37,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err instanceof Error ? err.message : err);
+    console.error(`::error::backup failed: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

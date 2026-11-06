@@ -14,6 +14,7 @@ import type { ArticleForPost, DigestForPost } from "./facebook";
 import type { Quiz } from "./quiz";
 import { publishStep, UnknownOutcomeError } from "./outcome";
 import { cut } from "./threads";
+import { readJsonBody } from "@/lib/read-json";
 
 export const DISCORD_API = "https://discord.com/api/v10";
 /** Discord's limit for a message's text. */
@@ -149,7 +150,7 @@ export async function publishDiscord(opts: {
   const headers = { authorization: `Bot ${opts.token}`, "content-type": "application/json" };
   const call = async (path: string, body?: unknown) => {
     const res = await f(`${DISCORD_API}${path}`, { method: "POST", headers, body: body === undefined ? undefined : JSON.stringify(body), signal: AbortSignal.timeout(30_000) });
-    const json = (await res.json().catch(() => ({}))) as { id?: string; message?: string; code?: number };
+    const json = (await readJsonBody(res)) as { id?: string; message?: string; code?: number };
     if (!res.ok) throw new DiscordError(`Discord ${res.status}: ${(json.message ?? "request failed").replaceAll(opts.token, "***")}`.slice(0, 300), res.status);
     return json;
   };

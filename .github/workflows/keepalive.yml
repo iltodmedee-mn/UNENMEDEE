@@ -44,7 +44,10 @@ jobs:
             fi
           done < workflows.tsv
           # Check the result: anything not active now (apart from a manual disable) is a problem.
-          gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows" --jq '.workflows[] | select(.state != "active" and .state != "disabled_manually") | "\(.path) \(.state)"' > stuck.txt || true
+          # "|| true" here read a failed API call as "nothing stuck": the check must fail loudly instead.
+          if ! gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows" --jq '.workflows[] | select(.state != "active" and .state != "disabled_manually") | "\(.path) \(.state)"' > stuck.txt; then
+            echo "::error::could not list the workflows again to verify (API or token problem)"; failed=$((failed + 1))
+          fi
           if [ -s stuck.txt ]; then
             while read -r line; do echo "::error::still not active: $line"; done < stuck.txt
             failed=$((failed + 1))

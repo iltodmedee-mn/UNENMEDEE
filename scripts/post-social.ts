@@ -43,6 +43,7 @@ import { PRODUCTION_URL } from "@/lib/site";
 import { outcomeUnknown } from "@/lib/social/outcome";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
+import { errorDetail, errorLine } from "@/lib/log-safe";
 import { duePromo, type PromoPost } from "@/lib/social/promo";
 import {
   answersCaption,
@@ -202,7 +203,9 @@ async function storedToken(db: Db, key: string, envToken: string | undefined, re
   let stored: TokenState | null = null;
   try {
     stored = row ? (JSON.parse(row.value) as TokenState) : null;
-  } catch {
+  } catch (err) {
+    // A corrupt row means the seed secret is used again as if new; say so instead of resetting silently.
+    console.warn(`::warning::app_settings "${key}" is not valid JSON (${errorLine(err, 120)}): the stored token is ignored and the secret seeds it again.`);
     stored = null;
   }
   let state = currentState(stored, envToken);
@@ -643,7 +646,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error("✗ Social post failed:", err instanceof Error ? err.message : err);
+    console.error(`::error::Social post failed: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

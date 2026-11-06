@@ -5,7 +5,7 @@ import type { DB } from "@/db";
 import { appSettings, pushSubscriptions } from "@/db/schema";
 
 import { classifyPushFailure, isSystemicFailure, MAX_PUSH_FAILURES, type PushPayload } from "./core";
-import { oneLine } from "@/lib/log-safe";
+import { errorLine, oneLine } from "@/lib/log-safe";
 
 /**
  * Web Push sending (GitHub Actions) and key storage.
@@ -48,7 +48,7 @@ export async function ensureVapidKeys(db: DB): Promise<{ publicKey: string; priv
 }
 
 /** Sends one payload to one stored subscription (the "test" button). */
-export async function sendToEndpoint(db: DB, endpoint: string, payload: PushPayload): Promise<{ ok: boolean; status?: number }> {
+export async function sendToEndpoint(db: DB, endpoint: string, payload: PushPayload): Promise<{ ok: boolean; status?: number; message?: string }> {
   const [s] = await db.select().from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).limit(1);
   if (!s) return { ok: false, status: 404 };
   const { publicKey, privateKey } = await ensureVapidKeys(db);
@@ -60,7 +60,8 @@ export async function sendToEndpoint(db: DB, endpoint: string, payload: PushPayl
   } catch (err) {
     const status = (err as { statusCode?: number }).statusCode;
     if (status === 404 || status === 410) await db.delete(pushSubscriptions).where(eq(pushSubscriptions.id, s.id));
-    return { ok: false, status };
+    // The push service's answer (VAPID mismatch, bad key…) for the admin's test button, not only a number.
+    return { ok: false, status, message: errorLine(err, 200) };
   }
 }
 

@@ -14,6 +14,7 @@ import type { ReaderImpact } from "@/lib/types";
 import { hashtags } from "./hashtags";
 import { maybePublished, UnknownOutcomeError, publishStep } from "./outcome";
 import { factShareLine, impactLines, keyFacts } from "./story-lines";
+import { readJsonBody } from "@/lib/read-json";
 
 export const GRAPH_VERSION = process.env.FB_GRAPH_VERSION || "v26.0";
 
@@ -139,7 +140,7 @@ export async function resolveFacebookPage(opts: { token: string; pageId?: string
   const base = `https://graph.facebook.com/${opts.version ?? GRAPH_VERSION}`;
   const get = async <T>(path: string): Promise<T & { error?: { message?: string } }> => {
     const res = await f(`${base}${path}`, { headers: { authorization: `Bearer ${opts.token}` }, signal: AbortSignal.timeout(15_000) });
-    return (await res.json().catch(() => ({}))) as T & { error?: { message?: string } };
+    return (await readJsonBody(res)) as T & { error?: { message?: string } };
   };
   // Only a user has the "accounts" edge (the Pages it manages); a Page token gets an error here.
   const accounts = await get<{ data?: { id: string; access_token?: string }[] }>("/me/accounts?fields=id,access_token&limit=100");
@@ -169,7 +170,7 @@ export async function publishToPage(opts: { pageId: string; token: string; post:
     body,
     signal: AbortSignal.timeout(30_000),
   });
-  const json = (await res.json().catch(() => ({}))) as { id?: string; post_id?: string; error?: { message?: string; code?: number } };
+  const json = (await readJsonBody(res)) as { id?: string; post_id?: string; error?: { message?: string; code?: number } };
   if (!res.ok) {
     const err = new FacebookError(`Facebook ${res.status}: ${json.error?.message ?? "request failed"}`.slice(0, 300), res.status, json.error?.code);
     // One call both creates and publishes: a 5xx or a transient error may have posted it.
@@ -190,7 +191,7 @@ export async function publishAlbum(opts: { pageId: string; token: string; imageU
   const f = opts.fetchImpl ?? fetch;
   const page = `https://graph.facebook.com/${opts.version ?? GRAPH_VERSION}/${encodeURIComponent(opts.pageId)}`;
   const read = async (res: Response, what: string) => {
-    const json = (await res.json().catch(() => ({}))) as { id?: string; post_id?: string; error?: { message?: string; code?: number } };
+    const json = (await readJsonBody(res)) as { id?: string; post_id?: string; error?: { message?: string; code?: number } };
     if (!res.ok || json.error) throw new FacebookError(`Facebook ${what} ${res.status}: ${json.error?.message ?? "request failed"}`.slice(0, 300), res.status, json.error?.code);
     return json;
   };
@@ -240,7 +241,7 @@ export async function publishReel(opts: {
   const version = opts.version ?? GRAPH_VERSION;
   const edge = `https://graph.facebook.com/${version}/${encodeURIComponent(opts.pageId)}/video_reels`;
   const read = async (res: Response, what: string) => {
-    const json = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: { message?: string; code?: number } };
+    const json = (await readJsonBody(res)) as Record<string, unknown> & { error?: { message?: string; code?: number } };
     if (!res.ok || json.error) throw new FacebookError(`Facebook ${what} ${res.status}: ${json.error?.message ?? "request failed"}`.slice(0, 300), res.status, json.error?.code);
     return json;
   };
@@ -272,7 +273,7 @@ export async function publishReel(opts: {
   for (let i = 0; i < 12; i++) {
     await sleep(5_000);
     const res = await f(`https://graph.facebook.com/${version}/${encodeURIComponent(videoId)}?fields=status`, { headers: { authorization: `Bearer ${opts.token}` }, signal: AbortSignal.timeout(15_000) });
-    const json = (await res.json().catch(() => ({}))) as { status?: { video_status?: string; processing_phase?: { status?: string; error?: { message?: string } } } };
+    const json = (await readJsonBody(res)) as { status?: { video_status?: string; processing_phase?: { status?: string; error?: { message?: string } } } };
     const st = json.status;
     if (st?.video_status === "error" || st?.processing_phase?.status === "error") throw new FacebookError(`Facebook reel processing failed: ${st.processing_phase?.error?.message ?? "error"}`.slice(0, 300), 200);
     if (st?.video_status === "ready" || st?.video_status === "published") break;

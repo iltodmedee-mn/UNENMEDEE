@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 
-export type Reply = { status?: number; content?: string; promptTokens?: number; completionTokens?: number; cost?: number };
+export type Reply = { status?: number; content?: string; promptTokens?: number; completionTokens?: number; cost?: number; /** The reply stopped at the output limit (finish_reason "length" / MAX_TOKENS). */ truncated?: boolean };
 
 /**
  * Minimal OpenAI-compatible /chat/completions server that also answers Gemini's native
@@ -28,7 +28,7 @@ export async function startMockLLM(respond: (model: string, callIndex: number, b
         }
         res.end(
           JSON.stringify({
-            candidates: [{ content: { role: "model", parts: [{ text: r.content ?? "{}" }] }, finishReason: "STOP" }],
+            candidates: [{ content: { role: "model", parts: [{ text: r.content ?? "{}" }] }, finishReason: r.truncated ? "MAX_TOKENS" : "STOP" }],
             usageMetadata: { promptTokenCount: r.promptTokens ?? 1000, candidatesTokenCount: r.completionTokens ?? 500, thoughtsTokenCount: 0 },
           }),
         );
@@ -47,7 +47,7 @@ export async function startMockLLM(respond: (model: string, callIndex: number, b
           object: "chat.completion",
           created: 0,
           model: body.model,
-          choices: [{ index: 0, finish_reason: "stop", message: { role: "assistant", content: r.content ?? "{}" } }],
+          choices: [{ index: 0, finish_reason: r.truncated ? "length" : "stop", message: { role: "assistant", content: r.content ?? "{}" } }],
           usage: { prompt_tokens: r.promptTokens ?? 1000, completion_tokens: r.completionTokens ?? 500, total_tokens: 1500, ...(r.cost !== undefined && { cost: r.cost }) },
         }),
       );

@@ -40,6 +40,7 @@ import { dueSlot, kindsFor, type VideoSlot } from "@/lib/video/schedule";
 import { buildTimeline, plausibleTake, sentenceStarts, speechBounds, type Timeline } from "@/lib/video/timing";
 import { CreditsRefused, describeSecret, elevenLabsFromEnv, speakElevenLabs } from "@/lib/video/elevenlabs";
 import { speak } from "@/lib/video/tts";
+import { errorDetail } from "@/lib/log-safe";
 
 /** The MP4 is kept this long for the platforms to fetch it from /reel, then cleared. */
 export const VIDEO_KEEP_DAYS = 3;
@@ -267,7 +268,7 @@ async function priceJob(db: DB, snap: PricesSnapshot | null): Promise<Job | null
 
 main()
   .catch((err) => {
-    console.error(`::error::make-video: ${err instanceof Error ? err.message : err}`);
+    console.error(`::error::make-video: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

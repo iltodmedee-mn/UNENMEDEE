@@ -14,6 +14,7 @@ import type { ArticleForPost, DigestForPost } from "./facebook";
 import { hashtags } from "./hashtags";
 import { factShareLine, impactLines, keyFacts } from "./story-lines";
 import { publishStep } from "./outcome";
+import { readJsonBody } from "@/lib/read-json";
 
 export const INSTAGRAM_API = "https://graph.instagram.com";
 export const INSTAGRAM_VERSION = process.env.IG_GRAPH_VERSION || "v26.0";
@@ -91,7 +92,7 @@ const notReady = (err: unknown) => err instanceof InstagramError && err.code ===
 
 async function call(fetchImpl: Fetch, url: string, init?: RequestInit): Promise<Record<string, unknown>> {
   const res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(60_000) });
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: { message?: string; code?: number } };
+  const json = (await readJsonBody(res)) as Record<string, unknown> & { error?: { message?: string; code?: number } };
   if (!res.ok || json.error) throw new InstagramError(`Instagram ${res.status}: ${json.error?.message ?? "request failed"} (code ${json.error?.code ?? "?"})`.slice(0, 300), json.error?.code);
   return json;
 }

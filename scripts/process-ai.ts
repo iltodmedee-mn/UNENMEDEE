@@ -29,7 +29,7 @@ import { extractiveSummary, FALLBACK_AFTER_HOURS, FALLBACK_IMPORTANCE, RETRY_FAL
 import { AIUnavailableError } from "@/lib/ai/router";
 import { budgetConfig } from "@/lib/ai/limits";
 import { consoleUsageLogger, dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-log";
-import { oneLine } from "@/lib/log-safe";
+import { errorDetail, oneLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -179,6 +179,7 @@ async function main() {
   let cost = 0;
   let consecutiveProviderFailures = 0;
   let budgetStop = false;
+  let unexpected = 0;
   const analyzed: number[] = [];
 
   const budgetMin = Math.max(0, Number(values.budget) || 0);
@@ -215,9 +216,16 @@ async function main() {
         budgetStop = true; // no provider configured: stop, but still cluster what was analysed
         break;
       }
-      const message = err instanceof Error ? err.message : String(err);
-      const details = err instanceof AIUnavailableError ? err.attempts.join(" | ") : message;
-      const badOutput = err instanceof AIUnavailableError ? shouldPark(err.attempts) : false;
+      if (!(err instanceof AIUnavailableError)) {
+        // Not a provider problem: a bug in processArticle or a database error. It used to print
+        // 160 characters of message with no stack and leave the step green.
+        unexpected++;
+        process.exitCode = 1;
+        console.error(`::error::#${a.id} processArticle crashed (not an AI provider failure): ${errorDetail(err)}`);
+        continue;
+      }
+      const details = err.attempts.join(" | ");
+      const badOutput = shouldPark(err.attempts);
       if (badOutput) {
         // The model cannot handle this text: park it so we do not pay for it every run.
         await db.update(articles).set({ aiError: details.slice(0, 500) }).where(eq(articles.id, a.id));
@@ -242,6 +250,7 @@ async function main() {
 
   const monthTotal = await syncLedgerAiCost(db);
   console.log(`\n📊 Analyzed ${done}/${pending.length}; ${flagged} high-risk (deep analysis). Run cost $${cost.toFixed(6)}; month total $${monthTotal.toFixed(6)}.`);
+  if (unexpected) console.error(`::error::${unexpected} article(s) crashed in code, not at a provider (see above); they stay queued and the step is red.`);
 }
 
 main()
@@ -250,7 +259,7 @@ main()
       console.error(`✗ ${err.message}`);
       for (const a of err.attempts) console.error(`   - ${a}`);
     } else {
-      console.error("✗ AI pipeline crashed:", err);
+      console.error(`::error::AI pipeline crashed: ${errorDetail(err)}`);
     }
     process.exitCode = 1;
   })

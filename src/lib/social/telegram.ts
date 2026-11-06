@@ -6,6 +6,7 @@
  */
 import { articlePost, digestPost, type ArticleForPost, type DigestForPost } from "./facebook";
 import { maybePublished, UnknownOutcomeError } from "./outcome";
+import { readJsonBody } from "@/lib/read-json";
 
 export const TELEGRAM_API = "https://api.telegram.org";
 /** Telegram's caption limit for photos. */
@@ -79,7 +80,7 @@ export async function publishTelegram(opts: { token: string; chatId: string; pos
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(30_000),
   });
-  const json = (await res.json().catch(() => ({}))) as { ok?: boolean; result?: { message_id?: number }; description?: string };
+  const json = (await readJsonBody(res)) as { ok?: boolean; result?: { message_id?: number }; description?: string };
   if (!res.ok || json.ok === false) {
     const why = (json.description ?? "request failed").replaceAll(opts.token, "***");
     const err = new TelegramError(`Telegram ${res.status}: ${why}`.slice(0, 300), res.status);

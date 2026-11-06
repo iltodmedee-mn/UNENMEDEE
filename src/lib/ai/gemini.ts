@@ -4,6 +4,8 @@
  * system instructions, thinking control and exact token usage in one call.
  */
 
+import { oneLine } from "@/lib/log-safe";
+
 export interface ChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -14,6 +16,8 @@ export interface GeminiResult {
   promptTokens: number;
   /** Visible output + "thinking" tokens (both are billed as output on paid tiers). */
   completionTokens: number;
+  /** finishReason MAX_TOKENS: the reply stopped at the output limit. */
+  truncated?: boolean;
 }
 
 export class GeminiError extends Error {
@@ -58,12 +62,19 @@ export async function geminiGenerate(opts: {
     signal: AbortSignal.timeout(opts.timeoutMs ?? 120_000),
   });
 
-  const body = (await res.json().catch(() => ({}))) as {
+  // Read the text first: a gateway's HTML 502 used to become "{}" and an error naming only the status.
+  const raw = await res.text();
+  let body: {
     error?: { message?: string };
     candidates?: { content?: { parts?: { text?: string; thought?: boolean }[] }; finishReason?: string }[];
     usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number; thoughtsTokenCount?: number };
-  };
-  if (!res.ok) throw new GeminiError(`${res.status} ${body.error?.message ?? res.statusText}`, res.status);
+  } = {};
+  try {
+    body = JSON.parse(raw);
+  } catch {
+    body = {};
+  }
+  if (!res.ok) throw new GeminiError(`${res.status} ${body.error?.message ?? (oneLine(raw, 200) || res.statusText)}`, res.status);
 
   const parts = body.candidates?.[0]?.content?.parts ?? [];
   const content = parts.filter((p) => !p.thought).map((p) => p.text ?? "").join("");
@@ -72,5 +83,6 @@ export async function geminiGenerate(opts: {
     content,
     promptTokens: u.promptTokenCount ?? 0,
     completionTokens: (u.candidatesTokenCount ?? 0) + (u.thoughtsTokenCount ?? 0),
+    truncated: body.candidates?.[0]?.finishReason === "MAX_TOKENS",
   };
 }

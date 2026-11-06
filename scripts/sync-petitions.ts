@@ -14,7 +14,7 @@ import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { indicatorSnapshots } from "@/db/schema";
-import { oneLine } from "@/lib/log-safe";
+import { errorDetail, oneLine } from "@/lib/log-safe";
 import { isOpen, openPetitions, parsePetitions, type Petition, PETITION_SITE, type PetitionsSnapshot } from "@/lib/participation/petitions";
 import { politeFetch } from "@/lib/scraper/http";
 import { unshoutTitle } from "@/lib/scraper/titles";
@@ -52,7 +52,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(`✗ petitions:sync failed: ${oneLine(err instanceof Error ? err.message : String(err))}`);
+    console.error(`::error::petitions:sync failed: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

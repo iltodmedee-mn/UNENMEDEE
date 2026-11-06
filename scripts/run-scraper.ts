@@ -20,6 +20,7 @@ import { createDbSink, loadDueSources, recordSourceResults } from "@/lib/scraper
 import type { ScrapedItem, SourceRef, SourceRunResult } from "@/lib/scraper/types";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { contentHash } from "@/lib/text";
+import { errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -84,7 +85,9 @@ async function runApiSource(source: SourceRef, sink: ArticleSink, fetchItems: (l
       else result.skippedDuplicates += 1;
     }
   } catch (err) {
-    result.error = err instanceof Error ? err.message : String(err);
+    // One line (it reaches the Actions log and `last_error`), with the cause: "fetch failed" alone
+    // hid ECONNREFUSED / ETIMEDOUT / a certificate error.
+    result.error = errorLine(err);
   }
   return result;
 }

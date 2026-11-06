@@ -13,6 +13,7 @@ import { PRODUCTION_URL } from "@/lib/site";
 import type { ArticleForPost, DigestForPost } from "./facebook";
 import { hashtags } from "./hashtags";
 import { publishStep } from "./outcome";
+import { readJsonBody } from "@/lib/read-json";
 
 export const THREADS_API = "https://graph.threads.com";
 export const THREADS_SETTINGS_KEY = "threads";
@@ -75,7 +76,7 @@ type Fetch = typeof fetch;
 
 async function call(fetchImpl: Fetch, url: string, init?: RequestInit): Promise<Record<string, unknown>> {
   const res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(30_000) });
-  const json = (await res.json().catch(() => ({}))) as Record<string, unknown> & { error?: { message?: string; code?: number } };
+  const json = (await readJsonBody(res)) as Record<string, unknown> & { error?: { message?: string; code?: number } };
   if (!res.ok || json.error) throw new Error(`Threads ${res.status}: ${json.error?.message ?? "request failed"} (code ${json.error?.code ?? "?"})`.slice(0, 300));
   return json;
 }

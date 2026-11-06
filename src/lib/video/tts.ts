@@ -8,6 +8,7 @@
 import type { BudgetGuard } from "@/lib/ai/limits";
 import { estimateCostUsd } from "@/lib/ai/pricing";
 import type { UsageLogger } from "@/lib/ai/router";
+import { readJsonBody } from "@/lib/read-json";
 
 export const TTS_MODEL = process.env.GEMINI_TTS_MODEL?.trim() || "gemini-3.8-flash-tts";
 export const TTS_VOICE = process.env.GEMINI_TTS_VOICE?.trim() || "Aoede";
@@ -72,7 +73,7 @@ export async function speak(opts: {
     }),
     signal: AbortSignal.timeout(180_000),
   });
-  const body = (await res.json().catch(() => ({}))) as {
+  const body = (await readJsonBody(res)) as {
     error?: { message?: string };
     candidates?: { content?: { parts?: { inlineData?: { mimeType?: string; data?: string } }[] } }[];
     usageMetadata?: { promptTokenCount?: number; candidatesTokenCount?: number };
