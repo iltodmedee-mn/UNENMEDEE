@@ -13,7 +13,8 @@ pipeline's first step) and, after an hour without one, asks GitHub to start a ru
    **Fine-grained tokens** → Generate new token.
    - Token name: `iltodmedee-pipeline-fallback`
    - Expiration: 1 жил (дуусахын өмнө 3-р алхмыг дахин хийнэ)
-   - Repository access: **Only select repositories** → `tmorius-eng/UNENMEDEE`
+   - Resource owner: **iltodmedee-mn** (байгууллага; хувийн account-ын token энэ репод хандаж чадахгүй)
+   - Repository access: **Only select repositories** → `iltodmedee-mn/UNENMEDEE`
    - Permissions → Repository permissions → **Actions: Read and write**. Өөр юу ч сонгохгүй
      (Metadata: Read автоматаар нэмэгдэнэ).
    - Generate token → хуулж авна. Чатад, issue-д, файлд хэзээ ч бүү буулга.
@@ -22,7 +23,7 @@ pipeline's first step) and, after an hour without one, asks GitHub to start a ru
 3. **Token-ийг Vault-д хадгалах.** Мөн SQL Editor дээр, `ghp_…`/`github_pat_…`-ийн оронд өөрийн
    token-ийг тавьж:
    ```sql
-   select vault.create_secret('github_pat_ЭНД_TOKEN', 'github_dispatch_token', 'pipeline fallback: Actions write on tmorius-eng/UNENMEDEE');
+   select vault.create_secret('github_pat_ЭНД_TOKEN', 'github_dispatch_token', 'pipeline fallback: Actions write on iltodmedee-mn/UNENMEDEE');
    ```
    Token солих үед (жилд нэг): `select vault.update_secret((select id from vault.secrets where name = 'github_dispatch_token'), 'шинэ_token');`
    Дараа нь шинэ token-ий дуусах өдрийг бичнэ, watchdog 30 хоногийн өмнө сануулна:

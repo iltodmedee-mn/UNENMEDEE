@@ -5,7 +5,7 @@
 -- has started in the last 60 minutes (app_settings.pipeline_started_at, written by the pipeline's
 -- first step, `npm run pipeline:mark`) or a dispatch was sent in the last 30 minutes. Otherwise it
 -- POSTs GitHub's workflow_dispatch for autonomous-news-pipeline.yml on main with a fine-grained
--- token kept in Supabase Vault (name `github_dispatch_token`; repository tmorius-eng/UNENMEDEE
+-- token kept in Supabase Vault (name `github_dispatch_token`; repository iltodmedee-mn/UNENMEDEE
 -- only, permission "Actions: Read and write" only). No token in Vault = nothing happens.
 --
 -- Applied by hand in the Supabase SQL editor (not a Drizzle migration: the demo's PGlite has no
@@ -47,7 +47,7 @@ begin
   end if;
 
   perform net.http_post(
-    url := 'https://api.github.com/repos/tmorius-eng/UNENMEDEE/actions/workflows/autonomous-news-pipeline.yml/dispatches',
+    url := 'https://api.github.com/repos/iltodmedee-mn/UNENMEDEE/actions/workflows/autonomous-news-pipeline.yml/dispatches',
     body := '{"ref":"main"}'::jsonb,
     headers := jsonb_build_object(
       'Authorization', 'Bearer ' || token,

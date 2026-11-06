@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   check:
-    if: github.event_name != 'schedule' || github.repository == 'tmorius-eng/UNENMEDEE'
+    if: github.event_name != 'schedule' || github.repository_owner == 'iltodmedee-mn'
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -43,7 +43,7 @@ jobs:
   # only a reader's screenshot noticed. The demo data includes no high-risk stories, so the daily
   # watchdog scans the live site too.
   mobile-layout:
-    if: github.event_name != 'schedule' || github.repository == 'tmorius-eng/UNENMEDEE'
+    if: github.event_name != 'schedule' || github.repository_owner == 'iltodmedee-mn'
     runs-on: ubuntu-latest
     timeout-minutes: 20
     env:

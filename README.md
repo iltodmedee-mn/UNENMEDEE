@@ -26,8 +26,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/tmorius-eng/UNENMEDEE/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/tmorius-eng/UNENMEDEE/actions/workflows/ci.yml/badge.svg"></a>
-  <a href="https://github.com/tmorius-eng/UNENMEDEE/actions/workflows/autonomous-news-pipeline.yml"><img alt="News pipeline" src="https://github.com/tmorius-eng/UNENMEDEE/actions/workflows/autonomous-news-pipeline.yml/badge.svg"></a>
+  <a href="https://github.com/iltodmedee-mn/UNENMEDEE/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/iltodmedee-mn/UNENMEDEE/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="https://github.com/iltodmedee-mn/UNENMEDEE/actions/workflows/autonomous-news-pipeline.yml"><img alt="News pipeline" src="https://github.com/iltodmedee-mn/UNENMEDEE/actions/workflows/autonomous-news-pipeline.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="Code: MIT" src="https://img.shields.io/badge/code-MIT-green.svg"></a>
   <a href="LICENSE-CONTENT.md"><img alt="Content: CC BY 4.0" src="https://img.shields.io/badge/content-CC%20BY%204.0-lightgrey.svg"></a>
 </p>
@@ -133,7 +133,7 @@ flowchart LR
   </picture>
 </p>
 
-Сайтыг ажиллуулдаг бүх зүйл энэ репод байна: вэб сайт (Next.js), 140 төрийн сайтаас 30 минут тутам мэдээ цуглуулагч, AI шинжилгээ ба AI-д өгдөг заавар ([`src/lib/ai/prompts.ts`](src/lib/ai/prompts.ts)), бүх автомат ажил ([`.github/workflows/`](.github/workflows)). Тэдгээрийн бүртгэл [Actions](https://github.com/tmorius-eng/UNENMEDEE/actions) хэсэгт нээлттэй.
+Сайтыг ажиллуулдаг бүх зүйл энэ репод байна: вэб сайт (Next.js), 140 төрийн сайтаас 30 минут тутам мэдээ цуглуулагч, AI шинжилгээ ба AI-д өгдөг заавар ([`src/lib/ai/prompts.ts`](src/lib/ai/prompts.ts)), бүх автомат ажил ([`.github/workflows/`](.github/workflows)). Тэдгээрийн бүртгэл [Actions](https://github.com/iltodmedee-mn/UNENMEDEE/actions) хэсэгт нээлттэй.
 
 📐 **Техникийн дэлгэрэнгүй:** [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): систем, өгөгдлийн сан, скрапер, AI pipeline, кластерчлал, аюулгүй байдал, шийдвэрүүдийн шалтгаан (англиар).
 
@@ -155,7 +155,7 @@ flowchart LR
 ## 05 — Өөрийн компьютер дээр ажиллуулах
 
 ```bash
-git clone https://github.com/tmorius-eng/UNENMEDEE && cd UNENMEDEE
+git clone https://github.com/iltodmedee-mn/UNENMEDEE && cd UNENMEDEE
 npm install                 # Node.js 24
 npm run demo                # http://localhost:3000: жишээ өгөгдөлтэй бүтэн сайт, DB болон API түлхүүр хэрэггүй
 ```
@@ -179,7 +179,7 @@ API түлхүүрээ шалгах: `npm run ai:process -- --sample`. Өгөг�
 
 ## 06 — Хувь нэмэр оруулах
 
-- **Эх сурвалж санал болгох:** [issue нээх](https://github.com/tmorius-eng/UNENMEDEE/issues/new/choose) → "Эх сурвалж санал болгох". Эсвэл [`src/lib/sources.ts`](src/lib/sources.ts)-д нэмээд PR илгээнэ. JSON API-тай сайтад [`src/lib/scraper/adapters/`](src/lib/scraper/adapters)-д adapter бичнэ.
+- **Эх сурвалж санал болгох:** [issue нээх](https://github.com/iltodmedee-mn/UNENMEDEE/issues/new/choose) → "Эх сурвалж санал болгох". Эсвэл [`src/lib/sources.ts`](src/lib/sources.ts)-д нэмээд PR илгээнэ. JSON API-тай сайтад [`src/lib/scraper/adapters/`](src/lib/scraper/adapters)-д adapter бичнэ.
 - **Алдаа мэдэгдэх:** AI хураангуй, тоо буруу байвал эх сурвалжийн холбоосыг хавсаргаад issue нээнэ үү.
 - **Код:** PR бүр `npm run check` (typecheck + lint + 670+ unit test) болон `npm run build` (нууц түлхүүргүй) давах ёстой. Алхам алхмаар заавар: [CONTRIBUTING.md](CONTRIBUTING.md). Архитектурын дүрэм [`CLAUDE.md`](CLAUDE.md)-д бий.
 
@@ -205,7 +205,7 @@ API түлхүүрээ шалгах: `npm run ai:process -- --sample`. Өгөг�
 
 ## 08 — Холбоо барих
 
-Сайттай холбоотой санал хүсэлт, алдаа, шинэ эх сурвалж, хамтын ажиллагаа, хэвлэл мэдээллийн асуудлаар **[info@iltodmedee.mn](mailto:info@iltodmedee.mn)** хаягаар бичээрэй. Кодын алдаа, санааг [issue](https://github.com/tmorius-eng/UNENMEDEE/issues) болгон нээж болно.
+Сайттай холбоотой санал хүсэлт, алдаа, шинэ эх сурвалж, хамтын ажиллагаа, хэвлэл мэдээллийн асуудлаар **[info@iltodmedee.mn](mailto:info@iltodmedee.mn)** хаягаар бичээрэй. Кодын алдаа, санааг [issue](https://github.com/iltodmedee-mn/UNENMEDEE/issues) болгон нээж болно.
 
 ## 09 — Аюулгүй байдал
 
@@ -318,7 +318,7 @@ Changes land through pull requests with CI green; see [CONTRIBUTING.md](CONTRIBU
 
 Website [iltodmedee.mn](https://iltodmedee.mn) · [Facebook](https://www.facebook.com/profile.php?id=61595785044734) · [Instagram @iltodmedee.mn](https://www.instagram.com/iltodmedee.mn/) · [Threads @iltodmedee.mn](https://www.threads.com/@iltodmedee.mn) · [Discord](https://iltodmedee.mn/discord) · [RSS](https://iltodmedee.mn/feed.xml).
 
-Feedback, corrections, new sources, partnerships and press: **[info@iltodmedee.mn](mailto:info@iltodmedee.mn)**. Code issues and ideas: [GitHub issues](https://github.com/tmorius-eng/UNENMEDEE/issues).
+Feedback, corrections, new sources, partnerships and press: **[info@iltodmedee.mn](mailto:info@iltodmedee.mn)**. Code issues and ideas: [GitHub issues](https://github.com/iltodmedee-mn/UNENMEDEE/issues).
 
 ## License
 

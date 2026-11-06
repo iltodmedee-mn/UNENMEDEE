@@ -11,7 +11,7 @@ export const SITE_NAME = "ИЛ ТОД МЭДЭЭ";
 /** The production address, for links made outside Vercel (GitHub Actions posting to Facebook). */
 export const PRODUCTION_URL = "https://iltodmedee.mn";
 /** The public source code (MIT). Linked from the footer, /method and /transparency. */
-export const REPO_URL = "https://github.com/tmorius-eng/UNENMEDEE";
+export const REPO_URL = "https://github.com/iltodmedee-mn/UNENMEDEE";
 /** Better Stack's public status page (checks the site and feed.xml every 3 minutes; docs/RUNBOOK.md). */
 export const STATUS_URL = "https://status.iltodmedee.mn";
 /**

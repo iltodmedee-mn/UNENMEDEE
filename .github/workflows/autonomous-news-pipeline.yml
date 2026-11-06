@@ -42,7 +42,7 @@ permissions:
 jobs:
   pipeline:
     # Forks keep the code but never run the scheduled jobs (no secrets, no Actions minutes).
-    if: github.repository == 'tmorius-eng/UNENMEDEE'
+    if: github.repository_owner == 'iltodmedee-mn'
     runs-on: ubuntu-latest
     # Normal runs take 15-40 min; a 30-day backfill uses the extra time.
     timeout-minutes: 150

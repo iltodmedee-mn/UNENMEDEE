@@ -32,7 +32,7 @@ concurrency:
 jobs:
   fix:
     if: >-
-      github.repository == 'tmorius-eng/UNENMEDEE' && (
+      github.repository_owner == 'iltodmedee-mn' && (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@gemini') &&
           github.event.issue.pull_request == null &&
           contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
