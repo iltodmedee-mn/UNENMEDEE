@@ -1,3 +1,5 @@
+import { ProgrammeClock } from "@/components/promises/programme-clock";
+import { ubDateKey } from "@/lib/archive";
 import type { Metadata } from "next";
 import Link from "next/link";
 
@@ -30,6 +32,13 @@ async function programmeEnded(): Promise<boolean> {
   "use cache";
   cacheLife("days");
   return new Date().toISOString().slice(0, 10) >= PROGRAMME_END;
+}
+
+/** Today in Ulaanbaatar for the programme clock (daily cache, the page stays static). */
+async function programmeToday(): Promise<string> {
+  "use cache";
+  cacheLife("days");
+  return ubDateKey(Date.now());
 }
 
 function Facts() {
@@ -121,6 +130,7 @@ export default async function PromisesPage() {
           </p>
         )}
         <Facts />
+        <ProgrammeClock today={await programmeToday()} approved={PROGRAMME.approved} />
 
         <aside className="flex flex-col gap-2 rounded-2xl bg-secondary p-4 text-sm text-secondary ring-1 ring-line ring-inset">
           <p>
