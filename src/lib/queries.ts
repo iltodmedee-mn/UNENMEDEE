@@ -11,6 +11,7 @@ import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/
 import type { DonationsSummary } from "@/lib/donations";
 import { ABOUT_KEY, type About, DEFAULT_ABOUT, parseAbout } from "@/lib/about";
 import { storedNeutrality, storedSpin } from "@/lib/ai/fact-spin";
+import { declaredCompanies, foundKeys, matchWinners, type OfficialCompaniesSnapshot } from "@/lib/officials/companies";
 import { sharedShortNames, suspectUnitYears } from "@/lib/officials/flags";
 import { HIDDEN_YEARS_KEY, type HiddenYears, parseHiddenYears } from "@/lib/officials/hidden";
 import type { SourceDiff, SourceStatus } from "@/lib/scraper/recheck";
@@ -1630,6 +1631,76 @@ export async function getTenderSigns(): Promise<TenderSigns | null> {
     }
     const all = [...stats.values()];
     return { buyers: buyerSigns(all), national: nationalShares(all, totalLots, nonCompetitiveLots), overBudget: over, overBudgetCount: overCount, year };
+  });
+}
+
+/** Tender lots won by a company a member declared (src/lib/officials/companies.ts `matchWinners`). */
+export interface CompanyTenders {
+  /** The company as the member declared it. */
+  name: string;
+  /** Active members who declared shares in it, in their latest filing. */
+  owners: { id: number; shortName: string }[];
+  count: number;
+  /** Clean amounts only (no unclear unit). */
+  sum: number;
+  items: TenderItem[];
+}
+
+/**
+ * Declared companies that won a form-1831 tender, by company key. Only companies Шилэн данс knows
+ * under exactly one register take part, a consortium cell counts for each member, and nothing is
+ * read into a match: /tenders and the member's profile say so.
+ */
+export async function getCompanyTenders(): Promise<Record<string, CompanyTenders>> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("tenders");
+  cacheTag("officials");
+  return safe("getCompanyTenders", {}, async () => {
+    const db = getDb();
+    const [snap] = await db.select({ data: indicatorSnapshots.data }).from(indicatorSnapshots).where(eq(indicatorSnapshots.key, "officials_companies"));
+    const keys = foundKeys((snap?.data ?? null) as OfficialCompaniesSnapshot | null);
+    if (keys.size === 0) return {};
+    const winners = await db.selectDistinct({ winner: tenders.winner }).from(tenders).where(and(tenderAwarded, isNotNull(tenders.winner)));
+    const matched = matchWinners(
+      keys,
+      winners.flatMap((w) => (w.winner ? [w.winner] : [])),
+    );
+    if (matched.size === 0) return {};
+    const cells = [...new Set([...matched.values()].flat())];
+    const [rows, latest] = await Promise.all([
+      db
+        .select(tenderColumns)
+        .from(tenders)
+        .where(and(tenderAwarded, tenderFirstOfSame, inArray(tenders.winner, cells)))
+        .orderBy(sql`${tenders.resultDate} desc nulls last`, desc(tenders.id)),
+      db
+        .selectDistinctOn([assetDeclarations.politicianId], { id: politicians.id, shortName: politicians.shortName, details: assetDeclarations.details })
+        .from(assetDeclarations)
+        .innerJoin(politicians, eq(politicians.id, assetDeclarations.politicianId))
+        .where(eq(politicians.isActive, true))
+        .orderBy(assetDeclarations.politicianId, desc(assetDeclarations.year)),
+    ]);
+    const owners = new Map<string, { name: string; owners: { id: number; shortName: string }[] }>();
+    for (const m of latest)
+      for (const o of declaredCompanies(m.details as Record<string, string> | null).stocks) {
+        const e = owners.get(o.key) ?? { name: o.name, owners: [] };
+        e.owners.push({ id: m.id, shortName: m.shortName });
+        owners.set(o.key, e);
+      }
+    const out: Record<string, CompanyTenders> = {};
+    for (const [key, cellList] of matched) {
+      const lots = rows.filter((r) => r.winner !== null && cellList.includes(r.winner));
+      if (lots.length === 0) continue;
+      out[key] = {
+        name: owners.get(key)?.name ?? lots[0].winner ?? key,
+        owners: owners.get(key)?.owners ?? [],
+        count: lots.length,
+        sum: lots.reduce((s, r) => s + (r.unitSuspect ? 0 : (r.contractMnt ?? 0)), 0),
+        items: lots.slice(0, 5),
+      };
+    }
+    return out;
   });
 }
 
