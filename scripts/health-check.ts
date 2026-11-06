@@ -14,7 +14,7 @@
 import "dotenv/config";
 
 import { X509Certificate } from "node:crypto";
-import { appendFileSync, existsSync, readdirSync, readFileSync } from "node:fs";
+import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import tls from "node:tls";
 
@@ -31,6 +31,7 @@ import { PROGRAMME_END } from "@/lib/promises/programme";
 import { PROJECTS_VERIFIED_THROUGH } from "@/lib/projects/data";
 import { MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { PRODUCTION_URL } from "@/lib/site";
+import { isTaxRateNews, taxRateIssueBody, type TaxRateNews, watchFrom } from "@/lib/tax/rate-watch";
 import { RATES_CHECKED } from "@/lib/tax/receipt";
 import { TARIFFS_VERIFIED_THROUGH } from "@/lib/budget/tariffs";
 import { OUTLETS } from "@/lib/press/outlets";
@@ -105,6 +106,23 @@ async function integrity(): Promise<IntegritySnapshot> {
       and coalesce(a.scrape_meta->>'date_unknown', '') <> 'true'
     group by s.domain having count(*) >= 10 and count(*) filter (where a.is_published) = 0 order by s.domain`);
   return { brokenAiText: Number(r.broken_ai), widespreadClusters: Number(r.wide_clusters), duplicateHashes: Number(r.dup_hashes), silentSources: silent.map((x) => String(x.domain)) };
+}
+
+/**
+ * Published stories since RATES_CHECKED whose headline may change the /tax rates (ХХОАТ, НДШ):
+ * SQL narrows by the levy's name, `isTaxRateNews` decides.
+ */
+async function taxRateNews(): Promise<TaxRateNews[]> {
+  const found = await rows(sql`select a.id, a.slug, coalesce(a.reader_title, a.title) as title, a.title as source_title, a.url,
+      to_char(a.published_at at time zone 'Asia/Ulaanbaatar', 'YYYY-MM-DD') as day
+    from articles a
+    where a.is_published and a.published_at >= ${watchFrom(RATES_CHECKED)}
+      and lower(coalesce(a.reader_title, '') || ' ' || a.title) ~ '(орлогын албан татвар|ххоат|ндш|шимтгэл|нийгмийн даатгалын тухай|татварын багц|татварын ерөнхий)'
+    order by a.published_at desc limit 200`);
+  return found
+    .filter((r) => isTaxRateNews(`${String(r.title)} ${String(r.source_title)}`))
+    .slice(0, 20)
+    .map((r) => ({ id: Number(r.id), slug: String(r.slug), title: String(r.title), day: String(r.day), url: String(r.url) }));
 }
 
 async function officials() {
@@ -277,6 +295,7 @@ async function main() {
     "сайт (сүлжээ)": skipNetwork ? null : network,
     "GitHub workflow": skipNetwork || !token || !repo ? null : () => workflows(token, repo),
     "гэрчилгээ": async () => bundledCerts(),
+    "татварын хууль": taxRateNews,
   } as const;
   const names = Object.keys(collectors) as (keyof typeof collectors)[];
   const results = await Promise.allSettled(names.map((n) => (collectors[n] ? collectors[n]() : Promise.resolve(undefined))));
@@ -304,6 +323,7 @@ async function main() {
     videos: got<Awaited<ReturnType<typeof videosAndPress>>>("видео, хэвлэл")?.videos,
     press: got<Awaited<ReturnType<typeof videosAndPress>>>("видео, хэвлэл")?.press,
     dispatchTokenExpires: s?.dispatchTokenExpires,
+    taxRateNews: got("татварын хууль"),
   };
   const flag = (v: string | undefined) => v === "true";
   const config: HealthConfig = {
@@ -339,6 +359,10 @@ async function main() {
   const report = healthReport(problems);
   if (report.lines.length) console.log(report.lines.join("\n"));
   else console.log("✓ Healthy");
+  // Its own issue (label "tax-rates", watchdog.yml): written only when stories need a look, so an
+  // empty or missing file closes the issue once RATES_CHECKED has moved past them.
+  const tax = got<TaxRateNews[]>("татварын хууль");
+  if (process.env.TAX_REPORT && tax) writeFileSync(process.env.TAX_REPORT, tax.length ? taxRateIssueBody(tax, RATES_CHECKED, PRODUCTION_URL) : "");
   // The workflow picks the issue's title and whether to e-mail from this; only urgent is red.
   if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `level=${report.level}\n`);
   if (report.level === "urgent") process.exitCode = 1;
