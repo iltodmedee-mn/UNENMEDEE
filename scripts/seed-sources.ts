@@ -3,6 +3,7 @@
  * Usage: npm run db:seed
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { sql } from "drizzle-orm";
 
 import { closeDb, getDb } from "@/db";

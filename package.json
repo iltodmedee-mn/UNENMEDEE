@@ -43,7 +43,8 @@
     "db:repair-dates": "tsx scripts/repair-dates.ts",
     "health": "tsx scripts/health-check.ts",
     "ai:reader": "tsx scripts/reader-backfill.ts",
-    "press:sync": "tsx scripts/press-sync.ts"
+    "press:sync": "tsx scripts/press-sync.ts",
+    "doctor": "tsx scripts/doctor.ts"
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
@@ -99,7 +100,8 @@
   "description": "IL-TOD (ИЛ ТОД): open-source anti-spin government transparency news platform for Mongolia",
   "license": "MIT",
   "engines": {
-    "node": "24.x"
+    "node": "24.x",
+    "npm": ">=10"
   },
   "overrides": {
     "@esbuild-kit/core-utils": {

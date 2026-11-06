@@ -14,6 +14,7 @@
  * audit.mn needs NODE_EXTRA_CA_CERTS=certs/rapidssl-tls-rsa-ca-g1.pem (see src/lib/budget/audit.ts).
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";

@@ -1,0 +1,66 @@
+name: Алдаа мэдэгдэх / Bug report
+description: Сайт буруу ажиллаж байна, мэдээлэл буруу байна, эсвэл команд унаж байна
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Засахад хэрэгтэй зүйл нь «ажиллахгүй байна» биш, яг юу болсон нь. Логийг **бүтнээр нь** хуулаарай («...» гэж орхихгүй). Нууц түлхүүр, нууц үг, `DATABASE_URL` хэзээ ч бүү хуул.
+        *What exactly happened matters more than "it does not work". Paste logs complete. Never paste a secret.*
+  - type: input
+    id: where
+    attributes:
+      label: Хаана? / Where?
+      description: Хуудасны холбоос, эсвэл яг ажиллуулсан команд (`npm run scrape -- --source mlsp.gov.mn --limit 2`). / The page URL or the exact command.
+      placeholder: https://iltodmedee.mn/… эсвэл npm run …
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: Юу болсон бэ? / What happened?
+      description: Юу хийж байхад, юу гарсан. Сайт дээр «Лавлах код» гарсан бол тэр кодыг энд бич. / Include the "Лавлах код" (reference code) if the error page showed one.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Юу болох ёстой байсан бэ? / Expected
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Бүтэн лог / Full log
+      description: Алдааны мөрнөөс stack trace хүртэл, бүхэлд нь. GitHub Actions бол унасан алхмын лог + run-ийн холбоос. / From the error line through the stack trace; for Actions, the failing step's log and the run URL.
+      render: text
+  - type: textarea
+    id: doctor
+    attributes:
+      label: "`npm run doctor`-ын гаралт / Output of `npm run doctor`"
+      description: Node, commit, өгөгдлийн сангийн төрөл (нууц түлхүүр ордоггүй). Сайт дээрх алдаанд хэрэггүй. / Not needed for a bug seen on the site.
+      render: text
+  - type: dropdown
+    id: demo
+    attributes:
+      label: "`npm run demo` дээр давтагддаг уу? / Does it reproduce in `npm run demo`?"
+      options:
+        - Шалгаагүй / Not checked
+        - Тийм, демо дээр ч гардаг / Yes, in the demo too
+        - Үгүй, зөвхөн бодит өгөгдөлтэй / No, only with real data
+        - Сайт дээрх алдаа / A bug on the live site
+  - type: input
+    id: device
+    attributes:
+      label: Төхөөрөмж, хөтөч / Device and browser
+      placeholder: iPhone 15 Safari, Android Chrome, Windows Chrome …
+  - type: input
+    id: source
+    attributes:
+      label: Эх сурвалж / Source link
+      description: Мэдээлэл буруу бол (AI хураангуй, тоо, нэр) эх сурвалжийн холбоос. / If a summary or number is wrong, link the original.
+  - type: textarea
+    id: changed
+    attributes:
+      label: Сүүлд юу өөрчилсөн бэ? / What changed last?
+      description: Secret, variable, `.env`, код. Нэг л зүйлийг өөрчлөөд дахин шалга. / A secret, a variable, `.env`, code. Change one thing at a time.

@@ -6,6 +6,7 @@
  *
  *   npm run promises:import -- --dry-run   # print the counts, write nothing
  */
+import "@/lib/runtime-banner";
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 

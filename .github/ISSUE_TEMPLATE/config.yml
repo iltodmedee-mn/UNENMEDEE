@@ -1,5 +1,11 @@
-blank_issues_enabled: true
+blank_issues_enabled: false
 contact_links:
   - name: Аюулгүй байдлын асуудал / Security vulnerability
     url: https://github.com/iltodmedee-mn/UNENMEDEE/security/advisories/new
     about: Нууцаар мэдэгдэнэ үү, нээлттэй issue бүү бичээрэй. / Please report privately.
+  - name: Асуулт, санал / Questions and ideas
+    url: https://github.com/iltodmedee-mn/UNENMEDEE/discussions
+    about: Discussions хэсэгт. / Use Discussions.
+  - name: И-мэйл / E-mail
+    url: https://iltodmedee.mn/about
+    about: info@iltodmedee.mn (кодоос бусад асуудал). / For anything that is not code.

@@ -65,6 +65,7 @@ jobs:
         run: |
           npx playwright install --with-deps chromium || (sleep 30 && npx playwright install --with-deps chromium)
           command -v ffmpeg >/dev/null || (sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends ffmpeg)
+          ffmpeg -version | head -1; npx playwright --version
 
       - name: Apply database migrations
         id: migrate

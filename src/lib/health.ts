@@ -289,7 +289,7 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
   }
   if (s.workflows) {
     for (const wf of s.workflows.notActive) (CORE_WORKFLOW.test(wf) ? urgent : info)(`Workflow идэвхгүй: ${wf} (Actions → Enable workflow).`);
-    for (const wf of s.workflows.failingSchedules) (CORE_WORKFLOW.test(wf) ? urgent : info)(`Workflow сүүлийн 3 удаа дараалан алдаатай: ${wf}.`);
+    for (const wf of s.workflows.failingSchedules) (CORE_WORKFLOW.test(wf) ? urgent : info)(`Workflow сүүлийн 3 удаа дараалан алдаатай: ${wf}. Унасан алхмын логийг run-ийн холбоосын хамт хуулж issue-д тавь.`);
   }
 
   // Facts written into the code that only a person can re-check.

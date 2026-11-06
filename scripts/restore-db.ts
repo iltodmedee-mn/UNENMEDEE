@@ -9,6 +9,7 @@
  *   npm run db:restore -- --file backup.ndjson.gz --table app_settings --yes
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { createReadStream } from "node:fs";
 import { createInterface } from "node:readline";
 import { parseArgs } from "node:util";

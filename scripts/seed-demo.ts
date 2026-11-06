@@ -5,6 +5,7 @@
  *   npm run demo        # does this for you, then starts the site
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 
 import { closeDb, getDb, isPgliteUrl } from "@/db";
 import { migrateDemo } from "@/db/demo-migrate";

@@ -11,6 +11,7 @@
  * (extracted_entities.people = politicians.short_name) in articles of the last 24 h.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";

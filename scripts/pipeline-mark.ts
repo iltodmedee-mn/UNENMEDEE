@@ -8,6 +8,7 @@
  *   npm run pipeline:mark
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 
 import { closeDb, getDb, hasDatabase, schema } from "@/db";
 

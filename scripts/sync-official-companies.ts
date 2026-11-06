@@ -9,6 +9,7 @@
  *   npm run officials:companies -- --dry-run --names "Бодитчадал ХХК,Хүчит хөтлүүр ХХК"   # no database
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { desc, eq } from "drizzle-orm";

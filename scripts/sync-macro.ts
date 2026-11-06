@@ -6,6 +6,7 @@
  *   npm run macro:sync -- --dry-run  # print it
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";

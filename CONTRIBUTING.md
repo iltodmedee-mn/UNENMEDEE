@@ -7,10 +7,13 @@
 
 ```bash
 git clone https://github.com/iltodmedee-mn/UNENMEDEE && cd UNENMEDEE
-npm install          # Node.js 24
+npm ci               # Node.js 24 (.nvmrc); lockfile-ийн яг тэр хувилбарууд
+npm run doctor       # орчин бэлэн үү (Node, lockfile, Chromium, ffmpeg, .env-ийн нэрс)
 npm run demo         # http://localhost:3000: жишээ өгөгдөлтэй бүтэн сайт (DB, API түлхүүр хэрэггүй)
 npm run check        # typecheck + lint + unit test (нууц түлхүүр хэрэггүй)
 ```
+
+Эхнээс нь: `npm run doctor -- --clean` (`.demo-db/`, `.next/`-ийг устгаад демог дахин ачаална).
 
 `npm run demo` нь `tests/fixtures`-ийн бодит төрийн мэдээ, гишүүд, төсвийн өгөгдлийг процесс доторх
 Postgres (PGlite)-д ачаална. Шинэ fixture нэмбэл демо ч баяжина.
@@ -37,6 +40,18 @@ AI түлхүүр (`GROQ_API_KEY`) тавина. Дэлгэрэнгүйг [READM
 4. **0₮ дэд бүтэц.** Үнэгүй хязгаарт багтах; HTML биш, цэвэрлэсэн текст л хадгална.
 5. **Хурд.** Нүүр хуудсанд хүнд JavaScript нэмэхгүй (Lighthouse mobile ≥ 0.9).
 
+## Алдаа мэдэгдэх
+
+Засахад хэрэгтэй зүйл нь «ажиллахгүй байна» биш, яг юу болсон нь. [Issue нээхдээ](https://github.com/iltodmedee-mn/UNENMEDEE/issues/new/choose) дараахыг **бүтнээр нь** хуул (богиносгож, «...» гэж орхихгүй):
+
+1. **Яг ажиллуулсан команд** (`npm run scrape -- --source mlsp.gov.mn --limit 2` гэх мэт) эсвэл хуудасны холбоос.
+2. **Бүтэн лог, алдааны мөрнөөс stack trace хүртэл.** GitHub Actions бол унасан алхмын лог + run-ийн холбоос. Сайт дээр бол «Лавлах код».
+3. **`npm run doctor`-ын гаралт** (Node, commit, өгөгдлийн сангийн төрөл; нууц түлхүүр ордоггүй).
+4. `npm run demo` дээр давтагддаг уу? Давтагддаг бол алхам алхмаар.
+5. Сүүлд юу өөрчилсөн бэ (secret, variable, `.env`, код)? Нэг л зүйлийг өөрчлөөд дахин шалгаарай: хоёр зүйл зэрэг өөрчилбөл аль нь нөлөөлснийг хэн ч хэлж чадахгүй.
+
+Нууц түлхүүр, нууц үг, `DATABASE_URL`-ийг хэзээ ч бүү хуул.
+
 ## Pull request
 
 - `main` хамгаалагдсан: өөрчлөлт зөвхөн PR-ээр, CI (`check`) ногоон үед нэгтгэгдэнэ.
@@ -56,9 +71,15 @@ AI түлхүүр (`GROQ_API_KEY`) тавина. Дэлгэрэнгүйг [READM
 
 ## English
 
-**Start:** `npm install && npm run demo` (Node.js 24): the full site on real sample data from
+**Start:** `npm ci && npm run demo` (Node.js 24, `.nvmrc`): the full site on real sample data from
 `tests/fixtures`, loaded into an in-process Postgres (PGlite). No database server, no API keys.
-`npm run check` runs typecheck, lint and the unit tests, offline.
+`npm run check` runs typecheck, lint and the unit tests, offline. `npm run doctor` checks the
+machine (Node, lockfile, Chromium, ffmpeg, `.env` names) and `--clean` starts the demo over.
+
+**Reporting a bug:** paste, complete and unshortened, the exact command or page URL, the full log
+from the error line through the stack trace (for Actions: the failing step's log and the run URL;
+on the site: the reference code), the output of `npm run doctor`, whether it reproduces in
+`npm run demo`, and what you changed last. Change one thing at a time. Never paste a secret.
 
 **Good first contributions**
 - A new government source: one line in [`src/lib/sources.ts`](src/lib/sources.ts), or an issue.

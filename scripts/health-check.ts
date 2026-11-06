@@ -12,6 +12,7 @@
  * GitHub API becomes its own problem line and never hides the others.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 
 import { X509Certificate } from "node:crypto";
 import { appendFileSync, existsSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -260,9 +261,10 @@ async function workflows(token: string, repo: string): Promise<WorkflowSnapshot>
     // The watchdog's own runs are red whenever it reports something urgent: counting them made it
     // report itself as failing for three more days after the real problem was fixed.
     if (w.state === "disabled_manually" || /\/watchdog\.ya?ml$/.test(w.path)) continue;
-    const runs = (await github(`repos/${repo}/actions/workflows/${w.id}/runs?event=schedule&status=completed&per_page=3`, token)) as { workflow_runs: { conclusion: string | null }[] };
+    const runs = (await github(`repos/${repo}/actions/workflows/${w.id}/runs?event=schedule&status=completed&per_page=3`, token)) as { workflow_runs: { conclusion: string | null; html_url?: string }[] };
     const last = runs.workflow_runs.map((r) => r.conclusion);
-    if (last.length === 3 && last.every((c) => c === "failure")) failingSchedules.push(w.path);
+    // With the newest failed run's URL: the issue line used to name the workflow file only.
+    if (last.length === 3 && last.every((c) => c === "failure")) failingSchedules.push(runs.workflow_runs[0].html_url ? `${w.path} (${runs.workflow_runs[0].html_url})` : w.path);
   }
   return { notActive, failingSchedules };
 }

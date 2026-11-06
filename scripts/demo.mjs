@@ -6,7 +6,15 @@
  */
 import { spawnSync, spawn } from "node:child_process";
 
-const env = { ...process.env, DATABASE_URL: "pglite:./.demo-db", NEXT_PUBLIC_DEMO: "1" };
+// The one version everything else runs on (package.json engines, .nvmrc, CI, Vercel). An older
+// Node reaches the first crash minutes later with an error that names nothing about the version.
+const major = Number(process.versions.node.split(".")[0]);
+if (major < 24) {
+  console.error(`✗ Node.js ${process.versions.node} is too old: this project runs on Node 24 (.nvmrc). Install it from https://nodejs.org or run \`nvm use\`.`);
+  process.exit(1);
+}
+
+const env = { ...process.env, DATABASE_URL: "pglite:./.demo-db" };
 const npx = process.platform === "win32" ? "npx.cmd" : "npx";
 
 const seed = spawnSync(npx, ["tsx", "scripts/seed-demo.ts"], { stdio: "inherit", env, shell: process.platform === "win32" });

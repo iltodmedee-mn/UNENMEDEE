@@ -22,6 +22,7 @@
  *    skipped: their dates come from the API, not the page.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { sql } from "drizzle-orm";

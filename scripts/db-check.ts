@@ -6,6 +6,7 @@
  *   npm run db:check
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 
 import { sql } from "drizzle-orm";
 

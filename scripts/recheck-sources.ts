@@ -11,6 +11,7 @@
  * editor changed in /admin. Nothing but cleaned sentences is stored (never HTML).
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { and, asc, eq, gte, isNull, notInArray, sql } from "drizzle-orm";

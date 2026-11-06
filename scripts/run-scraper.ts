@@ -11,6 +11,7 @@
  *          --no-browser skip the headless-Chromium pass for JavaScript-rendered sites.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
