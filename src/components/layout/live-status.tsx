@@ -16,7 +16,10 @@ function subscribe(onChange: () => void) {
   listeners.add(onChange);
   if (!started) {
     started = true;
-    fetch("/api/pulse")
+    // "no-cache": revalidate with the CDN every page view. The route's `stale-while-revalidate`
+    // otherwise made the browser serve its copy and send a second, background request that
+    // Chrome holds back for seconds (a page never reached "network idle").
+    fetch("/api/pulse", { cache: "no-cache" })
       .then(async (r): Promise<Pulse | false> => (r.ok ? ((await r.json()) as Pulse) : false))
       .catch((): false => false)
       .then((p) => {
