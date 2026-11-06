@@ -123,95 +123,8 @@ export async function ogImage({
   );
 }
 
-/** Social feed card (1080×1350, 4:5): the "hook" style shared by Instagram, Facebook and Threads. */
+/** Social feed card (1080×1350, 4:5) shared by Instagram, Facebook, Threads, Telegram and Discord. */
 export const FEED_SIZE = { width: 1080, height: 1350 };
-
-const HOOK_FAMILY = "InterDisplay";
-let hookFont: Promise<Buffer> | undefined;
-function loadHookFont() {
-  // Inter Display Black Italic, subset like inter-700.woff (Latin, Cyrillic, Ө Ү, ₮).
-  hookFont ??= readFile(join(process.cwd(), "src/assets/fonts/inter-display-900i.woff"));
-  return hookFont;
-}
-
-const YELLOW = "#ffd60a";
-
-/**
- * Bold typographic card: dark background, yellow frame, the label as a yellow pill, the headline in
- * huge black italic capitals with its strongest fact in yellow (hookWords), an optional sub-line
- * ("why it matters" / the first summary sentence) and up to three more headlines.
- */
-/**
- * The Facebook / Instagram / Threads card. `fact` (fact_vs_spin.neutrality_score) draws the site's
- * fact-vs-PR bar, labelled as the AI's estimate, so the post shows it without a tap.
- */
-export async function hookCard({ label, words, sub, more = [], footer, fact }: { label: string; words: { word: string; hot: boolean }[]; sub?: string; more?: string[]; footer: string; fact?: number | null }) {
-  const [regular, black, markSrc] = await Promise.all([loadFonts(), loadHookFont(), loadMark()]);
-  const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
-  const length = words.reduce((n, w) => n + w.word.length + 1, 0);
-  const size = length > 110 ? 62 : length > 80 ? 72 : length > 55 ? 86 : 100;
-  return new ImageResponse(
-    (
-      <div style={{ width: "100%", height: "100%", display: "flex", padding: 16, background: YELLOW, fontFamily: FONT_FAMILY }}>
-        <div style={{ flex: 1, display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "56px 64px", background: "linear-gradient(160deg, #1d1856 0%, #0b0a24 70%)" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div style={{ display: "flex", alignItems: "center", gap: 18 }}>
-              <div style={{ display: "flex", background: "#ffffff", borderRadius: 18, padding: "10px 14px" }}>
-                {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img> */}
-                <img src={markSrc} width={104} height={64} alt="" />
-              </div>
-              <span style={{ fontSize: 30, color: "#ffffff", letterSpacing: 1 }}>ИЛ ТОД МЭДЭЭ</span>
-            </div>
-            <div style={{ display: "flex", background: YELLOW, color: "#0b0a24", fontSize: 26, padding: "10px 20px", borderRadius: 999 }}>{clip(label.toUpperCase(), 32)}</div>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: 32 }}>
-            <div style={{ display: "flex", flexWrap: "wrap", fontFamily: HOOK_FAMILY, fontSize: size, lineHeight: 1.04, letterSpacing: -1 }}>
-              {words.slice(0, 40).map((w, i) => (
-                <span key={i} style={{ color: w.hot ? YELLOW : "#ffffff", marginRight: size * 0.24 }}>
-                  {w.word.toUpperCase()}
-                </span>
-              ))}
-            </div>
-            {sub && <div style={{ display: "flex", fontSize: 34, lineHeight: 1.3, color: "#d0d5dd" }}>→ {clip(sub, 170)}</div>}
-            {typeof fact === "number" && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ display: "flex", width: "100%", height: 18, borderRadius: 9, overflow: "hidden", background: "#344054" }}>
-                  <div style={{ display: "flex", width: `${Math.max(0, Math.min(100, fact))}%`, background: "#2ed3b7" }} />
-                  <div style={{ display: "flex", flex: 1, background: YELLOW }} />
-                </div>
-                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 26, color: "#d0d5dd" }}>
-                  <span style={{ color: "#2ed3b7" }}>БАРИМТ {Math.round(Math.max(0, Math.min(100, fact)))}%</span>
-                  <span>AI-ийн үнэлгээ, буруутгал биш</span>
-                  <span style={{ color: YELLOW }}>ПИ-АР {100 - Math.round(Math.max(0, Math.min(100, fact)))}%</span>
-                </div>
-              </div>
-            )}
-            {more.length > 0 && (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, borderLeft: `6px solid ${YELLOW}`, paddingLeft: 22 }}>
-                {more.slice(0, 3).map((line, i) => (
-                  <span key={i} style={{ fontSize: 28, lineHeight: 1.25, color: "#e4e7ec" }}>
-                    + {clip(line, 80)}
-                  </span>
-                ))}
-              </div>
-            )}
-          </div>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 28, color: "#98a2b3" }}>
-            <span>{clip(footer, 46)}</span>
-            <span style={{ color: YELLOW }}>iltodmedee.mn</span>
-          </div>
-        </div>
-      </div>
-    ),
-    {
-      ...FEED_SIZE,
-      fonts: [
-        { name: FONT_FAMILY, data: regular, weight: 700 as const, style: "normal" as const },
-        { name: HOOK_FAMILY, data: black, weight: 700 as const, style: "normal" as const },
-      ],
-    },
-  );
-}
 
 /** Instagram / Facebook story image (1080×1920), shared as a file from the phone share sheet. */
 export const STORY_SIZE = { width: 1080, height: 1920 };
@@ -276,25 +189,13 @@ function grainSrc(): string {
   return grain;
 }
 
-type QuizSlide = number | "answers";
+type Ghost = string | "mark" | null;
+const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
+const display = (size: number, color: string) => ({ fontFamily: CONDENSED_FAMILY, fontSize: size, lineHeight: 0.98, color, letterSpacing: 0 });
 
-/**
- * One card of the weekly quiz (1080×1350): `0` the cover, `1…n` a question with its amount hidden
- * and four options, `n + 1` the closing card, `"answers"` the next day's answers (yellow, so it
- * reads as the other half of the series). Every text comes from the stored quiz, i.e. from our own
- * stories.
- */
-export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
-  const [regular, condensed, [, mono], markSrc] = await Promise.all([loadFonts(), loadCondensedFont(), loadCardFonts(), loadMark()]);
-  const n = quiz.questions.length;
-  const answers = slide === "answers";
-  const ink = answers ? QUIZ_INK : "#ffffff";
-  const accent = answers ? "#c41d1d" : QUIZ_YELLOW;
-  const clip = (s: string, max: number) => (s.length > max ? `${s.slice(0, max - 1)}…` : s);
-  const letters = ["А", "Б", "В", "Г"];
-  const right = answers ? quiz.label : slide === 0 ? quiz.label : slide === n + 1 ? "iltodmedee.mn" : `АСУУЛТ ${slide}/${n}`;
-  const display = (size: number, color = ink) => ({ fontFamily: CONDENSED_FAMILY, fontSize: size, lineHeight: 0.98, color, letterSpacing: 0 });
-  const credit = (rows: [string, string][]) => (
+/** The small two-line credits bottom right ("Эх сурвалж / Засгийн газар"), mogul.plus style. */
+function credit(rows: [string, string][], ink: string) {
+  return (
     <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 10 }}>
       {rows.map(([k, v]) => (
         <div key={k} style={{ display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
@@ -304,6 +205,70 @@ export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
       ))}
     </div>
   );
+}
+
+/**
+ * The poster frame shared by the feed cards and the quiz cards: red (or yellow) full bleed, the
+ * giant faint glyph or logo mark where noorog / mogul put a photo (we print no photos of people),
+ * film grain, "logo | SERIES" on the left and `corner` on the right, then the body and the bottom row.
+ */
+async function posterCard({ series, corner, yellow = false, ghost = null, ghostAt = [60, 330], body, bottom }: { series: string; corner: string; yellow?: boolean; ghost?: Ghost; ghostAt?: [number, number]; body: ReactNode; bottom: ReactNode }) {
+  const [regular, condensed, [, mono], markSrc] = await Promise.all([loadFonts(), loadCondensedFont(), loadCardFonts(), loadMark()]);
+  const ink = yellow ? QUIZ_INK : "#ffffff";
+  const [top, left] = ghostAt;
+  return new ImageResponse(
+    (
+      <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "54px 64px 56px", background: yellow ? QUIZ_YELLOW : QUIZ_RED, fontFamily: FONT_FAMILY, overflow: "hidden" }}>
+        {ghost === "mark" ? (
+          // eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img>
+          <img src={markSrc} width={900} height={548} alt="" style={{ position: "absolute", top: 420, left: 300, opacity: 0.07 }} />
+        ) : ghost ? (
+          <div style={{ position: "absolute", top, left, display: "flex", fontFamily: CONDENSED_FAMILY, fontSize: ghost.length > 2 ? 520 : 1200, lineHeight: 1, color: yellow ? "rgba(196,29,29,0.10)" : "rgba(255,255,255,0.08)" }}>{ghost}</div>
+        ) : null}
+        {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img> */}
+        <img src={grainSrc()} width={1080} height={1350} alt="" style={{ position: "absolute", top: 0, left: 0, opacity: yellow ? 0.08 : 0.13 }} />
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 24 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+            <div style={{ display: "flex", background: "#ffffff", borderRadius: 16, padding: "8px 12px" }}>
+              {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img> */}
+              <img src={markSrc} width={92} height={56} alt="" />
+            </div>
+            <div style={{ display: "flex", width: 3, height: 54, background: ink, opacity: 0.6 }} />
+            <span style={{ ...display(44, ink), letterSpacing: 1 }}>{clip(series.toUpperCase(), 30)}</span>
+          </div>
+          <span style={{ fontSize: 28, color: ink }}>{corner}</span>
+        </div>
+        {body}
+        {bottom}
+      </div>
+    ),
+    {
+      ...FEED_SIZE,
+      fonts: [
+        { name: FONT_FAMILY, data: regular, weight: 700 as const, style: "normal" as const },
+        { name: CONDENSED_FAMILY, data: condensed, weight: 700 as const, style: "normal" as const },
+        { name: MONO_FAMILY, data: mono, weight: 500 as const, style: "normal" as const },
+      ],
+    },
+  );
+}
+
+type QuizSlide = number | "answers";
+
+/**
+ * One card of the weekly quiz (1080×1350): `0` the cover, `1…n` a question with its amount hidden
+ * and four options, `n + 1` the closing card, `"answers"` the next day's answers (yellow, so it
+ * reads as the other half of the series). Every text comes from the stored quiz, i.e. from our own
+ * stories.
+ */
+export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
+  const n = quiz.questions.length;
+  const answers = slide === "answers";
+  const ink = answers ? QUIZ_INK : "#ffffff";
+  const accent = answers ? "#c41d1d" : QUIZ_YELLOW;
+  const letters = ["А", "Б", "В", "Г"];
+  const right = answers ? quiz.label : slide === 0 ? quiz.label : slide === n + 1 ? "iltodmedee.mn" : `АСУУЛТ ${slide}/${n}`;
+  const show = (size: number, color = ink) => display(size, color);
   const swipe = (
     <div style={{ display: "flex", alignItems: "center", gap: 14, color: ink, fontSize: 24 }}>
       <div style={{ display: "flex", width: 150, height: 3, background: ink }} />
@@ -311,22 +276,19 @@ export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
       <span style={{ marginLeft: 6 }}>Гүйлгэ</span>
     </div>
   );
-  // The giant faint glyph behind the type, where noorog / mogul put a photo.
-  const ghost = (glyph: string, size: number, top: number, left: number) => (
-    <div style={{ position: "absolute", top, left, display: "flex", fontFamily: CONDENSED_FAMILY, fontSize: size, lineHeight: 1, color: answers ? "rgba(196,29,29,0.10)" : "rgba(255,255,255,0.08)" }}>{glyph}</div>
-  );
-
   let body: ReactNode;
   let bottom: ReactNode;
-  let background: ReactNode = null;
+  let ghost: Ghost = null;
+  let ghostAt: [number, number] = [60, 330];
   if (answers) {
-    background = ghost("✓", 1100, 120, 260);
+    ghost = "✓";
+    ghostAt = [120, 260];
     body = (
       <div style={{ display: "flex", flexDirection: "column", gap: 34 }}>
         <div style={{ display: "flex", flexDirection: "column" }}>
           <span style={{ fontSize: 34, color: ink }}>7 хоногийн тестийн хариулт</span>
-          <span style={{ ...display(150), marginTop: 22 }}>ХЭДИЙГ ЗӨВ</span>
-          <span style={display(150, accent)}>ТААВ??!</span>
+          <span style={{ ...show(150), marginTop: 22 }}>ХЭДИЙГ ЗӨВ</span>
+          <span style={show(150, accent)}>ТААВ??!</span>
         </div>
         <div style={{ display: "flex", flexDirection: "column", gap: 22 }}>
           {quiz.questions.map((x, i) => {
@@ -336,7 +298,7 @@ export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
                 <div style={{ display: "flex", width: 60, height: 60, borderRadius: 30, background: QUIZ_INK, color: QUIZ_YELLOW, alignItems: "center", justifyContent: "center", fontSize: 32, flexShrink: 0 }}>{letters[x.correct]}</div>
                 <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
                   <div style={{ display: "flex", alignItems: "baseline", gap: 16, flexWrap: "wrap" }}>
-                    <span style={display(46, accent)}>{x.answer.toUpperCase()}</span>
+                    <span style={show(46, accent)}>{x.answer.toUpperCase()}</span>
                     {share && <span style={{ fontFamily: MONO_FAMILY, fontSize: 22, color: QUIZ_INK, opacity: 0.75 }}>{share}</span>}
                   </div>
                   <span style={{ fontSize: 25, lineHeight: 1.3, color: QUIZ_INK, marginTop: 4 }}>{clip(x.title, 100)}</span>
@@ -352,32 +314,34 @@ export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
         <span style={{ fontSize: 20, color: QUIZ_INK, opacity: 0.75, maxWidth: 560 }}>
           {quiz.questions.some((x) => perPersonLineShort(x.answer)) ? "1 хүнд = 3.43 сая хүнд хуваавал (ҮСХ). Хүн бүр төлнө гэсэн үг биш." : "Тоо бүр албан мэдээнээс."}
         </span>
-        {credit([["Эх мэдээ бүр", "iltodmedee.mn"]])}
+        {credit([["Эх мэдээ бүр", "iltodmedee.mn"]], ink)}
       </div>
     );
   } else if (slide === 0) {
-    background = ghost("?", 1300, 40, 300);
+    ghost = "?";
+    ghostAt = [40, 300];
     body = (
       <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
         <span style={{ fontSize: 36, color: ink }}>Энэ 7 хоногийн албан мэдээнээс</span>
-        <span style={{ ...display(300, QUIZ_YELLOW), marginTop: 18 }}>{`${n} ТОО`}</span>
-        <span style={display(200)}>ТААГААРАЙ!</span>
+        <span style={{ ...show(300, QUIZ_YELLOW), marginTop: 18 }}>{`${n} ТОО`}</span>
+        <span style={show(200)}>ТААГААРАЙ!</span>
         <span style={{ fontSize: 36, lineHeight: 1.35, color: ink, marginTop: 40, maxWidth: 860 }}>Төр энэ долоо хоногт хэдэн ₮-ийн шийдвэр гаргав? Хариултаа тэмдэглээд, маргааш шалгаарай.</span>
       </div>
     );
     bottom = (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         {swipe}
-        {credit([["Асуулт бүр", "албан мэдээнээс"], ["Хариулт", "маргааш 19:00"]])}
+        {credit([["Асуулт бүр", "албан мэдээнээс"], ["Хариулт", "маргааш 19:00"]], ink)}
       </div>
     );
   } else if (slide === n + 1) {
-    background = ghost("19:00", 520, 330, 40);
+    ghost = "19:00";
+    ghostAt = [330, 40];
     body = (
       <div style={{ display: "flex", flexDirection: "column" }}>
-        <span style={display(210)}>ХАРИУЛТ</span>
-        <span style={display(210, QUIZ_YELLOW)}>МАРГААШ</span>
-        <span style={display(210, QUIZ_YELLOW)}>19:00</span>
+        <span style={show(210)}>ХАРИУЛТ</span>
+        <span style={show(210, QUIZ_YELLOW)}>МАРГААШ</span>
+        <span style={show(210, QUIZ_YELLOW)}>19:00</span>
         <div style={{ display: "flex", flexDirection: "column", gap: 18, marginTop: 50 }}>
           {["Бүх тоо албан мэдээнээс, эх холбоостой", "Тоо бүрийг 3.43 сая хүнд хуваавал хэд болохыг харуулна", "Өдөр бүр 2 тойм, баримтаар"].map((line) => (
             <div key={line} style={{ display: "flex", gap: 20, fontSize: 34, lineHeight: 1.3, color: ink }}>
@@ -390,8 +354,8 @@ export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
     );
     bottom = (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-        <span style={display(84, QUIZ_YELLOW)}>ILTODMEDEE.MN</span>
-        {credit([["Дараагийн тест", "ням гараг 19:00"]])}
+        <span style={show(84, QUIZ_YELLOW)}>ILTODMEDEE.MN</span>
+        {credit([["Дараагийн тест", "ням гараг 19:00"]], ink)}
       </div>
     );
   } else {
@@ -399,11 +363,11 @@ export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
     const [tail = "", ...rest] = x.after.split(/\s+/).filter(Boolean);
     const length = x.before.length + x.after.length + 4;
     const size = length > 100 ? 80 : length > 75 ? 92 : length > 50 ? 108 : 128;
-    background = ghost("₮", 1200, 60, 330);
+    ghost = "₮";
     body = (
       <div style={{ display: "flex", flexDirection: "column" }}>
         <span style={{ fontSize: 30, letterSpacing: 2, color: QUIZ_YELLOW }}>{`${x.topic} · ${x.day}`.toUpperCase()}</span>
-        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", ...display(size), marginTop: 22 }}>
+        <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", ...show(size), marginTop: 22 }}>
           {x.before
             .split(/\s+/)
             .filter(Boolean)
@@ -422,7 +386,7 @@ export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
           {x.options.map((o, i) => (
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 18, width: 466, background: "#ffffff", borderRadius: 20, padding: "18px 22px" }}>
               <div style={{ display: "flex", width: 62, height: 62, borderRadius: 31, background: QUIZ_YELLOW, color: QUIZ_INK, alignItems: "center", justifyContent: "center", fontSize: 34, flexShrink: 0 }}>{letters[i]}</div>
-              <span style={display(54, QUIZ_INK)}>{o.toUpperCase()}</span>
+              <span style={show(54, QUIZ_INK)}>{o.toUpperCase()}</span>
             </div>
           ))}
         </div>
@@ -431,41 +395,97 @@ export async function quizCard(quiz: WeeklyQuiz, slide: QuizSlide) {
     bottom = (
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
         <span style={{ fontSize: 28, color: ink }}>Хариулт маргааш 19:00</span>
-        {credit([["Эх сурвалж", x.source]])}
+        {credit([["Эх сурвалж", x.source]], ink)}
       </div>
     );
   }
 
-  return new ImageResponse(
-    (
-      <div style={{ position: "relative", width: "100%", height: "100%", display: "flex", flexDirection: "column", justifyContent: "space-between", padding: "54px 64px 56px", background: answers ? QUIZ_YELLOW : QUIZ_RED, fontFamily: FONT_FAMILY, overflow: "hidden" }}>
-        {background}
-        {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img> */}
-        <img src={grainSrc()} width={1080} height={1350} alt="" style={{ position: "absolute", top: 0, left: 0, opacity: answers ? 0.08 : 0.13 }} />
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
-            <div style={{ display: "flex", background: "#ffffff", borderRadius: 16, padding: "8px 12px" }}>
-              {/* eslint-disable-next-line @next/next/no-img-element -- Satori renders plain <img> */}
-              <img src={markSrc} width={92} height={56} alt="" />
-            </div>
-            <div style={{ display: "flex", width: 3, height: 54, background: ink, opacity: 0.6 }} />
-            <span style={{ ...display(44), letterSpacing: 1 }}>7 ХОНОГИЙН ТЕСТ</span>
-          </div>
-          <span style={{ fontSize: 28, color: ink }}>{right}</span>
-        </div>
-        {body}
-        {bottom}
+  return posterCard({ series: "7 хоногийн тест", corner: right, yellow: answers, ghost, ghostAt, body, bottom });
+}
+
+/** A daily feed card: one story or a digest edition (src/app/ig-image/route.ts builds it). */
+export interface FeedCard {
+  /** Next to the logo: "Шинэ мэдээ", "Анхаарах мэдээ", "Өглөөний тойм · 07:05". */
+  series: string;
+  /** Top right: the day ("11.06") or "10 мэдээ". */
+  corner: string;
+  /** Small yellow line above the headline (the topic, "Гол мэдээ"). */
+  kicker?: string;
+  /** The headline, its strongest fact marked hot (hookWords, rule-based). */
+  words: { word: string; hot: boolean }[];
+  /** "who: what changes", "why it matters" or the first summary sentence. */
+  sub?: string;
+  /** The largest ₮ amount and its per-person share ("≈ 49,700₮"). */
+  amount?: string;
+  share?: string | null;
+  /** A digest's next headlines. */
+  list?: string[];
+  /** fact_vs_spin.neutrality_score, drawn as the fact/PR bar labelled as the AI's estimate. */
+  fact?: number | null;
+  credit: [string, string][];
+  ghost?: Ghost;
+}
+
+/**
+ * The Facebook / Instagram / Threads / Telegram / Discord card for a story or a digest, in the same
+ * poster look as the weekly quiz (Nov 2026, the owner's pick after noorog.mn and mogul.plus): the
+ * headline in huge condensed capitals with its number in yellow, the reader's line under it, the ₮
+ * amount on a yellow pill with its per-person share, the AI's fact/PR estimate, the source as a
+ * credit. Text only from our own data.
+ */
+export async function hookCard(card: FeedCard) {
+  const length = card.words.reduce((n, w) => n + w.word.length + 1, 0);
+  const size = length > 120 ? 72 : length > 90 ? 84 : length > 65 ? 98 : length > 45 ? 116 : 134;
+  const fact = typeof card.fact === "number" ? Math.round(Math.max(0, Math.min(100, card.fact))) : null;
+  const body = (
+    <div style={{ display: "flex", flexDirection: "column", gap: 26 }}>
+      {card.kicker && <span style={{ fontSize: 28, letterSpacing: 2, color: QUIZ_YELLOW }}>{clip(card.kicker.toUpperCase(), 48)}</span>}
+      <div style={{ display: "flex", flexWrap: "wrap", ...display(size, "#ffffff") }}>
+        {card.words.slice(0, 40).map((w, i) => (
+          <span key={i} style={{ color: w.hot ? QUIZ_YELLOW : "#ffffff", marginRight: size * 0.22 }}>
+            {w.word.toUpperCase()}
+          </span>
+        ))}
       </div>
-    ),
-    {
-      ...FEED_SIZE,
-      fonts: [
-        { name: FONT_FAMILY, data: regular, weight: 700 as const, style: "normal" as const },
-        { name: CONDENSED_FAMILY, data: condensed, weight: 700 as const, style: "normal" as const },
-        { name: MONO_FAMILY, data: mono, weight: 500 as const, style: "normal" as const },
-      ],
-    },
+      {card.sub && <span style={{ fontSize: 33, lineHeight: 1.32, color: "#ffffff", opacity: 0.92 }}>→ {clip(card.sub, card.list?.length ? 130 : 165)}</span>}
+      {card.amount && (
+        <div style={{ display: "flex", alignItems: "center", gap: 20 }}>
+          <div style={{ display: "flex", background: QUIZ_YELLOW, borderRadius: 999, padding: "8px 26px", ...display(48, QUIZ_INK) }}>{card.amount.toUpperCase()}</div>
+          {card.share && <span style={{ fontFamily: MONO_FAMILY, fontSize: 26, color: "#ffffff", opacity: 0.88 }}>1 хүнд {card.share}</span>}
+        </div>
+      )}
+      {fact !== null && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+          <div style={{ display: "flex", width: "100%", height: 16, borderRadius: 8, overflow: "hidden", background: "rgba(0,0,0,0.25)" }}>
+            <div style={{ display: "flex", width: `${fact}%`, background: "#ffffff" }} />
+            <div style={{ display: "flex", flex: 1, background: QUIZ_YELLOW }} />
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 24, color: "#ffffff" }}>
+            <span>БАРИМТ {fact}%</span>
+            <span style={{ opacity: 0.75 }}>AI-ийн үнэлгээ, буруутгал биш</span>
+            <span style={{ color: QUIZ_YELLOW }}>ПИ-АР {100 - fact}%</span>
+          </div>
+        </div>
+      )}
+      {card.list && card.list.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: 14, marginTop: 4 }}>
+          {card.list.slice(0, 3).map((line, i) => (
+            <div key={i} style={{ display: "flex", gap: 18, alignItems: "flex-start" }}>
+              <span style={{ ...display(38, QUIZ_YELLOW), width: 52 }}>{`0${i + 2}`}</span>
+              <span style={{ flex: 1, fontSize: 29, lineHeight: 1.25, color: "#ffffff" }}>{clip(line, 78)}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
+  const bottom = (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
+      <span style={display(66, QUIZ_YELLOW)}>ILTODMEDEE.MN</span>
+      {credit(card.credit, "#ffffff")}
+    </div>
+  );
+  return posterCard({ series: card.series, corner: card.corner, ghost: card.ghost ?? "mark", body, bottom });
 }
 
 /** "1 хүнд ≈ 379,500₮" for amounts from 1 тэрбум, else null (the card's short form of perPersonLine). */

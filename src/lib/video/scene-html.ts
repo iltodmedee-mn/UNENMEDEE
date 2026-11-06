@@ -9,10 +9,10 @@
  */
 import type { VideoSpec } from "./price-video";
 import { BLOCK_STEP_S, BLOCKS_AFTER_S, captionWords, type Timeline } from "./timing";
-import { CINEMA_BG_JS, CINEMA_CSS, CINEMA_LAYERS } from "./theme";
+import { CINEMA_BG_JS, CINEMA_CSS, CINEMA_LAYERS, posterFontFace } from "./theme";
 
 export interface SceneAssets {
-  /** Absolute directory holding inter-var.woff2, inter-display-var.woff2, jetbrains-mono-500.woff2. */
+  /** Absolute directory holding inter-var.woff2, inter-display-var.woff2, jetbrains-mono-500.woff2 and oswald-700.woff. */
   fontsDir: string;
   /** Absolute path of the square logo PNG. */
   logo: string;
@@ -47,6 +47,7 @@ export function sceneHtml(spec: VideoSpec, tl: Timeline, assets: SceneAssets): s
 @font-face{font-family:Inter;src:url(${f("inter-var.woff2")}) format("woff2");font-weight:100 900}
 @font-face{font-family:Disp;src:url(${f("inter-display-var.woff2")}) format("woff2");font-weight:650 850}
 @font-face{font-family:Mono;src:url(${f("jetbrains-mono-500.woff2")}) format("woff2")}
+${posterFontFace(assets.fontsDir)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:${FRAME.width}px;height:${FRAME.height}px;overflow:hidden;background:#0d0e11;color:#fff;font-family:Inter}
 #bg{position:absolute;inset:0}

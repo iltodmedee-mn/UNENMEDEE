@@ -9,7 +9,7 @@
 import type { ImpactSpec } from "./impact-video";
 import { FRAME, type SceneAssets } from "./scene-html";
 import { captionWords, type Timeline } from "./timing";
-import { CINEMA_BG_JS, CINEMA_CSS, CINEMA_LAYERS } from "./theme";
+import { CINEMA_BG_JS, CINEMA_CSS, CINEMA_LAYERS, posterFontFace } from "./theme";
 
 const CARD_COLORS: Record<ImpactSpec["cards"][number]["scene"], string> = {
   who: "#2de2b0",
@@ -35,6 +35,7 @@ export function impactHtml(spec: ImpactSpec, tl: Timeline, assets: SceneAssets):
 @font-face{font-family:Inter;src:url(${f("inter-var.woff2")}) format("woff2");font-weight:100 900}
 @font-face{font-family:Disp;src:url(${f("inter-display-var.woff2")}) format("woff2");font-weight:650 850}
 @font-face{font-family:Mono;src:url(${f("jetbrains-mono-500.woff2")}) format("woff2")}
+${posterFontFace(assets.fontsDir)}
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:${FRAME.width}px;height:${FRAME.height}px;overflow:hidden;background:#0d0e11;color:#fff;font-family:Inter}
 #bg{position:absolute;inset:0}
