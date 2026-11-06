@@ -12,7 +12,9 @@ import { FeedSkeleton } from "@/components/iltod/skeletons";
 import { formatDateMn, formatMntShort, formatNumber } from "@/lib/format";
 import { BUYER_SHARE, MIN_BUYER_LOTS, overBudgetPct } from "@/lib/procurement/signs";
 import { SHILENDANS_URL } from "@/lib/procurement/tenders";
-import { getTenders, getTenderSigns, type TenderItem, type TenderSigns } from "@/lib/queries";
+import Link from "next/link";
+
+import { getCompanyTenders, getTenders, getTenderSigns, type TenderItem, type TenderSigns } from "@/lib/queries";
 
 const TITLE = "Тендерийн үр дүн: хэн, юуг, хэдээр";
 const DESCRIPTION =
@@ -138,6 +140,50 @@ function Signs({ data }: { data: TenderSigns }) {
   );
 }
 
+/** Lots won by a company an active member declared shares in: shown only when there are some. */
+async function MemberCompanies() {
+  const all = Object.values(await getCompanyTenders()).filter((c) => c.owners.length > 0);
+  if (all.length === 0) return null;
+  return (
+    <Panel title="УИХ-ын гишүүний мэдүүлсэн компанид олгосон гэрээ" note={`${all.length}`}>
+      <div id="mp-companies" className="scroll-mt-24" />
+      <p className="pt-3 text-sm text-tertiary text-pretty">
+        Гишүүн ХАСХОМ мэдүүлэгтээ хувьцааг нь эзэмшдэг гэж өөрөө бичсэн компани тендерт шалгарсан мөрүүд. Нэрийг бүтнээр тулгасан, Шилэн дансанд тэр нэртэй ганц компани бүртгэлтэй. Энэ нь
+        хууль зөрчсөн гэсэн үг <b>биш</b>: ашиг сонирхлын зөрчлийг холбогдох байгууллага шалгадаг.
+      </p>
+      <ul className="flex flex-col divide-y divide-line-soft">
+        {all.map((c) => (
+          <li key={c.name} className="flex flex-col gap-1.5 py-4">
+            <p className="font-semibold text-primary">
+              {c.name}
+              <span className="font-normal text-secondary">
+                {" "}
+                ·{" "}
+                {c.owners.map((o, i) => (
+                  <span key={o.id}>
+                    {i > 0 && ", "}
+                    <Link href={`/officials/${o.id}`} className="text-brand-secondary hover:underline">
+                      {o.shortName}
+                    </Link>
+                  </span>
+                ))}
+              </span>
+            </p>
+            <p className="text-sm text-secondary">
+              <span className="num-mono">{c.count}</span> гэрээ{c.sum > 0 && <> · <span className="num-mono">{formatMntShort(c.sum)}</span></>}
+            </p>
+            <ol className="flex flex-col divide-y divide-line-soft">
+              {c.items.map((t) => (
+                <TenderRow key={t.id} t={t} />
+              ))}
+            </ol>
+          </li>
+        ))}
+      </ul>
+    </Panel>
+  );
+}
+
 async function TenderSignsSection() {
   const data = await getTenderSigns();
   return data ? <Signs data={data} /> : null;
@@ -209,6 +255,11 @@ export default function TendersPage() {
       <div className="mt-10">
         <Suspense fallback={null}>
           <TenderSignsSection />
+        </Suspense>
+      </div>
+      <div className="mt-10">
+        <Suspense fallback={null}>
+          <MemberCompanies />
         </Suspense>
       </div>
     </div>

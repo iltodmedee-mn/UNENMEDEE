@@ -154,3 +154,42 @@ export function dueKeys(wanted: Map<string, string>, stored: Record<string, Comp
     .sort((a, b) => stored[a].checkedAt.localeCompare(stored[b].checkedAt));
   return [...fresh, ...stale];
 }
+
+// ---------------------------------------------------------------- tender winners (form 1831)
+
+/**
+ * The companies one form-1831 winner cell names: a consortium is typed as a list ("Чоногол трейд,
+ * Нуган, Медиконт"), so each part is its own key. Parts too short to be a name are dropped.
+ */
+export function winnerKeys(winner: string): string[] {
+  return [
+    ...new Set(
+      winner
+        .split(/[,;/]|\s+болон\s+|\s+ба\s+/iu)
+        .map((part) => orgKey(part))
+        .filter((k) => k.length >= 3),
+    ),
+  ];
+}
+
+/**
+ * Which winner cells name a declared company. Only companies Шилэн данс knows under exactly one
+ * register (`found`) take part: the same standard as the payments line, so a name two companies
+ * share is never tied to a member.
+ */
+export function matchWinners(foundKeys: ReadonlySet<string>, winners: readonly string[]): Map<string, string[]> {
+  const out = new Map<string, string[]>();
+  for (const w of winners)
+    for (const k of winnerKeys(w))
+      if (foundKeys.has(k)) {
+        const list = out.get(k) ?? [];
+        if (!list.includes(w)) list.push(w);
+        out.set(k, list);
+      }
+  return out;
+}
+
+/** The keys of the companies Шилэн данс matched to exactly one register. */
+export function foundKeys(snapshot: OfficialCompaniesSnapshot | null): Set<string> {
+  return new Set(Object.entries(snapshot?.companies ?? {}).flatMap(([k, c]) => (c.status === "found" ? [k] : [])));
+}

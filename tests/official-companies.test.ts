@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { allPages, checkCompany } from "@/lib/officials/companies-sync";
-import { bareName, type CompanyCheck, declaredCompanies, dueKeys, exactMatches, isOrgName, orgKey, parsePayers, parseSuppliers, searchQueries } from "@/lib/officials/companies";
+import { bareName, type CompanyCheck, declaredCompanies, dueKeys, exactMatches, foundKeys, isOrgName, matchWinners, orgKey, parsePayers, parseSuppliers, searchQueries, winnerKeys } from "@/lib/officials/companies";
 
 const fixture = (f: string) => JSON.parse(readFileSync(`tests/fixtures/shilendans/${f}`, "utf8")) as unknown;
 
@@ -109,3 +109,28 @@ describe("organisation names", () => {
   });
 });
 
+describe("declared companies in tender winner cells", () => {
+  it("reads every company of a consortium cell, legal form and spacing ignored", () => {
+    assert.deepEqual(winnerKeys("Монос трейд ХХК"), ["монострейд"]);
+    assert.deepEqual(winnerKeys("Чоногол трейд, Нуган, Медиконт ХХК"), ["чоноголтрейд", "нуган", "медиконт"]);
+    assert.deepEqual(winnerKeys("«Бодит чадал» ХХК болон Номин даатгал ХХК"), ["бодитчадал", "номиндаатгал"]);
+    assert.deepEqual(winnerKeys("А, -"), []);
+  });
+
+  it("matches only companies Шилэн данс knows under one register, each cell once", () => {
+    const snapshot = {
+      from: "2017-01-01",
+      to: "2026-11-01",
+      companies: {
+        бодитчадал: { status: "found", name: "Бодитчадал", checkedAt: "2026-11-01", register: "5462789", amount: 1, count: 1, payers: [] },
+        монос: { status: "ambiguous", name: "Монос ХХК", checkedAt: "2026-11-01", registers: 3 },
+        талхчихэр: { status: "none", name: "Талх чихэр ХК", checkedAt: "2026-11-01" },
+      } satisfies Record<string, CompanyCheck>,
+    };
+    const keys = foundKeys(snapshot);
+    assert.deepEqual([...keys], ["бодитчадал"]);
+    const m = matchWinners(keys, ["Бодит чадал ХХК", "БОДИТЧАДАЛ ХХК", "Бодит чадал ХХК", "Монос ХХК", "Талх чихэр ХК", "Бодит чадал трейд ХХК"]);
+    assert.deepEqual([...m.entries()], [["бодитчадал", ["Бодит чадал ХХК", "БОДИТЧАДАЛ ХХК"]]]);
+    assert.equal(foundKeys(null).size, 0);
+  });
+});
