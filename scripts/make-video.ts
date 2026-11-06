@@ -2,19 +2,17 @@
  * Makes one short video (src/lib/video) and stores it for posting (`npm run social:post -- --mode
  * video`). Twice a day in .github/workflows/video.yml.
  *
- *   npm run video:make                           # a price video, else a money video
- *   npm run video:make -- --prefer money         # a money video, else a price video (the midday run)
- *   npm run video:make -- --kind money           # only a money video ("ХҮН БҮРТ ХУВААВАЛ")
- *   npm run video:make -- --kind impact          # only a "ЧАМД ХАМААТАЙ ЮУ?" video (a fresh decision)
+ *   npm run video:make                           # a price video, else a "30 СЕК МЭДЭЭ" news video
+ *   npm run video:make -- --kind impact          # only a "30 СЕК МЭДЭЭ" news video (a fresh important story)
  *   npm run video:make -- --good beef            # this good's price video (skipped if made, unless --force)
  *   npm run video:make -- --dry-run --out x.mp4  # render to a file, store nothing (the voice is still billed)
- *   npm run video:make -- --slot                 # only inside a slot with no video yet (VIDEO_SLOTS: 12–16 money
- *                                                # first, 19–23 "Чамд хамаатай юу?" first); the pipeline and video.yml use it
+ *   npm run video:make -- --slot                 # only inside a slot with no video yet (VIDEO_SLOTS: 12–16 and
+ *                                                # 19–23, the news video first); the pipeline and video.yml use it
  *
  * Price videos ("15 жилийн өмнө"): one per good and NSO data month, so they run out until NSO
- * publishes the next month. Money videos: one per story, the most important fresh story whose
- * headline names a ₮ amount of 1 тэрбум or more (last 48 h, else 7 days), so there is nearly always
- * one. Needs DATABASE_URL, a voice key, ffmpeg and Playwright's Chromium. The voice is ElevenLabs
+ * publishes the next month. News videos: one per story, the most important fresh story with an AI
+ * summary (last 36 h, else 4 days). The "ХҮН БҮРТ ХУВААВАЛ" money video is off (Nov 6 2026).
+ * Needs DATABASE_URL, a voice key, ffmpeg and Playwright's Chromium. The voice is ElevenLabs
  * (ELEVENLABS_API_KEY, the owner's monthly plan) while the month's credits allow it at an even pace
  * (`creditPlan`), else Gemini (GEMINI_API_KEY). The voice call passes the AI budget guard and is logged
  * with its cost; a take whose pace is implausible, a spec with a number not from the snapshot or a
@@ -31,10 +29,9 @@ import { closeDb, type DB, getDb, hasDatabase } from "@/db";
 import { articles, indicatorSnapshots, sources, videos } from "@/db/schema";
 import { consoleUsageLogger, dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-log";
 import { GOODS, type PricesSnapshot } from "@/lib/budget/prices";
+import { tldrSentences } from "@/lib/format";
 import { impactHtml } from "@/lib/video/impact-html";
 import { IMPACT_MIN_IMPORTANCE, impactNarration, type ImpactSpec, impactVideoSpec, verifyImpactSpec } from "@/lib/video/impact-video";
-import { moneyHtml } from "@/lib/video/money-html";
-import { MONEY_MIN_IMPORTANCE, moneyNarration, type MoneySpec, moneyVideoSpec, verifyMoneySpec } from "@/lib/video/money-video";
 import { narration, priceVideoSpec, type Scene, type VideoSpec, verifySpec } from "@/lib/video/price-video";
 import type { VideoMeta } from "@/lib/video/posts";
 import { analyseAudio, MAX_BYTES, renderVideo } from "@/lib/video/render";
@@ -88,14 +85,14 @@ async function main() {
   const [row] = await db.select({ data: indicatorSnapshots.data }).from(indicatorSnapshots).where(eq(indicatorSnapshots.key, "prices_nso"));
   const prices = row ? (row.data as PricesSnapshot) : null;
 
-  const explicit = values.good ? "prices" : ["money", "prices", "impact"].includes(values.kind) ? (values.kind as VideoSlot["prefer"]) : null;
+  const explicit = values.good ? "prices" : ["prices", "impact"].includes(values.kind) ? (values.kind as VideoSlot["prefer"]) : null;
   const kinds = explicit ? [explicit] : kindsFor(prefer);
   let job: Job | null = null;
   for (const kind of kinds) {
-    job = kind === "money" ? await moneyJob(db, prices) : kind === "impact" ? await impactJob(db) : await priceJob(db, prices);
+    job = kind === "impact" ? await impactJob(db) : await priceJob(db, prices);
     if (job) break;
   }
-  if (!job) return console.log("🎬 Nothing new to make: no fresh decision, no fresh story naming a big ₮ amount, and every good has a video for this NSO month.");
+  if (!job) return console.log("🎬 Nothing new to make: no fresh story to tell, and every good has a video for this NSO month.");
 
   if (job.problems.length) throw new Error(`Spec refused:\n- ${job.problems.join("\n- ")}`);
   const text = job.text;
@@ -184,19 +181,6 @@ function priceJobFrom(spec: VideoSpec): Job {
   };
 }
 
-function moneyJobFrom(spec: MoneySpec, sourceName: string): Job {
-  return {
-    key: spec.key,
-    text: moneyNarration(spec),
-    says: spec.sentences.map((s) => s.say),
-    scenes: spec.sentences.map((s) => s.scene),
-    units: spec.relate?.count ?? null,
-    problems: verifyMoneySpec(spec),
-    html: (tl, assets) => moneyHtml(spec, tl, assets),
-    meta: { kind: "money", articleId: spec.articleId, headline: spec.headline, amountLabel: spec.amountLabel, shareLabel: spec.shareLabel, sourceName, topic: spec.topic, link: spec.link },
-  };
-}
-
 function impactJobFrom(spec: ImpactSpec, sourceName: string): Job {
   return {
     key: spec.key,
@@ -206,7 +190,7 @@ function impactJobFrom(spec: ImpactSpec, sourceName: string): Job {
     units: null,
     problems: verifyImpactSpec(spec),
     html: (tl, assets) => impactHtml(spec, tl, assets),
-    meta: { kind: "impact", articleId: spec.articleId, headline: spec.headline, ...spec.impact, sourceName, topic: spec.topic, link: spec.link },
+    meta: { kind: "impact", articleId: spec.articleId, headline: spec.headline, what: spec.what, ...spec.impact, sourceName, topic: spec.topic, link: spec.link },
   };
 }
 
@@ -223,6 +207,7 @@ async function impactJob(db: DB): Promise<Job | null> {
         slug: articles.slug,
         title,
         impact: articles.readerImpact,
+        tldr: articles.tldrSummary,
         topic: articles.topic,
         sourceName: sources.name,
         day: sql<string>`to_char(${articles.publishedAt} at time zone 'Asia/Ulaanbaatar', 'YYYY-MM-DD')`,
@@ -232,7 +217,7 @@ async function impactJob(db: DB): Promise<Job | null> {
       .where(
         and(
           eq(articles.isPublished, true),
-          isNotNull(articles.readerImpact),
+          isNotNull(articles.tldrSummary),
           eq(articles.summaryFallback, false),
           gte(articles.publishedAt, new Date(Date.now() - hours * 3_600_000)),
           gte(articles.importanceScore, IMPACT_MIN_IMPORTANCE),
@@ -244,11 +229,11 @@ async function impactJob(db: DB): Promise<Job | null> {
       .orderBy(desc(articles.importanceScore), desc(articles.publishedAt))
       .limit(40);
     for (const r of rows) {
-      const spec = impactVideoSpec({ id: r.id, slug: r.slug, title: r.title, impact: r.impact, sourceName: r.sourceName, day: r.day, topic: r.topic });
+      const spec = impactVideoSpec({ id: r.id, slug: r.slug, title: r.title, impact: r.impact, summary: tldrSentences(r.tldr ?? "", 3), sourceName: r.sourceName, day: r.day, topic: r.topic });
       if (spec && !verifyImpactSpec(spec).length) return impactJobFrom(spec, r.sourceName);
     }
   }
-  console.log("🎬 No fresh decision with a usable «Танд хамаатай юу?»: no impact video.");
+  console.log("🎬 No fresh important story with a summary to tell: no news video.");
   return null;
 }
 
@@ -279,49 +264,6 @@ async function priceJob(db: DB, snap: PricesSnapshot | null): Promise<Job | null
 }
 
 /** The most important fresh story whose headline names a ₮ amount the story also holds. */
-async function moneyJob(db: DB, prices: PricesSnapshot | null): Promise<Job | null> {
-  const title = sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`;
-  for (const hours of [48, 7 * 24]) {
-    const rows = await db
-      .select({
-        id: articles.id,
-        slug: articles.slug,
-        title,
-        entities: articles.extractedEntities,
-        topic: articles.topic,
-        sourceName: sources.name,
-        day: sql<string>`to_char(${articles.publishedAt} at time zone 'Asia/Ulaanbaatar', 'YYYY-MM-DD')`,
-      })
-      .from(articles)
-      .innerJoin(sources, eq(sources.id, articles.sourceId))
-      .where(
-        and(
-          eq(articles.isPublished, true),
-          isNotNull(articles.tldrSummary),
-          eq(articles.summaryFallback, false),
-          gte(articles.publishedAt, new Date(Date.now() - hours * 3_600_000)),
-          gte(articles.importanceScore, MONEY_MIN_IMPORTANCE),
-          sql`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false) = false`,
-          sql`${title} ~ '[0-9]'`,
-          sql`jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0`,
-          // One video per story: an "ЧАМД ХАМААТАЙ ЮУ?" video already made from it counts too
-          // (only money: keys were checked, so the same story could become a second video).
-          sql`not exists (select 1 from ${videos} where ${videos.key} in ('money:' || ${articles.id}, 'impact:' || ${articles.id}))`,
-        ),
-      )
-      .orderBy(desc(articles.importanceScore), desc(articles.publishedAt))
-      .limit(40);
-    for (const r of rows) {
-      const spec = moneyVideoSpec(
-        { id: r.id, slug: r.slug, title: r.title, amounts: r.entities?.amounts_mnt ?? [], sourceName: r.sourceName, day: r.day, topic: r.topic },
-        prices,
-      );
-      if (spec) return moneyJobFrom(spec, r.sourceName);
-    }
-  }
-  console.log("🎬 No fresh story names a ₮ amount of 1 тэрбум or more: no money video.");
-  return null;
-}
 
 main()
   .catch((err) => {

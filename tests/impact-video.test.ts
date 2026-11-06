@@ -57,6 +57,33 @@ describe("impactVideoSpec", () => {
     assert.match(spec.sentences[0].caption, /\*600\*/);
   });
 
+  it("tells the story like a news creator: greeting, what happened, who and what changes, source, sign-off", () => {
+    const spec = impactVideoSpec({
+      ...pension,
+      impact: { ...pension.impact!, who: "Нийгмийн халамжийн тэтгэвэр авагчид" },
+      sourceName: "Монгол Улсын Засгийн газар (gov.mn)",
+      summary: [
+        "Засгийн газар нийгмийн халамжийн тэтгэврийн хэмжээг нэмэгдүүлэх тогтоол баталлаа.",
+        "Зарим бүлгийн иргэд сар бүр 600 мянган төгрөг хүртэл авна.",
+        "Тогтоол 11 дүгээр сарын 1-нээс хэрэгжинэ.",
+      ],
+    })!;
+    assert.ok(spec);
+    assert.equal(spec.cards[0].scene, "what");
+    assert.equal(spec.cards[0].text, "Засгийн газар нийгмийн халамжийн тэтгэврийн хэмжээг нэмэгдүүлэх тогтоол баталлаа. Зарим бүлгийн иргэд сар бүр 600 мянган төгрөг хүртэл авна.");
+    assert.match(spec.sentences[0].say, /^Сайн байна уу, Ил тод мэдээ\./);
+    assert.equal(spec.sentences.at(-1)!.say, "Эх сурвалж нь Монгол Улсын Засгийн газар. Энэ бол Ил тод мэдээ.");
+    assert.ok(!spec.source.includes("gov.mn"));
+    assert.deepEqual(verifyImpactSpec(spec), []);
+    assert.ok(impactNarration(spec).length <= IMPACT_MAX_CHARS);
+    // A story with only a summary still makes a video; a summary naming a charge never does.
+    const plain = impactVideoSpec({ ...pension, impact: null, summary: ["Улсын валютын нөөц 10-р сарын эцэст 8.76 тэрбум ам.долларт хүрсэн байна."] });
+    assert.deepEqual(plain?.cards.map((c) => c.scene), ["what"]);
+    assert.equal(impactVideoSpec({ ...pension, summary: ["Албан тушаалтныг авлигын хэргээр шүүхэд шилжүүллээ."] }), null);
+    // A card text the story does not hold is refused.
+    assert.ok(verifyImpactSpec({ ...spec, cards: [{ ...spec.cards[0], text: "Зохиосон өгүүлбэр." }, ...spec.cards.slice(1)] }).length > 0);
+  });
+
   it("refuses a headline that weighs or accuses and a field naming a charge", () => {
     assert.equal(impactVideoSpec({ ...pension, title: "Төсвийн зарлага 9-ээс 43.5 их наяд ₮ болж өссөн ч иргэдийн орлого 62% л өссөн" }), null);
     assert.equal(impactVideoSpec({ ...pension, title: "Уул уурхайн тусгай зөвшөөрөлд авлигын эрсдэл илэрч, 11 зөвлөмж өглөө" }), null);
@@ -105,7 +132,8 @@ describe("impact video posts", () => {
     const fb = facebookVideoText(meta, "https://iltodmedee.mn");
     assert.match(fb, /👥 Хэнд: Тэтгэвэр авагчид/);
     assert.match(fb, /📅 Хэзээнээс:/);
-    assert.match(fb, /AI эх мэдээнээс товчилсон/);
+    assert.match(fb, /Товчлолыг AI эх мэдээнээс хийсэн/);
+    assert.ok(!/коммент|хамаатай юу\?/i.test(fb), "a news sign-off, no ask");
     assert.match(fb, /https:\/\/iltodmedee\.mn\/article\/tetgever-600/);
     assert.match(instagramVideoCaption(meta), /bio-д/);
     assert.ok(threadsLength(threadsVideoText(meta, "https://iltodmedee.mn")) <= THREADS_MAX);
@@ -113,9 +141,9 @@ describe("impact video posts", () => {
 });
 
 describe("kindsFor", () => {
-  it("the evening tries a decision first, a price video only when none qualifies", () => {
-    assert.deepEqual(kindsFor("impact"), ["impact", "prices", "money"]);
-    assert.deepEqual(kindsFor("money"), ["money", "prices"]);
+  it("both slots tell a fresh story first, a price video only when none qualifies; no money video", () => {
+    assert.deepEqual(kindsFor("impact"), ["impact", "prices"]);
+    assert.deepEqual(kindsFor("prices"), ["prices", "impact"]);
   });
 });
 

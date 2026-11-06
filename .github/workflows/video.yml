@@ -1,9 +1,10 @@
 # Two short videos a day (src/lib/video), made with a Gemini voice (AI budget guard, logged on
 # /transparency), stored for /reel, then posted as a Reel to Facebook and Instagram and as a video
-# to Threads. Midday: "ХҮН БҮРТ ХУВААВАЛ" (a fresh story's ₮ amount divided by the population),
-# else a price video. Evening: "ҮНЭ ТААГААРАЙ" (one good, 15 years of NSO prices; 13 per NSO
-# month), else a money video. The slots, not these crons, decide the time (GitHub starts them hours
-# late): the 30-minute pipeline makes the slot's video too, whichever runs first.
+# to Threads. Both slots: "30 СЕК МЭДЭЭ" (one fresh important story told like a news creator:
+# what happened, who it touches, the source), else "ҮНЭ ТААГААРАЙ" (one good, 15 years of NSO
+# prices; 13 per NSO month). The "ХҮН БҮРТ ХУВААВАЛ" money video is off (Nov 6 2026). The slots,
+# not these crons, decide the time (GitHub starts them hours late): the 30-minute pipeline makes
+# the slot's video too, whichever runs first.
 # Turn it off without a code change: repository variable VIDEO_POSTING = off.
 name: Daily video
 
@@ -15,7 +16,7 @@ on:
   workflow_dispatch:
     inputs:
       kind:
-        description: "auto = price video, else money video; impact = only «ТАНД ХАМААТАЙ ЮУ?»; money = only «ХҮН БҮРТ ХУВААВАЛ»; prices = only a price video"
+        description: "auto = price video, else a news video; impact = only «30 СЕК МЭДЭЭ»; prices = only a price video"
         required: false
         default: "auto"
       good:
@@ -98,7 +99,7 @@ jobs:
           # A scheduled run (often hours late) makes a video only inside a slot that has none yet;
           # the slot decides the kind (src/lib/video/schedule.ts). Manual runs make one at once.
           if [ -n "$IN_SCHEDULE" ]; then args+=(--slot); fi
-          case "$IN_KIND" in money|prices|impact) args+=(--kind "$IN_KIND") ;; esac
+          case "$IN_KIND" in prices|impact) args+=(--kind "$IN_KIND") ;; esac
           case "$IN_GOOD" in ''|*[!a-z0-9]*) ;; *) args+=(--good "$IN_GOOD") ;; esac
           if [ "$IN_DRY" = "true" ]; then args+=(--dry-run --out video.mp4); fi
           npm run video:make -- "${args[@]}"
