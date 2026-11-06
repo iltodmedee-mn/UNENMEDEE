@@ -16,6 +16,7 @@ import { sources } from "@/db/schema";
 import { canonicalHost, classifyDomain, harvestGovernmentHosts, siteName } from "@/lib/scraper/discover";
 import { politeFetch } from "@/lib/scraper/http";
 import { DISCOVERY_HUBS, SOURCE_SEEDS } from "@/lib/sources";
+import { errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -31,7 +32,8 @@ async function fetchHtml(url: string): Promise<{ html: string; finalUrl: string 
     const type = res.headers.get("content-type") ?? "";
     if (!res.ok || !type.includes("html")) return null;
     return { html: await res.text(), finalUrl: res.url || url };
-  } catch {
+  } catch (err) {
+    console.warn(`  ⚠ ${url}: ${errorLine(err, 200)}`);
     return null;
   }
 }

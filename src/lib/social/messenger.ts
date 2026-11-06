@@ -9,6 +9,7 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
 import { PRODUCTION_URL } from "@/lib/site";
+import { readJsonBody } from "@/lib/read-json";
 
 export const MESSENGER_SETTINGS_KEY = "messenger";
 /** app_settings key of the Instagram app secret (Instagram-Login DM webhooks are signed with it). */
@@ -159,7 +160,7 @@ export async function sendText(opts: { pageToken: string; recipientId: string; t
     signal: AbortSignal.timeout(10_000),
   });
   if (!res.ok) {
-    const err = (await res.json().catch(() => ({}))) as { error?: { message?: string; code?: number } };
+    const err = (await readJsonBody(res)) as { error?: { message?: string; code?: number } };
     throw new Error(`Messenger ${res.status}: ${err.error?.message ?? "send failed"} (code ${err.error?.code ?? "?"})`.slice(0, 300));
   }
 }

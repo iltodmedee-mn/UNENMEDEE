@@ -25,6 +25,7 @@ import { budgetConfig } from "@/lib/ai/limits";
 import { GOVERNMENTS_VERIFIED_THROUGH } from "@/lib/budget/governments";
 import { type CoreSnapshot, healthProblems, healthReport, type IntegritySnapshot, type HealthConfig, type HealthSnapshot, type NetworkSnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot, type WorkflowSnapshot } from "@/lib/health";
 import { parseLayoutReport } from "@/lib/layout-check";
+import { errorDetail, errorLine } from "@/lib/log-safe";
 import { POPULATION } from "@/lib/per-person";
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
 import { PROGRAMME_END } from "@/lib/promises/programme";
@@ -230,7 +231,7 @@ async function network(): Promise<NetworkSnapshot> {
     certValidTo(new URL(PRODUCTION_URL).hostname),
   ]);
   const siteOk = site.status === "fulfilled" && site.value.status === 200;
-  const siteStatus = site.status === "fulfilled" ? `HTTP ${site.value.status}` : String((site.reason as Error)?.message ?? site.reason);
+  const siteStatus = site.status === "fulfilled" ? `HTTP ${site.value.status}` : errorLine(site.reason, 200);
   const feedOk = feed.status === "fulfilled" && feed.value.status === 200 && feed.value.text.includes("<rss");
   let securityTxtExpires: Date | null = null;
   if (security.status === "fulfilled" && security.value.status === 200) {
@@ -246,7 +247,7 @@ async function github(path: string, token: string): Promise<unknown> {
     headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
     signal: AbortSignal.timeout(TIMEOUT_MS),
   });
-  if (!res.ok) throw new Error(`GitHub API ${path.split("?")[0]}: HTTP ${res.status}`);
+  if (!res.ok) throw new Error(`GitHub API ${path.split("?")[0]}: HTTP ${res.status} ${errorLine(await res.text().catch(() => ""), 200)}`);
   return res.json();
 }
 
@@ -344,7 +345,12 @@ async function main() {
     // The news/database check failing means the database or its secret is broken, and none of the
     // urgent rules could run: that is urgent itself. GitHub's API failing hides a disabled pipeline.
     const critical = names[i] === "мэдээ/AI/push" || names[i] === "GitHub workflow";
-    if (r.status === "rejected") problems.push({ level: critical ? "urgent" : "info", text: `Шалгалт "${names[i]}" ажилласангүй: ${(r.reason as Error)?.message ?? r.reason}` });
+    if (r.status === "rejected") {
+      // The issue line carries the whole cause chain (drizzle's "Failed query" hides the Postgres
+      // reason in `cause`); the run log gets the stack.
+      console.error(`::error::check "${names[i]}" failed: ${errorDetail(r.reason)}`);
+      problems.push({ level: critical ? "urgent" : "info", text: `Шалгалт "${names[i]}" ажилласангүй: ${errorLine(r.reason, 600)}` });
+    }
   });
 
   const c = snapshot.core;

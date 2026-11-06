@@ -147,6 +147,7 @@ jobs:
       # Tells the Supabase fallback (supabase/pipeline-fallback.sql) and the watchdog that a run
       # started, so the database only asks GitHub for a run when none started for an hour.
       - name: Record the run's start
+        id: mark
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         continue-on-error: true
         run: npm run pipeline:mark
@@ -184,6 +185,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Scrape government sources
+        id: scrape
         # Runs whenever the schema is current, even if the Chromium install failed (HTTP pass only).
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         # Inputs go through env vars, never straight into the script (prevents injection).
@@ -202,6 +204,7 @@ jobs:
           npm run scrape -- "${args[@]}"
 
       - name: Analyze with AI (free providers first, paid ones within budget)
+        id: ai
         # From here on every step runs even when an earlier one failed (a scrape or AI outage must
         # never stop the digest, its rule-based fallback or the pushes), but never on an old schema.
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.GROQ_API_KEY != '' || env.GEMINI_API_KEY != '' || env.REQUESTY_API_KEY != '' || env.NVIDIA_API_KEY != '' || env.MISTRAL_API_KEY != '' || env.OPENROUTER_API_KEY != '' || env.ZAI_API_KEY != '' || env.DEEPSEEK_API_KEY != '') }}
@@ -213,35 +216,41 @@ jobs:
           npm run ai:process -- --limit "$IN_AI_LIMIT" --budget 75
 
       - name: Tag older articles with an AI topic (batched, free tier)
+        id: topics
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.GROQ_API_KEY != '' || env.GEMINI_API_KEY != '' || env.REQUESTY_API_KEY != '' || env.NVIDIA_API_KEY != '' || env.MISTRAL_API_KEY != '' || env.OPENROUTER_API_KEY != '' || env.ZAI_API_KEY != '' || env.DEEPSEEK_API_KEY != '') }}
         # A no-op once every article has a topic (Tier 1 returns one for new articles).
         continue-on-error: true
         run: npm run ai:topics -- --limit 200
 
       - name: Plain headlines and "Танд хамаатай юу?" for older stories (batched, free tier)
+        id: reader
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.GROQ_API_KEY != '' || env.GEMINI_API_KEY != '' || env.REQUESTY_API_KEY != '' || env.NVIDIA_API_KEY != '' || env.MISTRAL_API_KEY != '' || env.OPENROUTER_API_KEY != '' || env.ZAI_API_KEY != '' || env.DEEPSEEK_API_KEY != '') }}
         # A no-op once last month's feed stories have one (Tier 1 writes them for new articles).
         continue-on-error: true
         run: npm run ai:reader -- --limit 64
 
       - name: Match the press's headlines with government stories (ikon.mn, news.mn, sonin.mn)
+        id: press
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         # Headlines and links only; a failing feed is a warning. Never fails the pipeline.
         continue-on-error: true
         run: npm run press:sync
 
       - name: Notify subscribers about important news
+        id: push_news
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         # Push problems must never fail the pipeline.
         continue-on-error: true
         run: npm run push:send -- --mode news
 
       - name: Post the most important new story to Facebook, Threads, Instagram, Telegram and Discord
+        id: social_news
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '' || env.TELEGRAM_BOT_TOKEN != '' || env.DISCORD_BOT_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode news
 
       - name: Write the 12h digest when it is due (morning / evening window)
+        id: digest
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         # news-digest.yml starts hours late on GitHub's scheduler, so every pipeline run checks
         # whether an edition is due (src/lib/ai/digest.ts isDigestDue) and writes it here.
@@ -249,11 +258,13 @@ jobs:
         run: npm run digest -- --due
 
       - name: Notify subscribers about a new digest
+        id: push_digest
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         continue-on-error: true
         run: npm run push:send -- --mode digest
 
       - name: Post the new digest to Facebook, Threads, Instagram, Telegram and Discord
+        id: social_digest
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '' || env.TELEGRAM_BOT_TOKEN != '' || env.DISCORD_BOT_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode digest
@@ -261,6 +272,7 @@ jobs:
       # The videos' main clock (GitHub starts video.yml hours late): inside a slot (12–16, 19–23
       # Ulaanbaatar) with no video yet, make one here, then post any video not yet posted.
       - name: Make the slot's video (12–16 money, 19–23 «Чамд хамаатай юу?»)
+        id: video_make
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && steps.chromium.outcome == 'success' && vars.VIDEO_POSTING != 'off' && (env.GEMINI_API_KEY != '' || env.HAS_ELEVENLABS == 'true') }}
         continue-on-error: true
         env:
@@ -278,12 +290,14 @@ jobs:
           npm run video:make -- --slot
 
       - name: Post a video not yet posted (Facebook / Instagram Reels, Threads)
+        id: video_post
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && vars.VIDEO_POSTING != 'off' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode video
 
       # The Launchpad campaign (3–7 Nov 2026, 19:00 Ulaanbaatar; src/lib/social/promo.ts): a no-op on other days.
       - name: Post the Launchpad campaign reel due today
+        id: promo
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode promo
@@ -291,6 +305,23 @@ jobs:
       # Sunday 19:00 Ulaanbaatar the weekly quiz carousel, from 19:00 the next day its answers
       # (src/lib/social/weekly-quiz.ts); a no-op without platform calls on every other run.
       - name: Post the weekly quiz carousel or its answers when due
+        id: weekly_quiz
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode weekly-quiz
+
+      # Every step above keeps running after a failure (a scrape or AI outage must never stop the
+      # digest or the pushes), so the run turned green whatever broke and the watchdog, which reads
+      # only the run's conclusion, never saw it. A failed step is a failed run: the steps still ran.
+      # The Chromium install is a convenience (the scrape falls back to --no-browser) and is left out.
+      - name: Fail the run when a step failed
+        if: ${{ !cancelled() }}
+        env:
+          STEPS: ${{ toJSON(steps) }}
+        run: |
+          failed=$(printf '%s' "$STEPS" | jq -r 'to_entries[] | select(.key != "chromium" and .value.outcome == "failure") | .key')
+          if [ -n "$failed" ]; then
+            for s in $failed; do echo "::error::step '$s' failed: open its log above and paste it with the run URL into the bug report"; done
+            exit 1
+          fi
+          echo "✓ every step succeeded"

@@ -148,9 +148,13 @@ export function errorMessage(error: unknown): string {
   const inner = [e.cause, ...(e.errors ?? [])].find((x): x is Error & { code?: string } => x instanceof Error);
   const text = e.message.split("\n")[0].trim() || inner?.message.split("\n")[0].trim() || "";
   const code = e.code ?? inner?.code ?? (inner?.cause as { code?: string } | undefined)?.code;
+  // The cause's own first line when the outer message is something else ("fetch failed" ←
+  // "connect ETIMEDOUT 1.2.3.4:443"): the outer message alone said nothing about the network.
+  const innerText = inner?.message.split("\n")[0].trim() ?? "";
+  const withCause = innerText && text && !text.includes(innerText) && !innerText.includes(text) ? `${text} ← ${innerText}` : text;
   // One line: the text reaches the Actions log and `last_error`, and a publisher's error page can
   // put a line break (and a "::error::" workflow command) into it.
-  return oneLine((code && !text.includes(code) ? `${code} ${text}` : text || e.name).trim()).slice(0, 300);
+  return oneLine((code && !withCause.includes(code) ? `${code} ${withCause}` : withCause || e.name).trim()).slice(0, 300);
 }
 
 /**

@@ -3,6 +3,8 @@ import type { z } from "zod";
 
 import type { AIProvider } from "@/lib/types";
 
+import { oneLine } from "@/lib/log-safe";
+
 import { geminiGenerate, GeminiError, type ChatMessage } from "./gemini";
 import { throttleProvider, unlimitedGuard, type BudgetGuard } from "./limits";
 import { estimateCostUsd, GEMINI_BILLED_MODEL, geminiIsFree, getPrice, isTextModel } from "./pricing";
@@ -43,6 +45,8 @@ interface CompletionResult {
   completionTokens: number;
   /** Exact billed cost when the provider reports it (Requesty does). */
   costUsd?: number;
+  /** The model hit its output limit (finish_reason "length" / Gemini MAX_TOKENS): the JSON is cut off. */
+  truncated?: boolean;
 }
 
 interface ProviderConfig {
@@ -112,6 +116,7 @@ function openaiProvider(provider: AIProvider, model: string, baseURL: string, ap
         promptTokens: res.usage?.prompt_tokens ?? 0,
         completionTokens: res.usage?.completion_tokens ?? 0,
         costUsd: typeof reportedCost === "number" && Number.isFinite(reportedCost) && reportedCost >= 0 ? reportedCost : undefined,
+        truncated: res.choices[0]?.finish_reason === "length",
       };
     },
   };
@@ -356,8 +361,9 @@ function tripCount(provider: AIProvider): number {
   }
   return t.n;
 }
-const isTransportFailure = (err: unknown, message: string) =>
-  !(err instanceof SchemaError || err instanceof SyntaxError || /no JSON object/.test(message)) && !isRetryableRateLimit(err) && !isRequestSpecific(err);
+/** The model answered, but the reply cannot be used (bad or cut-off JSON, wrong shape). */
+const isBadReply = (err: unknown, message: string) => err instanceof SchemaError || err instanceof TruncatedError || err instanceof SyntaxError || /no JSON object/.test(message);
+const isTransportFailure = (err: unknown, message: string) => !isBadReply(err, message) && !isRetryableRateLimit(err) && !isRequestSpecific(err);
 
 /**
  * 400 / 413 / 422 are about this request (Groq's 413 "Request too large" for one big digest
@@ -436,6 +442,7 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
       let promptTokens = 0;
       let completionTokens = 0;
       let reportedCost: number | undefined;
+      let reply = "";
       try {
         await throttleProvider(p.provider);
         // The repair attempt gets more room: a reply cut off mid-JSON is the most common invalid one.
@@ -443,7 +450,16 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         promptTokens = res.promptTokens;
         completionTokens = res.completionTokens;
         reportedCost = res.costUsd;
-        const parsed = opts.schema.safeParse(parseJsonLoose(res.content));
+        reply = res.content;
+        let json: unknown;
+        try {
+          json = parseJsonLoose(res.content);
+        } catch (parseErr) {
+          // A reply the model could not finish is not "Unexpected end of JSON input": say so.
+          if (res.truncated) throw new TruncatedError(res.content);
+          throw parseErr;
+        }
+        const parsed = opts.schema.safeParse(json);
         if (!parsed.success) throw new SchemaError(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "), res.content);
         const costUsd = reportedCost ?? estimateCostUsd(p.provider, promptTokens, completionTokens, p.model);
         await log({ provider: p.provider, model: p.model, purpose: opts.purpose, articleId: opts.articleId, promptTokens, completionTokens, estimatedCostUsd: costUsd, success: true });
@@ -451,25 +467,29 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         tripped.delete(p.provider);
         return { data: parsed.data, provider: p.provider, model: p.model, costUsd };
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const message = errorMessage(err);
         attempts.push(`${p.provider}/${p.model}: ${message.slice(0, 200)}`);
         if (isTransportFailure(err, message)) {
           const n = tripCount(p.provider) + 1;
           tripped.set(p.provider, { n, at: Date.now() });
           // Visible in the workflow log: a call that returns no tokens is not in ai_usage_logs.
           // Calls already in flight can push n past the limit: print it capped.
-          console.warn(`[ai] ${p.provider}/${p.model} failed (${Math.min(n, PROVIDER_TRIP)}/${PROVIDER_TRIP}${n >= PROVIDER_TRIP ? ", skipped for the rest of this run" : ""}): ${message.slice(0, 160)}`);
+          console.warn(`[ai] ${p.provider}/${p.model} failed (${Math.min(n, PROVIDER_TRIP)}/${PROVIDER_TRIP}${n >= PROVIDER_TRIP ? ", skipped for the rest of this run" : ""}): ${oneLine(message, 160)}`);
+        } else {
+          // A 429, a request-specific 400 or an unusable reply used to print nothing unless every
+          // provider failed; a cut-off reply only ever read "Unexpected end of JSON input".
+          console.warn(`[ai] ${p.provider}/${p.model} ${err instanceof Error ? err.name : "error"}: ${oneLine(message, 160)}${replySnippet(err, reply)}`);
         }
         if (promptTokens || completionTokens) {
           const costUsd = reportedCost ?? estimateCostUsd(p.provider, promptTokens, completionTokens, p.model);
           await log({ provider: p.provider, model: p.model, purpose: opts.purpose, articleId: opts.articleId, promptTokens, completionTokens, estimatedCostUsd: costUsd, success: false });
           budget.record(p.provider, costUsd);
         }
-        if (err instanceof SchemaError || err instanceof SyntaxError || /no JSON object/.test(message)) {
-          // One repair attempt on the same provider, then move on.
+        if (isBadReply(err, message)) {
+          // One repair attempt on the same provider, then move on (a cut-off reply gets twice the tokens).
           messages = [
             ...opts.messages,
-            { role: "assistant", content: err instanceof SchemaError ? err.reply.slice(0, 4_000) : "" },
+            { role: "assistant", content: err instanceof SchemaError || err instanceof TruncatedError ? err.reply.slice(0, 4_000) : "" },
             { role: "user", content: `Хариулт буруу байна (${message.slice(0, 200)}). Зөвхөн заасан бүтэцтэй, хүчинтэй JSON буцаа.` },
           ];
           continue;
@@ -498,4 +518,28 @@ class SchemaError extends Error {
     super(`Invalid JSON shape: ${message}`);
     this.name = "SchemaError";
   }
+}
+
+/** The model stopped at its output limit before closing the JSON (finish_reason "length" / MAX_TOKENS). */
+export class TruncatedError extends Error {
+  constructor(readonly reply: string) {
+    super(`Invalid JSON: reply cut off at the output token limit (${reply.length} characters)`);
+    this.name = "TruncatedError";
+  }
+}
+
+/** The error's message with its cause: the OpenAI SDK's "Connection error." hides ECONNRESET / ETIMEDOUT in `cause`. */
+function errorMessage(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const cause = (err as Error & { cause?: unknown }).cause;
+  const inner = cause instanceof Error ? cause.message || (cause as Error & { code?: string }).code : undefined;
+  return inner && !err.message.includes(inner) ? `${err.message} (${inner})` : err.message;
+}
+
+/** For an unusable reply: its first and last 120 characters, so the log shows what the model sent. */
+function replySnippet(err: unknown, reply: string): string {
+  if (!reply || !(err instanceof SchemaError || err instanceof TruncatedError || err instanceof SyntaxError)) return "";
+  const head = oneLine(reply.slice(0, 120));
+  const tail = reply.length > 240 ? ` … ${oneLine(reply.slice(-120))}` : reply.length > 120 ? oneLine(reply.slice(120)) : "";
+  return ` | reply: ${head}${tail}`;
 }

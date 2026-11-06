@@ -18,6 +18,7 @@ import type { BudgetGuard } from "@/lib/ai/limits";
 import type { UsageLogger } from "@/lib/ai/router";
 
 import { pcmToWav, SpeechError } from "./tts";
+import { readJsonBody } from "@/lib/read-json";
 
 export const ELEVENLABS_MODEL = process.env.ELEVENLABS_MODEL?.trim() || "eleven_v4";
 /**
@@ -202,7 +203,7 @@ export async function speakElevenLabs(opts: {
     }),
     signal: AbortSignal.timeout(180_000),
   });
-  const body = (await res.json().catch(() => ({}))) as { audio_base64?: string; alignment?: Alignment; detail?: { message?: string } | string };
+  const body = (await readJsonBody(res)) as { audio_base64?: string; alignment?: Alignment; detail?: { message?: string } | string };
   const charged = Number(res.headers.get("character-cost"));
   const credits = Number.isFinite(charged) && charged > 0 ? charged : res.ok ? text.length : 0;
   if (credits) {

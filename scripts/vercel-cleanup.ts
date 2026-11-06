@@ -11,6 +11,7 @@
 import { parseArgs } from "node:util";
 
 import { deploymentsToDelete, type VercelDeployment } from "@/lib/vercel-cleanup";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 const API = "https://api.vercel.com";
@@ -80,6 +81,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("✗ Vercel cleanup failed:", err instanceof Error ? err.message : err);
+  console.error(`::error::Vercel cleanup failed: ${errorDetail(err)}`);
   process.exitCode = 1;
 });

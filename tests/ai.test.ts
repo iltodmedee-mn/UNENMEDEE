@@ -1,15 +1,16 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { after, before, beforeEach, describe, it } from "node:test";
+import { after, before, beforeEach, describe, it, mock as nodeMock } from "node:test";
 
 import { analyzeArticle, formatDeepAnalysis, shouldResynthesize } from "@/lib/ai/analyze";
 import { CLUSTER_THRESHOLD, findBestMatch, similarity, stems, type ClusterDoc } from "@/lib/ai/clustering";
 import { estimateCostUsd, getPrice, isTextModel } from "@/lib/ai/pricing";
-import { AIUnavailableError, callAIWithFallback, isRequestSpecific, PROVIDER_TRIP, resetProviderTrips, type UsageRecord } from "@/lib/ai/router";
+import { AIUnavailableError, callAIWithFallback, isRequestSpecific, PROVIDER_TRIP, resetProviderTrips, TruncatedError, type UsageRecord } from "@/lib/ai/router";
+import { shouldPark } from "@/lib/ai/fallback";
 import { GeminiError } from "@/lib/ai/gemini";
 import { parseJsonLoose, Tier1Schema, Tier2Schema } from "@/lib/ai/schemas";
 
-import { startMockLLM, TIER1_OK, TIER2_OK } from "./helpers/mock-llm";
+import { type Reply, startMockLLM, TIER1_OK, TIER2_OK } from "./helpers/mock-llm";
 
 describe("pricing", () => {
   it("computes exact USD cost per 1M tokens (spec defaults)", () => {
@@ -63,7 +64,7 @@ describe("Tier1Schema", () => {
 
 describe("router with a mock OpenAI-compatible server", () => {
   let mock: Awaited<ReturnType<typeof startMockLLM>>;
-  let script: (model: string, i: number) => { status?: number; content?: string };
+  let script: (model: string, i: number) => Reply;
   const logs: UsageRecord[] = [];
   const log = async (r: UsageRecord) => void logs.push(r);
 
@@ -128,6 +129,41 @@ describe("router with a mock OpenAI-compatible server", () => {
     assert.equal(mock.calls.length, 2);
     assert.deepEqual(logs.map((l) => l.success), [false, true]);
     assert.equal(logs[1].estimatedCostUsd, 0.00045);
+  });
+
+  it("names a reply cut off at the token limit, repairs it with twice the room, and parks it when it never fits", async () => {
+    const cut = TIER1_OK.slice(0, 80);
+    script = (_m, i) => (i === 0 ? { content: cut, truncated: true } : { content: TIER1_OK });
+    const warn = nodeMock.method(console, "warn", () => {});
+    try {
+      const res = await callAIWithFallback({ tier: "tier1", purpose: "tier1", messages: [{ role: "user", content: "x" }], schema: Tier1Schema, log, maxTokens: 500 });
+      assert.equal(res.provider, "deepseek");
+      const sent = mock.calls.map((c) => (c.body as { max_tokens: number }).max_tokens);
+      assert.deepEqual(sent, [500, 1000], "the repair doubles the output room");
+      const line = String(warn.mock.calls[0]?.arguments[0]);
+      assert.match(line, /deepseek\/mock-deepseek TruncatedError: Invalid JSON: reply cut off at the output token limit/);
+      assert.match(line, /\| reply: \{"tldr_summary"/, "the log shows what the model sent");
+    } finally {
+      warn.mock.restore();
+    }
+    // Still cut off after the repair: the article is parked like any unusable reply, no provider trips.
+    script = () => ({ content: cut, truncated: true });
+    const err = await callAIWithFallback({ tier: "tier1", purpose: "tier1", messages: [], schema: Tier1Schema, chain: ["deepseek"], log }).catch((e) => e);
+    assert.ok(err instanceof AIUnavailableError);
+    assert.match(err.attempts[0], /cut off at the output token limit/);
+    assert.equal(shouldPark(err.attempts), true);
+    assert.equal(new TruncatedError("{").name, "TruncatedError");
+  });
+
+  it("a 400 names the provider in the log even when the next provider answers", async () => {
+    script = (model) => (model === "mock-grok" ? { status: 400 } : { content: TIER2_OK });
+    const warn = nodeMock.method(console, "warn", () => {});
+    try {
+      await callAIWithFallback({ tier: "tier2", purpose: "tier2", messages: [{ role: "user", content: "x" }], schema: Tier2Schema, log });
+      assert.ok(warn.mock.calls.some((c) => /\[ai\] grok\/mock-grok \w*Error: 400/.test(String(c.arguments[0]))), warn.mock.calls.map((c) => c.arguments[0]).join("\n"));
+    } finally {
+      warn.mock.restore();
+    }
   });
 
   it("falls back from Grok to DeepSeek when Grok errors", async () => {

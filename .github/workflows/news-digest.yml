@@ -113,6 +113,7 @@ jobs:
       # old unpublished rows (URLs kept in seen_urls), tightens itself past 350 / 420 MB. The watchdog
       # reports it when prune_state stops moving, so a failure here is not silent.
       - name: Prune the database
+        id: prune
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         continue-on-error: true
         env:
@@ -120,15 +121,18 @@ jobs:
         run: npm run db:prune
 
       - name: Sync opendata.mn datasets
+        id: opendata
         # Data problems must never block the news digest.
         continue-on-error: true
         run: npm run data:sync
 
       - name: Sync Mongolbank indicators (policy rate, inflation, FX, gold, reserves)
+        id: macro
         continue-on-error: true
         run: npm run macro:sync
 
       - name: Sync budget data (NSO, Шилэн данс, World Bank, audit.mn)
+        id: budget
         continue-on-error: true
         env:
           # audit.mn does not send its RapidSSL intermediate; trust DigiCert's public one (verification stays on).
@@ -136,11 +140,13 @@ jobs:
         run: npm run budget:sync
 
       - name: Sync tender results (Шилэн данс form 1831, for /tenders)
+        id: tenders
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         continue-on-error: true
         run: npm run tenders:sync
 
       - name: Watch report and tender pages (audit.mn, WordPress ministries, for /documents)
+        id: documents
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         continue-on-error: true
         env:
@@ -149,11 +155,13 @@ jobs:
         run: npm run docs:watch
 
       - name: Sync open petitions to parliament (petition.parliament.mn, for /participate)
+        id: petitions
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         continue-on-error: true
         run: npm run petitions:sync
 
       - name: Write the digest
+        id: digest
         # A failed sync above never stops the digest; a failed digest never stops the steps below
         # (the pipeline may have written the edition already), but nothing runs on an old schema.
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
@@ -170,21 +178,41 @@ jobs:
           fi
 
       - name: Notify subscribers about the new digest
+        id: push_digest
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         continue-on-error: true
         run: npm run push:send -- --mode digest
 
       - name: Post the new digest to Facebook, Threads, Instagram, Telegram and Discord
+        id: social_digest
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.INSTAGRAM_TOKEN != '' || env.TELEGRAM_BOT_TOKEN != '' || env.DISCORD_BOT_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode digest
 
       - name: Daily Discord quiz poll (once a day)
+        id: quiz
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && env.DISCORD_BOT_TOKEN != '' }}
         continue-on-error: true
         run: npm run social:post -- --mode quiz
 
       - name: Weekly top list on Mondays (once a week)
+        id: weekly
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' && (env.FB_PAGE_TOKEN != '' || env.THREADS_TOKEN != '' || env.TELEGRAM_BOT_TOKEN != '' || env.DISCORD_BOT_TOKEN != '') }}
         continue-on-error: true
         run: npm run social:post -- --mode weekly
+
+      # Every step above keeps running after a failure (a scrape or AI outage must never stop the
+      # digest or the pushes), so the run turned green whatever broke and the watchdog, which reads
+      # only the run's conclusion, never saw it. A failed step is a failed run: the steps still ran.
+      # The Chromium install is a convenience (the scrape falls back to --no-browser) and is left out.
+      - name: Fail the run when a step failed
+        if: ${{ !cancelled() }}
+        env:
+          STEPS: ${{ toJSON(steps) }}
+        run: |
+          failed=$(printf '%s' "$STEPS" | jq -r 'to_entries[] | select(.key != "chromium" and .value.outcome == "failure") | .key')
+          if [ -n "$failed" ]; then
+            for s in $failed; do echo "::error::step '$s' failed: open its log above and paste it with the run URL into the bug report"; done
+            exit 1
+          fi
+          echo "✓ every step succeeded"

@@ -12,6 +12,7 @@ import { clusterMessages, tier1Messages, tier2Messages, type ArticleForAI, type 
 import type { BudgetGuard } from "./limits";
 import { callAIWithFallback, type Purpose, type UsageLogger } from "./router";
 import { ClusterSchema, Tier1Schema, Tier2Schema, type Tier1Result, type Tier2Result } from "./schemas";
+import { errorLine } from "@/lib/log-safe";
 
 export interface AnalysisOutcome {
   tier1: Tier1Result;
@@ -313,8 +314,10 @@ export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogge
       });
       title = res.data.title;
       synthesis = res.data.synthesis;
-    } catch {
-      /* keep the previous synthesis; counts still update */
+    } catch (err) {
+      // Keep the previous synthesis; counts still update. Said in the log: a synthesis that never
+      // refreshed used to leave no trace at all.
+      console.warn(`[ai] cluster ${clusterId} synthesis kept (AI call failed): ${errorLine(err, 200)}`);
     }
   }
   await db

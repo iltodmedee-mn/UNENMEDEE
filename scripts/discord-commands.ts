@@ -12,6 +12,7 @@ import "dotenv/config";
 import { parseArgs } from "node:util";
 
 import { COMMANDS, DISCORD_API } from "@/lib/social/discord-interactions";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 
@@ -35,6 +36,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error("✗ Discord command registration failed:", err instanceof Error ? err.message : err);
+  console.error(`::error::Discord command registration failed: ${errorDetail(err)}`);
   process.exitCode = 1;
 });

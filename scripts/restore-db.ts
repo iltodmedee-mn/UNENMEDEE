@@ -16,6 +16,7 @@ import { createGunzip } from "node:zlib";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { importLines } from "@/lib/backup";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -57,7 +58,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err instanceof Error ? err.message : err);
+    console.error(`::error::restore failed: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());
