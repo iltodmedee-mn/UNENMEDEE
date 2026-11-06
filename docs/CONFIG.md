@@ -1,0 +1,41 @@
+# Тохиргоо: нэг тохиргоо, нэг газар
+
+Юу хаана тохируулагддаг, хэн уншдаг, хоёр газар байвал аль нь ялдаг. Нэг зүйлийг өөрчлөөд
+ажиллахгүй бол энэ хүснэгтээр «ялсан» газрыг нь хар. Утга энд хэзээ ч бичигдэхгүй; нэр л бий.
+Кодын уншдаг бүх нэрийн жагсаалт [`.env.example`](../.env.example)-д (тест нь бүрэн эсэхийг шалгадаг).
+
+## Хаана юу байдаг вэ
+
+| Газар | Хэн уншдаг | Юу |
+|---|---|---|
+| **GitHub Actions secrets** (Settings → Secrets and variables → Actions → Secrets) | Workflow-ууд (pipeline, digest, video, watchdog, backup…) | `DATABASE_URL`, `DATABASE_URL_DIRECT`, AI түлхүүрүүд (`GROQ_API_KEY`, `GEMINI_API_KEY`, `REQUESTY_API_KEY`, `NVIDIA_API_KEY`, `OPENROUTER_API_KEY`, `ZAI_API_KEY`, `MISTRAL_API_KEY`, `DEEPSEEK_API_KEY`, `GROK_API_KEY`), `FB_PAGE_TOKEN`, `THREADS_TOKEN`, `INSTAGRAM_TOKEN`, `TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID` (variable-аар ч болно), `ELEVENLABS_API_KEY`, `ELEVENLABS_VOICE_ID` (түлхүүр ч байж болно, доор), `VERCEL_TOKEN`, `BACKUP_AGE_PUBLIC_KEY`, `GEMINI_AGENT_API_KEY` (`@gemini`, төлбөргүй project) |
+| **GitHub Actions variables** (мөн тэнд → Variables) | Workflow-ууд | `GEMINI_FREE_TIER`, `AI_MONTHLY_BUDGET_USD`, `AI_DAILY_BUDGET_USD`, `AI_TIER1_CHAIN`, `AI_TIER2_CHAIN`, `<PROVIDER>_MODEL`, `<PROVIDER>_DAILY_MAX_CALLS`, `<PROVIDER>_PRICE_IN/OUT`, `FB_GRAPH_VERSION`, `IG_GRAPH_VERSION`, `FB_PAGE_ID`, `TELEGRAM_CHAT_ID`, `DISCORD_CHANNEL_ID`, `VIDEO_POSTING`, `GEMINI_TTS_MODEL`, `GEMINI_TTS_VOICE`, `ELEVENLABS_VOICE_ID`, `ELEVENLABS_RESERVE_CHARS`, `ELEVENLABS_PLAN_USD`, `RETENTION_DAYS`, `VERCEL_PROJECT_ID`, `VERCEL_TEAM_ID`, `GEMINI_AGENT_MODEL` |
+| **Vercel env** (vercel.com → төсөл → Settings → Environment Variables) | Сайт: хуудсууд, `/admin`, `/api/*` | `DATABASE_URL`, `ADMIN_SECRET_PASSWORD`, `NEXT_PUBLIC_SITE_URL`, `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION`, `NEXT_PUBLIC_BING_SITE_VERIFICATION`, `DISCORD_PUBLIC_KEY`, `MESSENGER_SETTINGS`, `IG_APP_SECRET`, `FB_GRAPH_VERSION` (Messenger-ийн хариу), **мөн /admin-ы AI хэсгийн уншдаг нэрс** (доорх «Vercel дээр давхар» багана) |
+| **`app_settings` хүснэгт** (Supabase, зарим нь /admin-аас) | Сайт ба workflow-ууд хоёулаа | `vapid_public_key` / `vapid_private_key` (хэзээ ч дахин үүсгэхгүй), `donation`, `about`, `officials_hidden_years`, `admin_session_floor`, `threads`, `instagram`, `instagram_app_secret`, `messenger`, `weekly_quiz`, `pipeline_started_at`, `prune_state`, `backup_last_at`, `tenders_synced_at`, `documents_checked_at`, `push_last_digest_id`, `officials_companies`, `github_dispatch_token_expires` |
+| **Supabase Vault** | `private.dispatch_pipeline_if_idle()` (pg_cron) | `github_dispatch_token` ([PIPELINE-FALLBACK.md](PIPELINE-FALLBACK.md)) |
+| **Кодын тогтмол** (PR-ээр л өөрчлөгдөнө) | Сайт, watchdog | `GOVERNMENTS_VERIFIED_THROUGH` (`src/lib/budget/governments.ts`), `PROGRAMME_END` (`src/lib/promises/programme.ts`), `POPULATION` (`src/lib/per-person.ts`), `RATES_CHECKED` (`src/lib/tax/receipt.ts`), `TARIFFS_VERIFIED_THROUGH` (`src/lib/budget/tariffs.ts`), `PROJECTS_VERIFIED_THROUGH` (`src/lib/projects/data.ts`), `PRESS_TRACKING_FROM`, `SOURCE_SEEDS` (`src/lib/sources.ts`), `NODE_MAJOR` |
+| **`.env`** (зөвхөн өөрийн компьютер, git-д ордоггүй) | `npm run …`, `next dev` | `.env.example`-ийн нэрс |
+
+## Хоёр газар байвал аль нь ялах вэ
+
+| Тохиргоо | Дүрэм |
+|---|---|
+| Өгөгдлийн сан: `DATABASE_URL_DIRECT` ба `DATABASE_URL` | Migration (`npm run db:migrate`) бүх workflow-д `DATABASE_URL_DIRECT || DATABASE_URL` (session pooler, порт 5432); бусад бүх зүйл `DATABASE_URL` (transaction pooler, 6543). `tests/workflow-env.test.ts` шалгадаг. |
+| AI-ийн тохиргоо pipeline, digest, maintenance-д | Гурван workflow **яг нэг** AI env блоктой (түлхүүр, `*_MODEL`, `AI_TIER*_CHAIN`, `GEMINI_*`, `*_PRICE_*`, budget, cap). Нэгэнд нь нэмсэн нэрийг нөгөө хоёрт нэмэхгүй бол тест унана: `maintenance.yml`-ийн `reanalyse` pipeline-тай өөр загвар, өөр үнээр ажиллаад харьцуулах аргагүй байсан (2026.11). |
+| AI-ийн тохиргоо /admin дээр | `/admin`-ы «дахин шинжлэх», «шүүлтүүр» Vercel дээр ажилладаг тул Vercel-ийн env-ийг уншина. Repository variable-ийг өөрчилбөл **Vercel дээр давхар** өөрчил: `GEMINI_FREE_TIER`, `AI_TIER1_CHAIN`, `AI_TIER2_CHAIN`, `<PROVIDER>_MODEL`, `AI_MONTHLY_BUDGET_USD`, `AI_DAILY_BUDGET_USD`, `<PROVIDER>_DAILY_MAX_CALLS`, `<PROVIDER>_PRICE_*`, AI түлхүүрүүд. Үгүй бол /admin-ы үр дүн pipeline-аас өөр гарч, «тохиргоо өөрчлөөгүй байхад» гэж харагдана. |
+| `FB_GRAPH_VERSION` / `IG_GRAPH_VERSION` | Хоёр газар: repository variable (постууд) **ба** Vercel env (`src/lib/social/messenger.ts`-ийн Messenger хариу). Meta хувилбар хаахад хоёуланг нь ахиул. |
+| AI-ийн дараалал: `AI_TIER1_CHAIN` ба `placeGemini` | Variable хоосон бол кодын `DEFAULT_CHAINS` (`src/lib/ai/router.ts`), дээр нь `placeGemini`: төлбөртэй Gemini түлхүүр (`GEMINI_FREE_TIER` ≠ `true`) үнэгүй провайдеруудын ард очно, дараа нь `spreadFree` эхний үнэгүйнүүдийг ээлжлүүлнэ. `AI_TIER1_CHAIN` бичсэн бол **яг бичсэн дарааллаар**, `placeGemini` ажиллахгүй (Gemini-г хаана бичнэ тэнд). |
+| Gemini-ийн үнэ: `GEMINI_FREE_TIER` ба `GEMINI_PRICE_*` | `GEMINI_FREE_TIER=true` бол $0, `GEMINI_PRICE_*` уншигдахгүй, `-latest` загварууд. Үгүй бол зөвхөн Flash-Lite (`GEMINI_MODEL` Flash-Lite биш бол үл тоогдоно), үнэ нь загвараар (`geminiModelPrice`), `GEMINI_PRICE_*` түүнийг дардаг. |
+| Discord суваг: `DISCORD_CHANNEL_ID` variable ба secret | Variable ялна (`vars.DISCORD_CHANNEL_ID || secrets.DISCORD_CHANNEL_ID`). Id эсвэл сувгийн URL аль нь ч болно. |
+| ElevenLabs: `ELEVENLABS_API_KEY`, secret `ELEVENLABS_VOICE_ID`, variable `ELEVENLABS_VOICE_ID` | Түлхүүр: `ELEVENLABS_API_KEY`, байхгүй бол аль нэг `ELEVENLABS_VOICE_ID`-д `sk_…` байвал тэр. Дуу: variable `ELEVENLABS_VOICE_ID`, дараа нь secret, аль нь ч дууны id биш бол Sukh. Түлхүүр огт олдохгүй, хэтэрсэн, алдаа бол Gemini дуулна (`src/lib/video/elevenlabs.ts` `elevenLabsFromEnv`). |
+| Threads / Instagram токен: secret ба `app_settings` | Secret зөвхөн **үр** нь: эхний удаа `app_settings.threads` / `.instagram`-д хадгалагдаад 7 хоног тутам шинэчлэгдэнэ. Secret-ийн утгыг солиход (өөр sha256) шинэ нь хуучныг дарна; secret-ийг устгахад платформ унтарна. Хадгалсан мөр JSON биш бол warning гараад secret дахин үр болно. |
+| Messenger: `MESSENGER_SETTINGS` env ба `app_settings.messenger` | Vercel env ялна; байхгүй бол `app_settings.messenger` (5 минут кэштэй). Instagram app secret: `MESSENGER_SETTINGS.igAppSecret` → `IG_APP_SECRET` env → `app_settings.instagram_app_secret`. |
+| VAPID: `app_settings.vapid_public_key` ба `NEXT_PUBLIC_VAPID_PUBLIC_KEY` | Хоёр нэг утгатай байх **ёстой** (хөтөч Vercel-ийнхийг, илгээгч `app_settings`-ийнхийг хэрэглэнэ). Зөрвөл push бүр 4xx-ээр унана: watchdog «ихэнх бүртгэл 4xx» (`isSystemicFailure`, `::error::`) гэж хэлнэ. Хосыг хэзээ ч дахин үүсгэхгүй (`ensureVapidKeys` бүртгэл байхад татгалзана); `app_settings`-ээс сэргээ. |
+| `VIDEO_POSTING` | Repository variable; зөвхөн `off` (том жижиг үсэг хамаагүй) зогсооно. `false`, `0`, `no` зогсоохгүй: watchdog 🟡 мөрөөр хэлнэ. |
+| Dry run (гар ажиллуулалт) | Бүх manual workflow-д `dry_run` нэг л хэлбэртэй: boolean. Бичдэг, нийтэлдэг ажил (`source-recheck`, `vercel-cleanup`, `maintenance`, `social-post`) **default true** (юу ч бичихгүй), `discord-commands` default false (уншихаас өөр юм хийдэггүй), `video` default false (dry run ч дууг төлдөг). Scheduled run үргэлж бодитоор ажиллана. |
+| `CHROMIUM_EXECUTABLE_PATH` ба `CHROMIUM_PATH` | Нэг тохиргоо: `CHROMIUM_EXECUTABLE_PATH`. Хуучин `CHROMIUM_PATH` уншигдана, warning өгнө. |
+| Node | `package.json` engines, `.nvmrc`, `.node-version`, workflow-уудын `node-version`, Vercel-ийн Node тохиргоо: бүгд 24. Ахиулахдаа тавууланг нь нэг PR-ээр. |
+
+## Нэг зүйлийг өөрчлөөд шалгах
+
+Алдаа хайхдаа нэг л тохиргоог өөрчлөөд (жишээ нь `AI_TIER1_CHAIN=groq`) `maintenance.yml` → `reanalyse` эсвэл `ai-sample`-ийг ажиллуул: тэр workflow pipeline-тай яг нэг env уншдаг тул үр дүн нь харьцуулагдана. Хоёр зүйлийг зэрэг өөрчилбөл аль нь нөлөөлснийг хэн ч хэлж чадахгүй.

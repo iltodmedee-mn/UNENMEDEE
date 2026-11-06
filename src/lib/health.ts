@@ -144,6 +144,8 @@ export interface HealthConfig {
   backupConfigured?: boolean;
   /** Daily videos are on (`VIDEO_POSTING` is not "off"; undefined = not checked). */
   videoPosting?: boolean;
+  /** The repository variable's raw value: only "off" stops the videos, so "false" / "0" is a mistake worth a line. */
+  videoPostingValue?: string;
   /** Dated facts in the code that someone has to re-check by hand. */
   dated: {
     /** The Prime Minister list was last verified on this day (`GOVERNMENTS_VERIFIED_THROUGH`). */
@@ -252,6 +254,8 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
 
   // Videos: every slot makes one, so a day and a half without one means the step is failing
   // quietly (both pipeline video steps are continue-on-error); news posts would hide it otherwise.
+  const vp = config.videoPostingValue?.trim();
+  if (vp && !/^(on|off)$/i.test(vp)) info(`Repository variable VIDEO_POSTING = «${vp}»: зөвхөн «off» видеог зогсооно, өөр утга «on»-той адил (docs/CONFIG.md).`);
   if (config.videoPosting && s.videos) {
     if (olderThan(s.videos.hoursSinceVideo, 36)) info(`Өдөр тутмын видео ${h(s.videos.hoursSinceVideo)} хийгдээгүй (pipeline-ийн "Make the slot's video" алхам, Daily video workflow-ийн лог).`);
     for (const platform of ["facebook", "instagram", "threads"] as const) {

@@ -397,7 +397,7 @@ API түлхүүрээ шалгах: `npm run ai:process -- --sample`. Өгөг�
 
 **`DATABASE_URL`:** Supabase төсөл → **Connect** → **Transaction pooler** (порт 6543). Migration-д **Session pooler** (порт 5432)-ийг `DATABASE_URL_DIRECT` нэрээр нэмж болно.
 
-**Автоматжуулалт:** репо → Settings → Secrets and variables → Actions хэсэгт `DATABASE_URL` болон дор хаяж нэг AI түлхүүр нэмэхэд мэдээ 30 минут тутам шинэчлэгдэнэ. Vercel дээр мөн адил (нэмээд `ADMIN_SECRET_PASSWORD`, 12+ тэмдэгт).
+**Автоматжуулалт:** репо → Settings → Secrets and variables → Actions хэсэгт `DATABASE_URL` болон дор хаяж нэг AI түлхүүр нэмэхэд мэдээ 30 минут тутам шинэчлэгдэнэ. Vercel дээр мөн адил (нэмээд `ADMIN_SECRET_PASSWORD`, 12+ тэмдэгт). Тохиргоо бүр хаана байдаг, хоёр газар байвал аль нь ялдаг: [docs/CONFIG.md](docs/CONFIG.md).
 
 ## 06 — Хувь нэмэр оруулах
 
@@ -416,7 +416,7 @@ API түлхүүрээ шалгах: `npm run ai:process -- --sample`. Өгөг�
 | `tax-rates` issue ирэхэд | Мэдээ, эх хуулийг уншаад өөрчлөгдсөн бол `src/lib/tax/receipt.ts`-д шинэ шатлалыг нэмж, `RATES_CHECKED`-ийг шинэчлэх. Issue өөрөө хаагдана. |
 | Сар бүр | /admin-д ирсэн хандив, сарын орлогыг оруулах: оруулаагүй сар «бүртгээгүй» гэж харагдана. |
 | Улиралд нэг удаа | Нөөц хуулбарыг нэг удаа тайлж шалгах ([docs/BACKUP.md](docs/BACKUP.md), 3-р алхам). Dependabot-ын жижиг шинэчлэл CI ногоон бол өөрөө нэгтгэгдэнэ; том (major) шинэчлэлийг [docs/RUNBOOK.md](docs/RUNBOOK.md) §4-ийн дагуу. |
-| Жил бүр | Porkbun домэйн сунгалт. Meta Data Use Checkup. `VERCEL_TOKEN`-ийг шинэчлэх. Watchdog сануулбал `POPULATION`, `RATES_CHECKED`, `GOVERNMENTS_VERIFIED_THROUGH`-ийг шинэчлэх. |
+| Жил бүр | Porkbun домэйн сунгалт. Meta Data Use Checkup. `VERCEL_TOKEN`-ийг шинэчлэх. Watchdog сануулбал `POPULATION`, `RATES_CHECKED`, `GOVERNMENTS_VERIFIED_THROUGH`, `TARIFFS_VERIFIED_THROUGH`, `PROJECTS_VERIFIED_THROUGH`-ийг шинэчлэх. |
 | Засгийн газар солигдоход | `src/lib/budget/governments.ts`-д шинэ Ерөнхий сайдыг нэмж `GOVERNMENTS_VERIFIED_THROUGH`-ийг шилжүүлэх. Түүнээс өмнө /budget шинэ онд «—» гэж үнэнээр нь харуулна. |
 | 2027-10 | audit.mn-ийн `certs/rapidssl-tls-rsa-ca-g1.pem` 2027-11-02-нд дуусна (watchdog 60 хоногийн өмнө сануулна). Pipeline-ийн нөөц GitHub токен 2027-10-29-нд дуусна ([docs/PIPELINE-FALLBACK.md](docs/PIPELINE-FALLBACK.md)). |
 | 2028-04 | Node 24-ийн дэмжлэг дуусна: workflow-ууд болон Vercel дээр `node-version`-ийг ахиулах. |
@@ -517,7 +517,7 @@ The site runs unattended: news every 30 minutes, digests and videos twice a day,
 | On a `tax-rates` issue | Read the story and the law; update `src/lib/tax/receipt.ts` if the rates changed, then move `RATES_CHECKED`. |
 | Monthly | Enter received donations and monthly income in /admin (months left empty read "not entered"). |
 | Quarterly | Decrypt one backup as a drill. Merge green Dependabot PRs (minor and patch merge themselves). |
-| Yearly | Renew the Porkbun domain, Meta Data Use Checkup, rotate `VERCEL_TOKEN`; update `POPULATION`, `RATES_CHECKED`, `GOVERNMENTS_VERIFIED_THROUGH` when the watchdog asks. |
+| Yearly | Renew the Porkbun domain, Meta Data Use Checkup, rotate `VERCEL_TOKEN`; update `POPULATION`, `RATES_CHECKED`, `GOVERNMENTS_VERIFIED_THROUGH`, `TARIFFS_VERIFIED_THROUGH`, `PROJECTS_VERIFIED_THROUGH` when the watchdog asks. |
 | New government | Add the Prime Minister in `governments.ts` and move `GOVERNMENTS_VERIFIED_THROUGH`; until then /budget shows "—" for unverified years. |
 | 2027-10 | `certs/rapidssl-tls-rsa-ca-g1.pem` (audit.mn) expires 2027-11-02; the pipeline-fallback GitHub token expires 2027-10-29 (`docs/PIPELINE-FALLBACK.md`). The watchdog warns ahead of both. |
 | 2028-04 | Node 24 reaches end of life: bump `node-version` in the workflows and on Vercel. |

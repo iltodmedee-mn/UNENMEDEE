@@ -10,9 +10,9 @@ on:
   workflow_dispatch:
     inputs:
       dry_run:
-        description: "Only print what would be recorded (true/false)"
-        required: false
-        default: "true"
+        description: "true = only print what would be recorded"
+        type: boolean
+        default: true
 
 concurrency:
   group: source-recheck
@@ -29,7 +29,7 @@ jobs:
     timeout-minutes: 60
     env:
       DATABASE_URL: ${{ secrets.DATABASE_URL }}
-      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run != 'false' }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

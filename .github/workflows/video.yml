@@ -25,8 +25,8 @@ on:
         default: ""
       dry_run:
         description: "true = render and print the posts, store and post nothing (the voice is still billed)"
-        required: false
-        default: "false"
+        type: boolean
+        default: false
 
 concurrency:
   group: video
@@ -91,9 +91,9 @@ jobs:
           AI_MONTHLY_BUDGET_USD: ${{ vars.AI_MONTHLY_BUDGET_USD }}
           AI_DAILY_BUDGET_USD: ${{ vars.AI_DAILY_BUDGET_USD }}
           # Inputs reach the script only through env vars (no injection).
-          IN_GOOD: ${{ github.event.inputs.good }}
-          IN_KIND: ${{ github.event.inputs.kind }}
-          IN_DRY: ${{ github.event.inputs.dry_run }}
+          IN_GOOD: ${{ inputs.good }}
+          IN_KIND: ${{ inputs.kind }}
+          IN_DRY: ${{ inputs.dry_run }}
           IN_SCHEDULE: ${{ github.event.schedule }}
         run: |
           args=()
@@ -106,7 +106,7 @@ jobs:
           npm run video:make -- "${args[@]}"
 
       - name: Keep the dry-run video
-        if: ${{ github.event.inputs.dry_run == 'true' && steps.make.outcome == 'success' && hashFiles('video.mp4') != '' }}
+        if: ${{ inputs.dry_run == true && steps.make.outcome == 'success' && hashFiles('video.mp4') != '' }}
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: video-preview
@@ -124,6 +124,6 @@ jobs:
           FB_PAGE_TOKEN: ${{ secrets.FB_PAGE_TOKEN }}
           THREADS_TOKEN: ${{ secrets.THREADS_TOKEN }}
           INSTAGRAM_TOKEN: ${{ secrets.INSTAGRAM_TOKEN }}
-          IN_DRY: ${{ github.event.inputs.dry_run }}
+          IN_DRY: ${{ inputs.dry_run }}
         run: |
           if [ "$IN_DRY" = "true" ]; then npm run social:post -- --mode video --dry-run; else npm run social:post -- --mode video; fi

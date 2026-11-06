@@ -11,6 +11,7 @@ import type { ArticleForAI } from "@/lib/ai/prompts";
 import { AIUnavailableError } from "@/lib/ai/router";
 import { dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-log";
 import { requireAdmin } from "@/lib/admin-auth";
+import { errorLine } from "@/lib/log-safe";
 import { ACCOUNT_PATTERN, DONATION_KEY, normalizeAccount } from "@/lib/donation";
 import { cleanLine, NAME_MODES, type NameMode, NOTE_MAX, parseAmount, publicDonor, validDay } from "@/lib/donations";
 import { ubDateKey } from "@/lib/archive";
@@ -49,6 +50,20 @@ export async function togglePublish(formData: FormData) {
 export interface ActionResult {
   ok: boolean;
   message: string;
+}
+
+/**
+ * Runs a settings write and turns a thrown database error into the form's own message. A save
+ * that failed on the database used to land on the public error page with nothing to act on
+ * (admin only, so the message is shown in full; the server log has the detail).
+ */
+async function stored(fn: () => Promise<ActionResult>): Promise<ActionResult> {
+  try {
+    return await fn();
+  } catch (err) {
+    console.error(`[admin] action failed: ${errorLine(err, 600)}`);
+    return { ok: false, message: `Хадгалж чадсангүй: ${errorLine(err, 300)}` };
+  }
 }
 
 /** Re-runs the pipeline for one article; `deep` forces the Grok tier. */
@@ -117,20 +132,22 @@ const Ledger = z.object({
 
 export async function saveLedger(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const parsed = Ledger.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { ok: false, message: "Утгууд буруу байна (сар: YYYY-MM, дүн: 0 ба түүнээс их)." };
-  const v = parsed.data;
-  const db = getDb();
-  await db
-    .insert(transparencyLedger)
-    .values({ month: v.month, infraCostUsd: v.infraCostUsd.toFixed(2), adRevenueUsd: v.adRevenueUsd?.toFixed(2) ?? null, donationsUsd: v.donationsUsd?.toFixed(2) ?? null, notes: v.notes || null })
-    .onConflictDoUpdate({
-      target: transparencyLedger.month,
-      set: { infraCostUsd: v.infraCostUsd.toFixed(2), adRevenueUsd: v.adRevenueUsd?.toFixed(2) ?? null, donationsUsd: v.donationsUsd?.toFixed(2) ?? null, notes: v.notes || null },
-    });
-  await syncLedgerAiCost(db, v.month);
-  updateTag("ledger");
-  return { ok: true, message: `${v.month} сарын бүртгэлийг хадгаллаа.` };
+  return stored(async () => {
+    const parsed = Ledger.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { ok: false, message: "Утгууд буруу байна (сар: YYYY-MM, дүн: 0 ба түүнээс их)." };
+    const v = parsed.data;
+    const db = getDb();
+    await db
+      .insert(transparencyLedger)
+      .values({ month: v.month, infraCostUsd: v.infraCostUsd.toFixed(2), adRevenueUsd: v.adRevenueUsd?.toFixed(2) ?? null, donationsUsd: v.donationsUsd?.toFixed(2) ?? null, notes: v.notes || null })
+      .onConflictDoUpdate({
+        target: transparencyLedger.month,
+        set: { infraCostUsd: v.infraCostUsd.toFixed(2), adRevenueUsd: v.adRevenueUsd?.toFixed(2) ?? null, donationsUsd: v.donationsUsd?.toFixed(2) ?? null, notes: v.notes || null },
+      });
+    await syncLedgerAiCost(db, v.month);
+    updateTag("ledger");
+    return { ok: true, message: `${v.month} сарын бүртгэлийг хадгаллаа.` };
+  });
 }
 
 /* ------------------------------------------------------------------ donation account */
@@ -144,31 +161,35 @@ const DonationInput = z.object({
 /** The "Дэмжих" bank account shown on every page. */
 export async function saveDonation(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const parsed = DonationInput.safeParse(Object.fromEntries(formData));
-  if (!parsed.success) return { ok: false, message: "Банкны нэр, дансны дугаар (MN + 18 орон эсвэл 8-20 орон) шалгана уу." };
-  const value = JSON.stringify(parsed.data);
-  await getDb()
-    .insert(appSettings)
-    .values({ key: DONATION_KEY, value })
-    .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
-  updateTag("settings");
-  return { ok: true, message: `Хадгаллаа: ${parsed.data.bank} ${parsed.data.account}` };
+  return stored(async () => {
+    const parsed = DonationInput.safeParse(Object.fromEntries(formData));
+    if (!parsed.success) return { ok: false, message: "Банкны нэр, дансны дугаар (MN + 18 орон эсвэл 8-20 орон) шалгана уу." };
+    const value = JSON.stringify(parsed.data);
+    await getDb()
+      .insert(appSettings)
+      .values({ key: DONATION_KEY, value })
+      .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+    updateTag("settings");
+    return { ok: true, message: `Хадгаллаа: ${parsed.data.bank} ${parsed.data.account}` };
+  });
 }
 
 /** One received donation for /transparency. Only the name as published is stored. */
 export async function addDonation(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const day = validDay(formData.get("receivedOn"), ubDateKey(Date.now()));
-  if (!day) return { ok: false, message: "Огноо буруу байна (2024 оноос өнөөдөр хүртэл)." };
-  const amount = parseAmount(formData.get("amount"));
-  if (amount === null) return { ok: false, message: "Дүнг бүхэл төгрөгөөр бичнэ үү (жишээ нь 50000)." };
-  const rawMode = String(formData.get("mode") ?? "");
-  const mode: NameMode = (NAME_MODES as readonly string[]).includes(rawMode) ? (rawMode as NameMode) : "initials";
-  const donor = publicDonor(String(formData.get("donor") ?? ""), mode);
-  const note = cleanLine(formData.get("note"), NOTE_MAX) || null;
-  await getDb().insert(donations).values({ receivedOn: day, amountMnt: amount, donor, note });
-  updateTag("donations");
-  return { ok: true, message: `Нэмлээ: ${day} · ${formatNumber(amount)} ₮ · ${donor ?? "нэргүй"} — ил тод тайланд гарлаа.` };
+  return stored(async () => {
+    const day = validDay(formData.get("receivedOn"), ubDateKey(Date.now()));
+    if (!day) return { ok: false, message: "Огноо буруу байна (2024 оноос өнөөдөр хүртэл)." };
+    const amount = parseAmount(formData.get("amount"));
+    if (amount === null) return { ok: false, message: "Дүнг бүхэл төгрөгөөр бичнэ үү (жишээ нь 50000)." };
+    const rawMode = String(formData.get("mode") ?? "");
+    const mode: NameMode = (NAME_MODES as readonly string[]).includes(rawMode) ? (rawMode as NameMode) : "initials";
+    const donor = publicDonor(String(formData.get("donor") ?? ""), mode);
+    const note = cleanLine(formData.get("note"), NOTE_MAX) || null;
+    await getDb().insert(donations).values({ receivedOn: day, amountMnt: amount, donor, note });
+    updateTag("donations");
+    return { ok: true, message: `Нэмлээ: ${day} · ${formatNumber(amount)} ₮ · ${donor ?? "нэргүй"} — ил тод тайланд гарлаа.` };
+  });
 }
 
 export async function deleteDonation(formData: FormData) {
@@ -181,34 +202,38 @@ export async function deleteDonation(formData: FormData) {
 /** "Бид хэн бэ" (/about): five plain-text paragraphs; an empty field shows its default text. */
 export async function saveAbout(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const value: Record<string, string> = {};
-  for (const f of ABOUT_FIELDS) {
-    const raw = String(formData.get(f.key) ?? "");
-    if (raw.length > f.max * 2) return { ok: false, message: `«${f.label}» хэт урт байна (${f.max} тэмдэгт хүртэл).` };
-    value[f.key] = cleanAboutText(raw, f.max);
-  }
-  await getDb()
-    .insert(appSettings)
-    .values({ key: ABOUT_KEY, value: JSON.stringify(value) })
-    .onConflictDoUpdate({ target: appSettings.key, set: { value: JSON.stringify(value), updatedAt: new Date() } });
-  updateTag("settings");
-  return { ok: true, message: "Хадгаллаа: /about шууд шинэчлэгдэнэ. Хоосон үлдээсэн хэсэгт анхдагч текст харагдана." };
+  return stored(async () => {
+    const value: Record<string, string> = {};
+    for (const f of ABOUT_FIELDS) {
+      const raw = String(formData.get(f.key) ?? "");
+      if (raw.length > f.max * 2) return { ok: false, message: `«${f.label}» хэт урт байна (${f.max} тэмдэгт хүртэл).` };
+      value[f.key] = cleanAboutText(raw, f.max);
+    }
+    await getDb()
+      .insert(appSettings)
+      .values({ key: ABOUT_KEY, value: JSON.stringify(value) })
+      .onConflictDoUpdate({ target: appSettings.key, set: { value: JSON.stringify(value), updatedAt: new Date() } });
+    updateTag("settings");
+    return { ok: true, message: "Хадгаллаа: /about шууд шинэчлэгдэнэ. Хоосон үлдээсэн хэсэгт анхдагч текст харагдана." };
+  });
 }
 
 /** Declaration years taken out of the officials comparison ("46:2025, 12:2023"); the profile says so. */
 export async function saveHiddenYears(_prev: ActionResult | null, formData: FormData): Promise<ActionResult> {
   await requireAdmin();
-  const text = String(formData.get("pairs") ?? "").slice(0, 2000);
-  const hidden = hiddenYearsFromText(text);
-  if (text.trim() && Object.keys(hidden).length === 0) return { ok: false, message: "Формат: гишүүний id, хоёр цэг, он (46:2025), таслалаар тусгаарлана." };
-  const value = JSON.stringify(hidden);
-  await getDb()
-    .insert(appSettings)
-    .values({ key: HIDDEN_YEARS_KEY, value })
-    .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
-  updateTag("officials");
-  const n = Object.values(hidden).reduce((a, y) => a + y.length, 0);
-  return { ok: true, message: n ? `Хадгаллаа: ${n} жил харьцуулалтаас хасагдсан.` : "Хадгаллаа: хассан жил алга." };
+  return stored(async () => {
+    const text = String(formData.get("pairs") ?? "").slice(0, 2000);
+    const hidden = hiddenYearsFromText(text);
+    if (text.trim() && Object.keys(hidden).length === 0) return { ok: false, message: "Формат: гишүүний id, хоёр цэг, он (46:2025), таслалаар тусгаарлана." };
+    const value = JSON.stringify(hidden);
+    await getDb()
+      .insert(appSettings)
+      .values({ key: HIDDEN_YEARS_KEY, value })
+      .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+    updateTag("officials");
+    const n = Object.values(hidden).reduce((a, y) => a + y.length, 0);
+    return { ok: true, message: n ? `Хадгаллаа: ${n} жил харьцуулалтаас хасагдсан.` : "Хадгаллаа: хассан жил алга." };
+  });
 }
 
 /* ------------------------------------------------------------------ anti-brainwash filter */

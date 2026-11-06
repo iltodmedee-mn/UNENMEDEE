@@ -339,6 +339,7 @@ async function main() {
     },
     backupConfigured: process.env.BACKUP_CONFIGURED === undefined ? undefined : flag(process.env.BACKUP_CONFIGURED),
     videoPosting: process.env.VIDEO_POSTING === undefined ? undefined : process.env.VIDEO_POSTING.trim().toLowerCase() !== "off",
+    videoPostingValue: process.env.VIDEO_POSTING,
     dated: { governmentsVerified: GOVERNMENTS_VERIFIED_THROUGH, programmeEnd: PROGRAMME_END, populationYear: POPULATION.year, ratesChecked: RATES_CHECKED, projectsVerified: PROJECTS_VERIFIED_THROUGH, tariffsVerified: TARIFFS_VERIFIED_THROUGH },
   };
 
