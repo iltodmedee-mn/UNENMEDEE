@@ -113,7 +113,7 @@ async function integrity(): Promise<IntegritySnapshot> {
  * SQL narrows by the levy's name, `isTaxRateNews` decides.
  */
 async function taxRateNews(): Promise<TaxRateNews[]> {
-  const found = await rows(sql`select a.id, a.slug, coalesce(a.reader_title, a.title) as title, a.title as source_title, a.url,
+  const found = await rows(sql`select a.id, a.slug, coalesce(a.reader_title, a.title) as title, a.title as source_title, a.original_url as url,
       to_char(a.published_at at time zone 'Asia/Ulaanbaatar', 'YYYY-MM-DD') as day
     from articles a
     where a.is_published and a.published_at >= ${watchFrom(RATES_CHECKED)}
