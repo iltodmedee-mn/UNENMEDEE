@@ -122,7 +122,7 @@ export function impactVideoSpec(story: ImpactStory): ImpactSpec | null {
   const sentences: Sentence[] = [
     { scene: "hook", say: sentence(`Хүлээгээрэй, энэ чамд хамаатай байж магадгүй. ${spokenText(headline)}`), caption: `Энэ чамд хамаатай байж магадгүй: ${highlight(headline)}` },
     ...cards.map((c) => ({ scene: c.scene, say: `${asks[c.scene]} ${sentence(spokenText(c.text))}`, caption: `${asks[c.scene]} ${highlight(c.text)}` })),
-    { scene: "cta", say: "Чамд хамаатай юу? Коммент дээр бичээд, найздаа илгээгээрэй.", caption: "Чамд хамаатай юу? Коммент бич, найздаа илгээ!" },
+    { scene: "cta", say: "Энэ чамд хамаатай юу?", caption: "Энэ чамд хамаатай юу?" },
   ];
   if (sentences.reduce((n, s) => n + s.say.length + 1, 0) > IMPACT_MAX_CHARS) return null;
 

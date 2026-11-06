@@ -86,8 +86,8 @@ ${CINEMA_CSS}</style></head><body>
 <div id="L-hook" class="layer"><div id="amt"></div><span id="div" class="sticker"></span></div>
 <div id="L-quiz" class="layer"><div id="q" class="disp"></div><div id="count" class="sticker"></div></div>
 <div id="L-relate" class="layer"><div id="rel"><h2 class="disp">Энэ мөнгөөр өнөөдөр:</h2><div class="blocks" id="blocks"></div><div id="relN"></div></div></div>
-<div id="L-cta" class="layer"><div id="bubble" class="sticker">Чи юу гэж бодож байна?</div>
- <div class="chips"><span class="chip sticker">Коммент бич</span><span class="chip sticker" style="background:#2de2b0">Найздаа илгээ</span></div>
+<div id="L-cta" class="layer"><div id="bubble" class="sticker">Юунд зарцуулагдах вэ?</div>
+ <div class="chips"><span class="chip sticker">iltodmedee.mn</span><span class="chip sticker" style="background:#2de2b0">Эх сурвалжтай</span></div>
  <div id="link"></div><div id="src" class="mono"></div></div>
 <div id="cap" class="abs"></div>
 <script>

@@ -186,7 +186,7 @@ export function priceVideoSpec(snap: PricesSnapshot, goodKey: string): VideoSpec
         : { scene: "year", say: `Сүүлийн нэг жилд ${numberWords(-yearPct)} хувиар хямдарчээ.`, caption: `Сүүлийн 1 жилд *−${-yearPct}%*` },
     );
   }
-  sentences.push({ scene: "cta", say: "Танайд одоо хэд байна? Коммент дээр бичээрэй.", caption: "Танайд хэд байна? Коммент бичээрэй!" });
+  sentences.push({ scene: "cta", say: "Танайд одоо хэд байна вэ?", caption: "Танайд одоо хэд байна?" });
 
   return {
     key: `prices:${goodKey}:${latest}`,

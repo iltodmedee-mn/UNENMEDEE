@@ -110,7 +110,7 @@ ${CINEMA_CSS}</style></head><body>
 <div id="L-change" class="layer"><div id="big2" class="sticker" style="position:absolute;left:50%;top:150px;transform:translateX(-50%) rotate(-6deg);background:#2de2b0;color:#000;padding:24px 50px 34px"><div class="disp" id="chg" style="font-size:200px;line-height:1"></div></div></div>
 <div id="L-year" class="layer"><div id="big" class="sticker"><div class="s">1 жилд</div><div class="b" id="yr"></div></div></div>
 <div id="L-cta" class="layer"><div id="bubble" class="sticker">Танайд хэд байна?</div>
- <div class="chips"><span class="chip sticker">Коммент бич</span><span class="chip sticker" style="background:#2de2b0">Найздаа илгээ</span></div>
+ <div class="chips"><span class="chip sticker">iltodmedee.mn</span><span class="chip sticker" style="background:#2de2b0">Эх сурвалжтай</span></div>
  <div id="link"></div></div>
 <div id="cap" class="abs"></div>
 <script>
