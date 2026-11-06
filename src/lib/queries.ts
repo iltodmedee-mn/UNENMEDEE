@@ -7,6 +7,7 @@ import { ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { type BuyerSign, buyerSigns, type BuyerStats, isNonCompetitive, nationalShares, type NationalShares } from "@/lib/procurement/signs";
 import { NO_AWARD_SQL } from "@/lib/procurement/tenders";
+import { tenderAwarded, tenderFirstOfSame, tenderThisYear } from "@/lib/procurement/tender-sql";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
 import type { DonationsSummary } from "@/lib/donations";
 import { ABOUT_KEY, type About, DEFAULT_ABOUT, parseAbout } from "@/lib/about";
@@ -1494,16 +1495,6 @@ const tenderColumns = {
   resultDate: tenders.resultDate,
   unitSuspect: tenders.unitSuspect,
 };
-
-// A lot without a result date belongs to its code's year ("…/2026…"), not to the day we first
-// saw it: the 12-month first sync counted 119 lots with 2025 codes as this year's (Nov 2026 audit).
-const tenderThisYear = sql`coalesce(${tenders.resultDate}, make_date(nullif(substring(${tenders.code} from '/(\d{4})'), '')::int, 1, 1)) >= date_trunc('year', now() at time zone 'Asia/Ulaanbaatar')::date`;
-// Stored rows keep the awarded flag of the sync that wrote them, so a winner cell later known to be a
-// status ("Зарлагдаагүй", "эхлээгүй") is checked again here.
-const tenderAwarded = sql`${tenders.awarded} and not coalesce(${tenders.winner} ~* ${NO_AWARD_SQL}, false)`;
-// A lot re-filed under an edited title has a new key: the same organisation, code, amount and
-// winner is one contract, counted and listed once (53 such pairs, ~5 тэрбум₮, Nov 2026 audit).
-const tenderFirstOfSame = sql`not exists (select 1 from ${tenders} t2 where t2.awarded and t2.code = ${tenders.code} and t2.org_name = ${tenders.orgName} and t2.contract_mnt is not distinct from ${tenders.contractMnt} and t2.winner is not distinct from ${tenders.winner} and t2.id < ${tenders.id})`;
 
 /** /tenders: Шилэн данс form-1831 results (src/lib/procurement), facts only. */
 export async function getTenders(limit = 60): Promise<TendersOverview | null> {
