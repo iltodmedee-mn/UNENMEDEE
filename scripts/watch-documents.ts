@@ -21,7 +21,7 @@ import { closeDb, getDb, hasDatabase } from "@/db";
 import { appSettings, documents, watchedPages } from "@/db/schema";
 import { fetchAuditRegister, fetchPageDocuments, fetchWatchedPages } from "@/lib/documents/fetch";
 import { docKind, WP_SITES } from "@/lib/documents/watch";
-import { oneLine } from "@/lib/log-safe";
+import { errorDetail, oneLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 
@@ -133,7 +133,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::watch-documents: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

@@ -16,7 +16,7 @@ import { desc, eq } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { assetDeclarations, indicatorSnapshots, politicians } from "@/db/schema";
-import { oneLine } from "@/lib/log-safe";
+import { errorDetail, oneLine } from "@/lib/log-safe";
 import { type CompanyCheck, declaredCompanies, dueKeys, type OfficialCompaniesSnapshot, PAYMENTS_FROM } from "@/lib/officials/companies";
 import { checkCompany } from "@/lib/officials/companies-sync";
 
@@ -111,7 +111,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::sync-official-companies: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

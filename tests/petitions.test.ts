@@ -43,6 +43,9 @@ describe("parliament petitions", () => {
   it("knows a person's short name from an abbreviation", () => {
     assert.equal(namesPerson("Х. Баттулгад хариуцлага тооцох"), true);
     assert.equal(namesPerson("Б.Батыг огцруулах"), true);
+    assert.equal(namesPerson("Б.БАТЫГ ОГЦРУУЛАХ"), true, "a shouted title still names a person");
+    assert.equal(namesPerson("Б. баттулгад хариуцлага тооцох"), true, "unshoutTitle lowercases a spaced initial's name");
+    assert.equal(namesPerson("АТГ-ын тайланг нийтлэх"), false);
     assert.equal(namesPerson("НӨАТ 1% болгож бууруулах"), false);
     assert.equal(namesPerson("Ажилтны ХХОАТ болон НД-ын шимтгэл"), false);
   });

@@ -11,8 +11,8 @@ import { PRODUCTION_URL } from "@/lib/site";
 
 /** Smaller amounts make a dull question. */
 export const QUIZ_MIN_AMOUNT = 1e8;
-/** Discord's limits: question 300 characters, answer 55. */
-const QUESTION_MAX = 300;
+/** Discord's limits: question 300 characters, answer 55. The poll adds " 🤔" (3 UTF-16 units) to the question. */
+const QUESTION_MAX = 300 - 3;
 const FACTORS = [0.1, 1 / 3, 1, 3];
 
 export interface QuizStory {
@@ -52,6 +52,14 @@ export function maskAmounts(title: string): string {
   return title.replace(TITLE_AMOUNT, "❓");
 }
 
+/** The headline with the one amount worth `value` replaced by "❓" (the others stay readable). */
+export function maskAmount(title: string, value: number): string {
+  return title.replace(TITLE_AMOUNT, (m) => {
+    const v = amountValue(m);
+    return v !== null && Math.abs(v - value) <= value * 0.005 ? "❓" : m;
+  });
+}
+
 /** The ₮ value the headline names, when it is also one of the story's extracted ₮ amounts. */
 export function headlineAmount(title: string, amounts: string[]): number | null {
   const named = [...title.matchAll(TITLE_AMOUNT)].map((m) => amountValue(m[0])).filter((v): v is number => v !== null);
@@ -62,7 +70,9 @@ export function headlineAmount(title: string, amounts: string[]): number | null 
 export function makeQuiz(story: QuizStory, site = PRODUCTION_URL): Quiz | null {
   const value = headlineAmount(story.title, story.amounts);
   if (value === null || value < QUIZ_MIN_AMOUNT) return null;
-  const masked = maskAmounts(story.title).replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
+  // Only the asked amount is hidden: with two amounts in the headline every "❓" read as the question.
+  const masked = maskAmount(story.title, value).replace(/\s+/g, " ").replace(/[.\s]+$/, "").trim();
+  if (!masked.includes("❓")) return null;
   const sig = significantDigits(value);
   const options = FACTORS.map((f) => (f === 1 ? value : roundLike(value * f, sig)));
   const labels = options.map(formatMntShort);

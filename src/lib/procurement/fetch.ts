@@ -1,4 +1,4 @@
-import { politeFetch } from "@/lib/scraper/http";
+import { politeFetch, readJsonLimited } from "@/lib/scraper/http";
 
 import { mergeByKey, parseTenders, type Tender, TENDER_GROUPS, tenderQuery } from "./tenders";
 
@@ -35,7 +35,9 @@ export async function fetchTenders(now = new Date(), months = 3): Promise<Tender
   const calls: string[] = [];
   const byYear = new Map<number, unknown[]>();
   let failed = 0;
-  for (const { year, month } of recentMonths(now, months)) {
+  // Oldest month first: mergeLot lets the later-processed row win, and within one year that must be
+  // the NEWER filing (a corrected contract or winner used to lose to the older month's row).
+  for (const { year, month } of [...recentMonths(now, months)].reverse()) {
     for (const group of TENDER_GROUPS) {
       const label = `${group}/${year}-${String(month).padStart(2, "0")}`;
       try {
@@ -46,7 +48,7 @@ export async function fetchTenders(now = new Date(), months = 3): Promise<Tender
           body: JSON.stringify(tenderQuery(group, year, month)),
         });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const json = (await res.json()) as unknown;
+        const json = await readJsonLimited(res, 40 * 1024 * 1024);
         byYear.set(year, [...(byYear.get(year) ?? []), json]);
         calls.push(`${label}: ${Array.isArray(json) ? json.length : 0} rows`);
       } catch (err) {

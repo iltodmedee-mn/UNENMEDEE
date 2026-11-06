@@ -260,6 +260,12 @@ describe("daily quiz", () => {
     assert.equal(makeQuiz({ ...energy, title: "225 сая ам.доллараар эмнэлэг барина", amounts: ["5 сая ₮"] }), null);
     assert.equal(makeQuiz({ ...energy, title: "Сургуульд 50 сая төгрөг өглөө", amounts: ["50 сая ₮"] }), null, "below 100 сая");
     assert.equal(maskAmounts("3 их наяд төгрөгийн зээл, 500 сая ₮-ийн тусламж"), "❓ зээл, ❓ тусламж");
+    // Only the asked amount is hidden: with two amounts, every "❓" used to read as the question.
+    const two = makeQuiz({ ...energy, title: "1.2 тэрбум ₮-ийн төсөвтэй төсөлд 300 сая ₮ нэмэв", amounts: ["1.2 тэрбум ₮", "300 сая ₮"] });
+    assert.equal(two?.question, "❓ төсөвтэй төсөлд 300 сая ₮ нэмэв. ❓ хэд вэ?");
+    // Room for the poll's " 🤔" suffix: a 290-character headline made a 302-character question and Discord refused it.
+    const long = makeQuiz({ ...energy, title: `${"Эрчим хүчний салбарт 186.2 тэрбум ₮ төсөв баталлаа "}${"ү".repeat(280)}` });
+    assert.ok(long && `${long.question} 🤔`.length <= 300, String(long?.question.length));
   });
 
   it("Discord: a poll with letter options, the answer as a spoiler with its per-person share", () => {

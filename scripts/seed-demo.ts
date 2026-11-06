@@ -10,6 +10,7 @@ import "@/lib/runtime-banner";
 import { closeDb, getDb, isPgliteUrl } from "@/db";
 import { migrateDemo } from "@/db/demo-migrate";
 import { seedDemo } from "@/db/demo-seed";
+import { errorDetail } from "@/lib/log-safe";
 
 async function main() {
   if (!isPgliteUrl(process.env.DATABASE_URL)) {
@@ -27,7 +28,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::seed-demo: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

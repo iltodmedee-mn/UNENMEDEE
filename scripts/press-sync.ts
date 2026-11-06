@@ -19,7 +19,7 @@ import { articles, pressItems, pressLinks } from "@/db/schema";
 import { OUTLETS, parseNewsMn, parseRssItems, type FeedItem } from "@/lib/press/feeds";
 import { matchPress, PRESS_AFTER_DAYS, type GovDoc, type PressDoc } from "@/lib/press/match";
 import { API_MAX_BYTES, politeFetch, readJsonLimited, readTextLimited } from "@/lib/scraper/http";
-import { errorLine } from "@/lib/log-safe";
+import { errorDetail, errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 const DRY = values["dry-run"];
@@ -95,7 +95,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::press-sync: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

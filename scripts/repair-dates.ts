@@ -33,6 +33,7 @@ import { extractArticleSafe } from "@/lib/scraper/extract-safe";
 import { politeFetch } from "@/lib/scraper/http";
 import { looksLikeUnitPage } from "@/lib/scraper/titles";
 import { normalizeText } from "@/lib/text";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -180,7 +181,7 @@ async function refetchUndated(db: ReturnType<typeof getDb>, days: number) {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::repair-dates: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

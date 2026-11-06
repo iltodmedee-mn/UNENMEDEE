@@ -153,7 +153,7 @@ export function sameSecret(given: string | null, expected: string): boolean {
  */
 export async function sendText(opts: { pageToken: string; recipientId: string; text: string; channel?: Channel; fetchImpl?: typeof fetch; version?: string }): Promise<void> {
   const host = opts.channel === "instagram" ? "https://graph.instagram.com" : "https://graph.facebook.com";
-  const res = await (opts.fetchImpl ?? fetch)(`${host}/${opts.version ?? process.env.FB_GRAPH_VERSION ?? "v26.0"}/me/messages`, {
+  const res = await (opts.fetchImpl ?? fetch)(`${host}/${opts.version || process.env.FB_GRAPH_VERSION || "v26.0"}/me/messages`, {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${opts.pageToken}` },
     body: JSON.stringify({ recipient: { id: opts.recipientId }, messaging_type: "RESPONSE", message: { text: fit(opts.text) } }),

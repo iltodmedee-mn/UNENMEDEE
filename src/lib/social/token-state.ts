@@ -25,7 +25,10 @@ export function seedOf(token: string): string {
 export function currentState(stored: TokenState | null, envToken: string | undefined, now = new Date()): TokenState | null {
   const env = envToken?.trim();
   if (!env) return null;
-  if (!stored || stored.seed !== seedOf(env)) return { token: env, refreshedAt: now.toISOString(), seed: seedOf(env) };
+  // A new secret's real age is unknown (a 55-day-old token pasted today would have expired before
+  // its first refresh a week later): dated so the first refresh comes the next day, once the
+  // platform allows it (a token must be 24 h old), and the 60 days restart from then.
+  if (!stored || stored.seed !== seedOf(env)) return { token: env, refreshedAt: new Date(now.getTime() - (REFRESH_AFTER_DAYS - 1) * 86_400_000).toISOString(), seed: seedOf(env) };
   return stored;
 }
 

@@ -39,6 +39,11 @@ describe("threads posts", () => {
     assert.equal(currentState(stored, "seed1", now), stored);
     assert.equal(currentState(stored, undefined, now), null); // secret removed: the platform is off
     assert.equal(currentState(stored, "seed2", now)?.token, "seed2");
+    // A new secret's age is unknown: refreshed the next day, not in a week (a 55-day-old pasted
+    // token used to expire before its first refresh).
+    const fresh = currentState(stored, "seed2", now)!;
+    assert.equal(needsRefresh(fresh, now), false);
+    assert.equal(needsRefresh(fresh, new Date(now.getTime() + 1.5 * 86_400_000)), true);
     assert.equal(currentState(null, undefined, now), null);
     assert.ok(!needsRefresh(stored, now));
     assert.ok(needsRefresh(stored, new Date("2026-10-28T00:00:01Z")));

@@ -26,6 +26,7 @@ import { parsePrices, parseWages, PRICES_TABLE, pricesQuery, WAGES_TABLE, wagesQ
 import { fetchShilendans } from "@/lib/budget/shilendans";
 import { fetchSoeSnapshot } from "@/lib/soe/shilendans";
 import { fetchTaxShare } from "@/lib/budget/worldbank";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 
@@ -123,7 +124,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::sync-budget: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

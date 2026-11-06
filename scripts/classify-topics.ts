@@ -20,6 +20,7 @@ import { articles, sources } from "@/db/schema";
 import { AIUnavailableError, callAIWithFallback } from "@/lib/ai/router";
 import { TOPIC_BATCH, TOPIC_MAX_ATTEMPTS, TopicBatchSchema, topicMessages } from "@/lib/ai/topic-classify";
 import { dbBudgetGuard, dbUsageLogger } from "@/lib/ai/usage-log";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { limit: { type: "string", default: "500" } } });
 
@@ -86,7 +87,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::classify-topics: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

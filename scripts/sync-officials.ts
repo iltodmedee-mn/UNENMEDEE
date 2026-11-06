@@ -20,6 +20,7 @@ import { assetDeclarations, politicians } from "@/db/schema";
 import { detailsDegraded, mayRetire } from "@/lib/officials/roster-guard";
 import { fetchMember, fetchRoster, type MemberInfo } from "@/lib/officials/parliament";
 import { fetchDeclarations, searchXacxomId, xacxomPageUrl, type Declaration } from "@/lib/officials/xacxom";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false }, limit: { type: "string" } } });
 
@@ -138,7 +139,7 @@ async function store(m: MemberInfo, rows: Declaration[]) {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::sync-officials: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

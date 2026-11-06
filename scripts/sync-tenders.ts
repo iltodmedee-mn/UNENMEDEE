@@ -20,8 +20,9 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { appSettings, tenders } from "@/db/schema";
 import { formatMntShort } from "@/lib/format";
-import { oneLine } from "@/lib/log-safe";
+import { errorDetail, oneLine } from "@/lib/log-safe";
 import { fetchTenders } from "@/lib/procurement/fetch";
+import { MIN_PLAIN_MNT, UNIT_RATIO } from "@/lib/procurement/tenders";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false }, months: { type: "string", default: "3" } } });
 
@@ -93,7 +94,10 @@ async function main() {
           // A later filing that says "-" keeps the stored winner of an awarded lot.
           winner: sql`case when ${tenders.awarded} and not excluded.awarded then ${tenders.winner} else coalesce(excluded.winner, ${tenders.winner}) end`,
           awarded: sql`${tenders.awarded} or excluded.awarded`,
-          unitSuspect: sql`excluded.unit_suspect`,
+          // From the MERGED budget and contract (the same rule as unitSuspect() in tenders.ts): the
+          // incoming flag was computed without the stored side, so a stored thousands-of-₮ budget
+          // next to a new ₮ contract read as a clean 95 900 % over-budget award.
+          unitSuspect: sql`coalesce(excluded.budget_mnt, ${tenders.budgetMnt}) < ${MIN_PLAIN_MNT} or coalesce(excluded.contract_mnt, ${tenders.contractMnt}) < ${MIN_PLAIN_MNT} or (coalesce(excluded.budget_mnt, ${tenders.budgetMnt}) is not null and coalesce(excluded.contract_mnt, ${tenders.contractMnt}) is not null and greatest(coalesce(excluded.budget_mnt, ${tenders.budgetMnt}), coalesce(excluded.contract_mnt, ${tenders.contractMnt}))::numeric / nullif(least(coalesce(excluded.budget_mnt, ${tenders.budgetMnt}), coalesce(excluded.contract_mnt, ${tenders.contractMnt})), 0) >= ${UNIT_RATIO})`,
           resultDate: sql`coalesce(excluded.result_date, ${tenders.resultDate})`,
           // Set once, when a stored lot first turns awarded; later syncs never move it.
           awardedSeenAt: sql`case when excluded.awarded and not ${tenders.awarded} then now() else ${tenders.awardedSeenAt} end`,
@@ -111,7 +115,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::sync-tenders: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());
