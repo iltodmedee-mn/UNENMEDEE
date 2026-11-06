@@ -37,7 +37,7 @@ permissions:
 
 jobs:
   video:
-    if: github.repository == 'tmorius-eng/UNENMEDEE' && vars.VIDEO_POSTING != 'off'
+    if: github.repository_owner == 'iltodmedee-mn' && vars.VIDEO_POSTING != 'off'
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:

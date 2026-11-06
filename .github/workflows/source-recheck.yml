@@ -24,7 +24,7 @@ permissions:
 jobs:
   recheck:
     # Forks keep the code but never run the scheduled jobs (no secrets, no Actions minutes).
-    if: github.repository == 'tmorius-eng/UNENMEDEE'
+    if: github.repository_owner == 'iltodmedee-mn'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     env:

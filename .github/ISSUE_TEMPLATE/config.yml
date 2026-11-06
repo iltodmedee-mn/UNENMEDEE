@@ -1,5 +1,5 @@
 blank_issues_enabled: true
 contact_links:
   - name: Аюулгүй байдлын асуудал / Security vulnerability
-    url: https://github.com/tmorius-eng/UNENMEDEE/security/advisories/new
+    url: https://github.com/iltodmedee-mn/UNENMEDEE/security/advisories/new
     about: Нууцаар мэдэгдэнэ үү, нээлттэй issue бүү бичээрэй. / Please report privately.

@@ -6,7 +6,7 @@
 ## Эхлэх
 
 ```bash
-git clone https://github.com/tmorius-eng/UNENMEDEE && cd UNENMEDEE
+git clone https://github.com/iltodmedee-mn/UNENMEDEE && cd UNENMEDEE
 npm install          # Node.js 24
 npm run demo         # http://localhost:3000: жишээ өгөгдөлтэй бүтэн сайт (DB, API түлхүүр хэрэггүй)
 npm run check        # typecheck + lint + unit test (нууц түлхүүр хэрэггүй)
@@ -22,7 +22,7 @@ AI түлхүүр (`GROQ_API_KEY`) тавина. Дэлгэрэнгүйг [READM
 
 | Хийх зүйл | Хаана |
 |---|---|
-| **Төрийн шинэ сайт нэмэх** | [`src/lib/sources.ts`](src/lib/sources.ts)-д нэг мөр нэмнэ. Эсвэл [issue нээж](https://github.com/tmorius-eng/UNENMEDEE/issues/new/choose) санал болгоно. |
+| **Төрийн шинэ сайт нэмэх** | [`src/lib/sources.ts`](src/lib/sources.ts)-д нэг мөр нэмнэ. Эсвэл [issue нээж](https://github.com/iltodmedee-mn/UNENMEDEE/issues/new/choose) санал болгоно. |
 | **JSON API / RSS-тэй сайт** | [`src/lib/scraper/adapters/`](src/lib/scraper/adapters)-д adapter бичээд `API_ADAPTERS`-д бүртгэнэ (`police.ts`, `legalinfo.ts` жишээ). |
 | **Гарчиг, огноо буруу таньж байвал** | Тухайн хуудсыг `tests/fixtures/`-д хадгалаад [`extractor.ts`](src/lib/scraper/extractor.ts) / [`titles.ts`](src/lib/scraper/titles.ts)-ийг засаж, тест нэмнэ. |
 | **AI буруу хураангуйлсан** | Эх сурвалжийн холбоостой issue нээнэ. Prompt нь [`src/lib/ai/prompts.ts`](src/lib/ai/prompts.ts)-д бий. |

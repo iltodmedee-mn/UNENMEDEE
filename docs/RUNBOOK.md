@@ -103,7 +103,7 @@ Copilot Pro ба түүнээс дээш багцад л байдаг. `.github/
 төслийн дүрмийг автоматаар өгнө.
 
 1. Watchdog issue-ээс засах мөрийг хуул.
-2. github.com → **Agent** (эсвэл issue дээр **Assign to Copilot**) → репо `tmorius-eng/UNENMEDEE`.
+2. github.com → **Agent** (эсвэл issue дээр **Assign to Copilot**) → репо `iltodmedee-mn/UNENMEDEE`.
 3. Ингэж бич:
    > CLAUDE.md-г бүтэн уншаад дараах асуудлыг зас: «<issue-ийн мөр>». `npm run check` ногоон байх ёстой. Засварыг жижиг байлга, тест сулруулж болохгүй. PR нээ.
 4. Агент PR нээнэ. PR-ийн доор **check, mobile-layout** бүгд ✅ ногоон болохыг хүлээ.
