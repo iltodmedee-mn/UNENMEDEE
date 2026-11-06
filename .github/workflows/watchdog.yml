@@ -66,6 +66,7 @@ jobs:
           SOCIAL_DISCORD: ${{ secrets.DISCORD_BOT_TOKEN != '' && (vars.DISCORD_CHANNEL_ID != '' || secrets.DISCORD_CHANNEL_ID != '') }}
           BACKUP_CONFIGURED: ${{ secrets.BACKUP_AGE_PUBLIC_KEY != '' }}
           LAYOUT_REPORT: layout.json
+          TAX_REPORT: tax-rates.md
         # 2>&1: a crash's stack trace lands in the issue too, not only in the run log.
         run: npm run --silent health 2>&1 | tee health.txt
 
@@ -101,6 +102,31 @@ jobs:
             gh issue comment "$open" --body "$body"
           fi
           if [ "$LEVEL" != "info" ]; then exit 1; fi
+
+      # The /tax rates (ХХОАТ, НДШ) are typed by hand: when a story since RATES_CHECKED may have
+      # changed them, a separate "tax-rates" issue lists the links (GitHub e-mails the owner when it
+      # opens, and a comment when a new story joins); moving RATES_CHECKED past them closes it.
+      # tax-rates.md is written only when the check ran: no file = no change to the issue.
+      - name: Open, update or close the tax-rates issue
+        if: ${{ !cancelled() && steps.health.outcome == 'success' && hashFiles('tax-rates.md') != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh label create tax-rates --color fbca04 --description "Tax / НДШ law may have changed: re-check /tax" 2>/dev/null || true
+          open=$(gh issue list --label tax-rates --state open --json number --jq '.[0].number')
+          if [ -s tax-rates.md ]; then
+            if [ -z "$open" ]; then
+              gh issue create --title "💰 ХХОАТ / НДШ-ийн хууль өөрчлөгдсөн байж магадгүй: /tax-ийн хувийг шалгах" --label tax-rates --body-file tax-rates.md
+            else
+              old=$(gh issue view "$open" --json body --jq .body | head -1)
+              if [ "$old" != "$(head -1 tax-rates.md)" ]; then
+                gh issue edit "$open" --body-file tax-rates.md
+                gh issue comment "$open" --body "Шалгах шинэ мэдээ нэмэгдлээ: дээрх жагсаалтыг харна уу."
+              fi
+            fi
+          elif [ -n "$open" ]; then
+            gh issue close "$open" --comment "✓ RATES_CHECKED шинэчлэгдсэн: шалгах мэдээ үлдээгүй."
+          fi
 
       - name: Close the watchdog issue when healthy
         if: ${{ steps.health.outcome == 'success' && steps.health.outputs.level == 'ok' }}
