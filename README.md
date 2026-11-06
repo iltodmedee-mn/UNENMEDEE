@@ -375,11 +375,14 @@ flowchart TB
 
 ```bash
 git clone https://github.com/iltodmedee-mn/UNENMEDEE && cd UNENMEDEE
-npm install                 # Node.js 24
+npm ci                      # Node.js 24 (.nvmrc); `npm ci` нь lockfile-ийн яг тэр хувилбаруудыг суулгана
+npm run doctor              # Node, lockfile, Chromium, ffmpeg, .env-ийн нэрс зөв үү: алдаа мэдэгдэхэд эхний мөрийг нь хуул
 npm run demo                # http://localhost:3000: жишээ өгөгдөлтэй бүтэн сайт, DB болон API түлхүүр хэрэггүй
 ```
 
-`npm run demo` нь `tests/fixtures`-д хадгалсан **бодит** төрийн мэдээ, УИХ-ын гишүүд, ХАСХОМ мэдүүлэг, Монголбанк, төсөв, тендерийн өгөгдлийг процесс доторх Postgres (PGlite, `.demo-db/`) руу ачаалж сайтыг асаана. Хураангуй нь эхний өгүүлбэрүүд ("AI ажиллаагүй"); `.env`-д үнэгүй `GROQ_API_KEY` тавиад `DATABASE_URL=pglite:./.demo-db npm run ai:process` хийвэл AI хураангуй үүснэ. Дахин эхнээс нь: `.demo-db/`-г устгана.
+Эхнээс нь (цэвэр орчин): `npm run doctor -- --clean` (`.demo-db/`, `.next/`-ийг устгаад демог дахин ачаална); `node_modules`-ийг ч сэргээх бол `rm -rf node_modules && npm ci`.
+
+`npm run demo` нь `tests/fixtures`-д хадгалсан **бодит** төрийн мэдээ, УИХ-ын гишүүд, ХАСХОМ мэдүүлэг, Монголбанк, төсөв, тендерийн өгөгдлийг процесс доторх Postgres (PGlite, `.demo-db/`) руу ачаалж сайтыг асаана. Хураангуй нь эхний өгүүлбэрүүд ("AI ажиллаагүй"); `.env`-д үнэгүй `GROQ_API_KEY` тавиад `DATABASE_URL=pglite:./.demo-db npm run ai:process` хийвэл AI хураангуй үүснэ. Дахин эхнээс нь: `npm run doctor -- --clean`.
 
 Өгөгдөлтэй ажиллуулах:
 

@@ -8,6 +8,7 @@
  * production, the newest VERCEL_KEEP_PRODUCTION (3) ready production deployments and unfinished
  * builds (src/lib/vercel-cleanup.ts). The token only goes in the Authorization header.
  */
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { deploymentsToDelete, type VercelDeployment } from "@/lib/vercel-cleanup";

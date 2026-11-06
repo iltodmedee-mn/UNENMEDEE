@@ -9,6 +9,7 @@
  * failed step. Press rows older than PRESS_KEEP_DAYS are deleted (their links go with them).
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";

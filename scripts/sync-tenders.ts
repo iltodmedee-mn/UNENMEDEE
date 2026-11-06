@@ -12,6 +12,7 @@
  * is written; the time of the last good sync goes to app_settings `tenders_synced_at`.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { sql } from "drizzle-orm";

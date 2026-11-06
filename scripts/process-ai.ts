@@ -16,6 +16,7 @@
  * their first sentences as the summary, so the site keeps showing news when every provider fails.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { and, desc, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";

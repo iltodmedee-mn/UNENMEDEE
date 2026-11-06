@@ -34,6 +34,7 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - run: node -v && npm -v
       - run: npm ci
       - run: npm run check
       - run: npm run build
@@ -56,8 +57,9 @@ jobs:
         with:
           node-version: 24
           cache: npm
+      - run: node -v && npm -v
       - run: npm ci
-      - run: npx playwright install --with-deps chromium
+      - run: npx playwright install --with-deps chromium && npx playwright --version
       - run: npx tsx scripts/seed-demo.ts
       - run: npx next build
       - name: Scan every page at 320, 360 and 390 px

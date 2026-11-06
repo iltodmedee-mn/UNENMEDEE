@@ -7,6 +7,7 @@
  * Stores metadata and small summaries only, never raw rows (500 MB Supabase limit).
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { sql } from "drizzle-orm";

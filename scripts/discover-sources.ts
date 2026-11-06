@@ -9,6 +9,7 @@
  *   npm run sources:discover -- --deep     # also scan every known source's homepage
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";

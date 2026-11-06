@@ -14,6 +14,7 @@
  * The width is compared with the viewport we set, not `innerWidth`: a mobile browser widens its
  * layout viewport to the content, so `scrollWidth > innerWidth` never fires there.
  */
+import "@/lib/runtime-banner";
 import { writeFileSync } from "node:fs";
 import { parseArgs } from "node:util";
 
@@ -21,6 +22,7 @@ import { chromium } from "playwright";
 
 import { layoutPages, type LayoutOverflow } from "@/lib/layout-check";
 import { oneLine } from "@/lib/log-safe";
+import { chromiumExecutablePath } from "@/lib/chromium-path";
 
 const { values } = parseArgs({
   options: {
@@ -63,7 +65,7 @@ async function main() {
   }
   const pages = layoutPages(sitemapUrls, (values.pages ?? "").split(",").filter(Boolean), Number(values["per-section"]));
   const widths = values.widths!.split(",").map(Number).filter((w) => w >= 240 && w <= 2000);
-  const browser = await chromium.launch(process.env.CHROMIUM_PATH ? { executablePath: process.env.CHROMIUM_PATH } : undefined);
+  const browser = await chromium.launch({ executablePath: chromiumExecutablePath() });
   const found: LayoutOverflow[] = [];
   let checked = 0;
   try {

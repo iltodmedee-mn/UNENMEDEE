@@ -7,6 +7,7 @@
  *   npm run db:backup -- --mark                    # record a finished backup (backup_last_at)
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { once } from "node:events";
 import { parseArgs } from "node:util";
 

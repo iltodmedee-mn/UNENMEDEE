@@ -10,6 +10,7 @@ import { assertPublicHostLiteral, guardGotOptions, isPublicHost } from "./net-gu
 import { getRobots, MAX_CRAWL_DELAY_MS, MIN_DOMAIN_DELAY_MS, type RobotsPolicy, USER_AGENT } from "./robots";
 import { isGenericTitle, looksLikeNavigation } from "./titles";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "./types";
+import { chromiumExecutablePath } from "@/lib/chromium-path";
 
 /** Storage hooks so the crawler works with the DB or in --dry-run mode. */
 export interface ArticleSink {
@@ -397,7 +398,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
           launchContext: {
             userAgent: USER_AGENT,
             launchOptions: {
-              executablePath: process.env.CHROMIUM_EXECUTABLE_PATH || undefined,
+              executablePath: chromiumExecutablePath(),
               args: ["--ignore-certificate-errors"],
             },
           },

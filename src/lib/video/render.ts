@@ -10,6 +10,7 @@ import path from "node:path";
 
 import { FRAME } from "./scene-html";
 import { parseSilences, type Silence, type Sfx, type Timeline } from "./timing";
+import { chromiumExecutablePath } from "@/lib/chromium-path";
 
 export const FPS = 30;
 /** Meta fetches the file from our /reel route; Vercel answers at most 4.5 MB per response. */
@@ -96,8 +97,8 @@ export async function renderVideo(opts: { html: string; wav: Buffer; timeline: T
   const total = opts.timeline.total;
   const { chromium } = await import("playwright");
   const dir = await mkdtemp(path.join(tmpdir(), "iltod-video-"));
-  // CHROMIUM_PATH: a browser installed outside Playwright (local previews); Actions installs its own.
-  const browser = await chromium.launch({ args: ["--allow-file-access-from-files"], executablePath: process.env.CHROMIUM_PATH || undefined });
+  // CHROMIUM_EXECUTABLE_PATH: a browser installed outside Playwright (local previews); Actions installs its own.
+  const browser = await chromium.launch({ args: ["--allow-file-access-from-files"], executablePath: chromiumExecutablePath() });
   try {
     const page = await browser.newPage({ viewport: FRAME, deviceScaleFactor: 1 });
     const htmlFile = path.join(dir, "scene.html");

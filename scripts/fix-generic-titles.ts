@@ -11,6 +11,7 @@
  * every URL keeps working. No network requests.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { sql } from "drizzle-orm";

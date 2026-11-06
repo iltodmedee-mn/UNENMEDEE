@@ -102,6 +102,14 @@ describe("database backup and restore", () => {
     assert.equal(after, before);
   });
 
+  it("a stray banner line on stdout does not void the restore (the backup pipes stdout into gzip)", async () => {
+    const { importLines } = await import("@/lib/backup");
+    const probe = JSON.stringify({ t: "app_settings", r: { key: "restore-banner-probe", value: "x", updatedAt: "2026-10-22T05:00:00.000Z" } });
+    const counts = await importLines(target, ["▸ backup-db.ts · node v24.0.0 linux-x64 · commit abc1234 · db postgres (x)", probe]);
+    assert.equal(counts.app_settings, 1);
+    assert.equal((await rowsOf(target, sql`select count(*)::int as n from app_settings where key = 'restore-banner-probe'`))[0].n, 1);
+  });
+
   it("restores only the tables asked for and refuses unknown ones", async () => {
     const { importLines } = await import("@/lib/backup");
     await target.update(schema.appSettings).set({ value: "changed" }).where(sql`key = 'vapid_private_key'`);

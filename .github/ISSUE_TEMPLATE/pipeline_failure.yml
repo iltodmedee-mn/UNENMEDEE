@@ -1,0 +1,46 @@
+name: Автомат ажил унасан / A workflow run failed
+description: GitHub Actions-ийн ажиллалт (pipeline, digest, video, watchdog…) улаан боллоо
+labels: [bug, workflow]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Унасан алхмын логийг **бүтнээр нь** хуулаарай: алдааны мөрнөөс доош бүгдийг. Нууц түлхүүр, нууц үг, `DATABASE_URL` хэзээ ч бүү хуул (лог тэдгээрийг `***` гэж далдалдаг, гэхдээ шалгаарай).
+        *Paste the failing step's log complete. Never paste a secret.*
+  - type: input
+    id: run
+    attributes:
+      label: Run-ийн холбоос / Run URL
+      placeholder: https://github.com/iltodmedee-mn/UNENMEDEE/actions/runs/…
+    validations:
+      required: true
+  - type: input
+    id: step
+    attributes:
+      label: Унасан алхам / Failing step
+      description: Улаан ✗ алхмын нэр (жишээ нь «Analyze with AI», «Write the digest»). / The step's name.
+    validations:
+      required: true
+  - type: textarea
+    id: log
+    attributes:
+      label: Тэр алхмын лог / That step's log
+      description: Эхний мөр (`▸ … · node … · commit …`)-өөс алдааны stack trace хүртэл. / From the first line (`▸ … · node … · commit …`) through the stack trace.
+      render: text
+    validations:
+      required: true
+  - type: dropdown
+    id: repeat
+    attributes:
+      label: Давтагдаж байна уу? / Does it repeat?
+      options:
+        - Нэг удаа / Once
+        - Дахин ажиллуулахад мөн унасан / Failed again on re-run
+        - Хэд хоног дараалан / Several days in a row
+    validations:
+      required: true
+  - type: textarea
+    id: changed
+    attributes:
+      label: Сүүлд юу өөрчилсөн бэ? / What changed last?
+      description: Secret, repository variable, код, Supabase/Vercel-ийн тохиргоо, гадны сайт. Нэг л зүйлийг өөрчлөөд дахин ажиллуул. / A secret, a variable, code, a Supabase or Vercel setting, an outside site. Change one thing, then re-run.

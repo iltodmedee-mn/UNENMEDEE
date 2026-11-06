@@ -10,6 +10,7 @@
  * rule-based ranking when no AI provider is available, so an edition always appears.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { desc, eq } from "drizzle-orm";

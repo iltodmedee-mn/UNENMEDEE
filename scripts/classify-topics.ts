@@ -10,6 +10,7 @@
  * Uses the free tier-1 chain behind the same budget guard; every call is logged.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { and, asc, eq, inArray, isNotNull, isNull, ne, sql } from "drizzle-orm";

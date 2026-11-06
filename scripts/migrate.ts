@@ -6,6 +6,7 @@
  * uses prepared statements that the Supabase transaction pooler (port 6543) rejects.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 
 import { drizzle } from "drizzle-orm/postgres-js";
 import { migrate } from "drizzle-orm/postgres-js/migrator";

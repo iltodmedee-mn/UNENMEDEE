@@ -10,6 +10,7 @@
  * (term, constituency) keeps its stored value instead of becoming empty.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { and, eq, notInArray, sql } from "drizzle-orm";

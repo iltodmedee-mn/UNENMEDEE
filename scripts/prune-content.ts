@@ -12,6 +12,7 @@
  *   npm run db:prune -- --dry-run    # counts only, nothing changes
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { sql } from "drizzle-orm";

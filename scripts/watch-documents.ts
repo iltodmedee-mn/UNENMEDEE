@@ -12,6 +12,7 @@
  * step is red.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { eq, sql } from "drizzle-orm";

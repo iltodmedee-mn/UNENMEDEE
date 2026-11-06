@@ -23,6 +23,7 @@
  * and FB_NEWS_PER_DAY (4) per day and platform, so the feeds stay curated, not a firehose.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";

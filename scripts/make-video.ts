@@ -19,6 +19,7 @@
  * file too big for /reel stops the run with nothing stored.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { writeFile } from "node:fs/promises";
 import path from "node:path";
 import { parseArgs } from "node:util";

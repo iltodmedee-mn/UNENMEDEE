@@ -9,6 +9,7 @@
  * Needs DISCORD_BOT_TOKEN (secret). The application id comes from GET /applications/@me.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { COMMANDS, DISCORD_API } from "@/lib/social/discord-interactions";

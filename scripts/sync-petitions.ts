@@ -10,6 +10,7 @@
  * keeps the previous snapshot and turns the step red: the page markup probably changed.
  */
 import "dotenv/config";
+import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
