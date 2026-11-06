@@ -272,9 +272,11 @@ export async function getFeed(filter: FeedFilter, limit = 30): Promise<ArticleLi
  * the article itself and its cluster left out, the same importance cut-off as the feed. Gives every
  * article page crawlable links to its neighbours (internal linking), not only to the nav.
  */
-export async function getTopicNeighbours(filter: FeedFilter, excludeId: number, clusterId: number | null, limit = 5): Promise<ArticleListItem[]> {
+export async function getTopicNeighbours(filter: FeedFilter, excludeId: number, clusterId: number | null, limit = 5, settled = false): Promise<ArticleListItem[]> {
   "use cache";
-  cacheLife("hours");
+  // On an old story's page a day-old "latest in this topic" list is fine (see SETTLED_AFTER_DAYS).
+  if (settled) cacheLife("days");
+  else cacheLife("hours");
   cacheTag("articles");
   return safe("getTopicNeighbours", [], async () => {
     const rows = await getDb()
@@ -333,7 +335,9 @@ const UB_DAY = sql<string>`to_char((${articles.publishedAt} at time zone 'UTC') 
  */
 export async function getDayArchive(date: string): Promise<DayArchive> {
   "use cache";
-  cacheLife("hours");
+  // A day two or more days back only changes when an older story is found late: a day's cache is enough.
+  if (date < ubDateKey(Date.now() - 2 * 86_400_000)) cacheLife("days");
+  else cacheLife("hours");
   cacheTag("articles");
   return safe("getDayArchive", { stories: [], prev: null, next: null }, async () => {
     const db = getDb();
@@ -482,9 +486,8 @@ export async function getClusters(limit = 30, sinceDays?: number): Promise<Clust
 
 export async function getCluster(id: number) {
   "use cache";
-  cacheLife("hours");
   cacheTag("clusters", `cluster-${id}`);
-  return safe("getCluster", null, async () => {
+  const data = await safe("getCluster", null, async () => {
     const db = getDb();
     const [cluster] = await db.select().from(clusters).where(eq(clusters.id, id)).limit(1);
     if (!cluster) return null;
@@ -504,6 +507,11 @@ export async function getCluster(id: number) {
       articles: rows.map(toListItem),
     };
   });
+  // Members join within 7 days of each other: once the newest is settled, the cluster is too.
+  const newest = data?.articles.reduce<Date | null>((m, a) => (a.publishedAt && (!m || a.publishedAt > m) ? a.publishedAt : m), null);
+  if (isSettled(newest, new Date())) cacheLife("days");
+  else cacheLife("hours");
+  return data;
 }
 
 export interface ArticleDetail extends ArticleListItem {
@@ -526,6 +534,8 @@ export interface ArticleDetail extends ArticleListItem {
   /** The model that actually wrote the summary / deep analysis (from ai_usage_logs); null = rule-based or unknown. */
   tier1Model: AIModelRef | null;
   tier2Model: AIModelRef | null;
+  /** Older than SETTLED_AFTER_DAYS: nothing changes it any more but an edit, so it is cached for a day. */
+  settled: boolean;
   /** The independent press's headlines on the same story, best match first. */
   press: PressCoverage[];
   /** Important, a day old, and none of the outlets we read had it (src/lib/press/outlets.ts); computed in the hourly cache. */
@@ -552,6 +562,18 @@ function modelUsed(purposes: string[]) {
     order by ${aiUsageLogs.createdAt} desc limit 1)`;
 }
 
+/**
+ * A story this old no longer changes on its own: AI retries stop after 3 days, press links and
+ * clusters look 7 days back. Its page (and the neighbour list on it) is then cached for a day
+ * instead of an hour: thousands of old article pages revalidating hourly on crawler visits made
+ * 419 K ISR writes in Nov 2026, over twice Vercel Hobby's 200 K.
+ */
+const SETTLED_AFTER_DAYS = 8;
+
+function isSettled(at: Date | null | undefined, now: Date): boolean {
+  return !!at && now.getTime() - new Date(at).getTime() > SETTLED_AFTER_DAYS * 86_400_000;
+}
+
 function parseModelRef(v: string | null): AIModelRef | null {
   if (!v) return null;
   const [provider, ...rest] = v.split("|");
@@ -560,9 +582,8 @@ function parseModelRef(v: string | null): AIModelRef | null {
 
 export async function getArticleBySlug(slug: string): Promise<ArticleDetail | null> {
   "use cache";
-  cacheLife("hours");
   cacheTag("articles", `article-${slug}`);
-  return safe("getArticleBySlug", null, async () => {
+  const article = await safe("getArticleBySlug", null, async (): Promise<ArticleDetail | null> => {
     const [r] = await getDb()
       .select({
         ...listColumns,
@@ -628,8 +649,12 @@ export async function getArticleBySlug(slug: string): Promise<ArticleDetail | nu
       sourceDiff: r.sourceDiff,
       tier1Model: parseModelRef(r.tier1Model),
       tier2Model: parseModelRef(r.tier2Model),
+      settled: isSettled(item.publishedAt ?? r.createdAt, now),
     };
   });
+  if (article?.settled) cacheLife("days");
+  else cacheLife("hours");
+  return article;
 }
 
 /** Slugs to prerender at build time (most recent). */
@@ -1175,7 +1200,8 @@ export async function getPoliticianIds(): Promise<number[]> {
 /** Every member's short name, former ones included: links and mentions refuse a name two members ever shared. */
 export async function getPoliticianNames(): Promise<{ id: number; shortName: string; isActive: boolean }[]> {
   "use cache";
-  cacheLife("hours");
+  // The roster changes weekly (officials:sync) and it is on every article page: a day is enough.
+  cacheLife("days");
   cacheTag("officials");
   return safe("getPoliticianNames", [], () => getDb().select({ id: politicians.id, shortName: politicians.shortName, isActive: politicians.isActive }).from(politicians));
 }

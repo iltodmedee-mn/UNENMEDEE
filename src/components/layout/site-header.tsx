@@ -1,53 +1,18 @@
-import { cacheLife } from "next/cache";
 import { SearchLg } from "@untitledui/icons";
 import Link from "next/link";
 import { Suspense } from "react";
-
-import { getSiteStats } from "@/lib/queries";
 
 import { NotifyButton } from "@/components/pwa/pwa-controls";
 
 import { DonateChip } from "./donate";
 import { HEADER_ICON_BUTTON } from "./header-styles";
+import { LiveStatus } from "./live-status";
 import { Logo } from "./logo";
 import { MobileMenu } from "./mobile-menu";
 import { NavLinks, NavLinksFallback } from "./nav-links";
 import { HEADER_SOCIAL, SocialLinks } from "./social-links";
 import { TextSizeToggle } from "./text-size-toggle";
 import { ThemeToggle } from "./theme-toggle";
-import { FEED_QUIET_HOURS, hoursSince } from "@/lib/stale";
-
-/** Hours since the newest feed story, from a cached clock (the header is on every static page). */
-async function quietHours(lastArticleAt: string | null): Promise<number> {
-  "use cache";
-  cacheLife("hours");
-  return hoursSince(lastArticleAt, new Date());
-}
-
-async function LiveStatus() {
-  // Decorative: a database blip here must not take the whole page (the root layout) down.
-  const stats = await getSiteStats().catch(() => null);
-  if (!stats) return null;
-  // A pulsing "live" dot over a feed that stopped hours ago would claim something false.
-  const quiet = stats.lastArticleAt ? await quietHours(stats.lastArticleAt) : 0;
-  if (quiet > FEED_QUIET_HOURS) {
-    return (
-      <span className="label-mono flex items-center gap-2 text-tertiary">
-        <span className="inline-flex size-1.5 rounded-full bg-fg-quaternary" />
-        Сүүлийн мэдээ {quiet} цагийн өмнө · {stats.activeSources} эх сурвалж
-      </span>
-    );
-  }
-  return (
-    <span className="label-mono flex items-center gap-2 text-brand-secondary">
-      <span className="relative flex size-1.5">
-        <span className="absolute inline-flex size-full animate-ping rounded-full bg-brand-solid opacity-60" />
-        <span className="relative inline-flex size-1.5 rounded-full bg-brand-solid" />
-      </span>
-      {stats.activeSources} төрийн эх сурвалж хянаж байна
-    </span>
-  );
-}
 
 export function SiteHeader() {
   return (
@@ -57,9 +22,7 @@ export function SiteHeader() {
       {/* Status strip: desktop only; phones keep the screen for headlines. */}
       <div className="hidden border-b border-line-soft sm:block">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-4 py-1.5 md:px-8">
-          <Suspense fallback={<span className="label-mono text-tertiary">Систем ачаалж байна…</span>}>
-            <LiveStatus />
-          </Suspense>
+          <LiveStatus />
           <Suspense fallback={<span className="label-mono hidden text-tertiary xl:inline">Нээлттэй эх · Бүх зардал ил</span>}>
             <DonateChip className="hidden xl:flex" />
           </Suspense>

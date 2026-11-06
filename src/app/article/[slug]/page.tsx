@@ -134,8 +134,8 @@ async function Related({ clusterId, currentId }: { clusterId: number; currentId:
 }
 
 /** "Энэ сэдвийн сүүлийн мэдээ": crawlable links to the topic's newest stories and its hub. */
-async function TopicNeighbours({ filter, label, excludeId, clusterId }: { filter: FeedFilter; label?: string; excludeId: number; clusterId: number | null }) {
-  const items = await getTopicNeighbours(filter, excludeId, clusterId, 5);
+async function TopicNeighbours({ filter, label, excludeId, clusterId, settled }: { filter: FeedFilter; label?: string; excludeId: number; clusterId: number | null; settled: boolean }) {
+  const items = await getTopicNeighbours(filter, excludeId, clusterId, 5, settled);
   if (items.length === 0) return null;
   const hub = filter === "all" ? "/" : `/topic/${filter}`;
   return (
@@ -341,7 +341,7 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
         </Suspense>
       )}
       <Suspense fallback={null}>
-        <TopicNeighbours filter={(topic.key === "other" ? "all" : topic.key) as FeedFilter} label={topic.key === "other" ? undefined : topic.label} excludeId={article.id} clusterId={article.clusterId} />
+        <TopicNeighbours filter={(topic.key === "other" ? "all" : topic.key) as FeedFilter} label={topic.key === "other" ? undefined : topic.label} excludeId={article.id} clusterId={article.clusterId} settled={article.settled} />
       </Suspense>
       {/* Hubs this story belongs to: its place, its source and its day (crawlable paths both ways). */}
       <nav aria-label="Холбоотой хуудсууд" className="flex flex-col gap-2 text-sm font-semibold text-brand-secondary">
