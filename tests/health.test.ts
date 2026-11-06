@@ -164,6 +164,10 @@ describe("watchdog rules", () => {
     // Instagram is not configured in CONFIG: never reported; videos off: nothing at all.
     assert.deepEqual(only((s) => (s.videos = { ...fresh, hoursSincePost: { facebook: 5, threads: 5, instagram: null } }), config), []);
     assert.deepEqual(only((s) => (s.videos = { hoursSinceVideo: null, hoursSincePost: {} }), { ...CONFIG, videoPosting: false }), []);
+    // "false" does not stop the videos (only "off" does): say so instead of letting the owner believe it did.
+    const spelled = healthProblems(healthy(), { ...CONFIG, videoPosting: true, videoPostingValue: "false" });
+    assert.ok(spelled.some((p) => p.level === "info" && /VIDEO_POSTING = «false»/.test(p.text)), spelled.map((p) => p.text).join("\n"));
+    assert.ok(!healthProblems(healthy(), { ...CONFIG, videoPosting: false, videoPostingValue: "OFF" }).some((p) => /VIDEO_POSTING/.test(p.text)));
   });
 
   it("press feeds and the pipeline-fallback token", () => {

@@ -116,7 +116,9 @@ export function FilterChat() {
     const r = item.result;
     if (!r.ok || !r.input) return;
     setPublishingId(item.id);
-    const res = await publishFiltered({
+    let res: Awaited<ReturnType<typeof publishFiltered>>;
+    try {
+      res = await publishFiltered({
       title: r.input.title,
       url: r.input.url,
       sourceDomain: r.input.sourceDomain,
@@ -128,8 +130,13 @@ export function FilterChat() {
       riskScore: r.riskScore ?? 0,
       amounts: r.amounts ?? [],
       deepMarkdown: r.deepMarkdown ?? null,
-    });
-    setPublishingId(null);
+      });
+    } catch (err) {
+      // A thrown action (network, a server crash) used to leave the button on "publishing" for good.
+      res = { ok: false, message: err instanceof Error ? err.message : String(err) };
+    } finally {
+      setPublishingId(null);
+    }
     setItems((xs) => xs.map((x) => (x.id === item.id && x.role === "assistant" ? { ...x, published: res.ok ? res.slug : null, publishError: res.ok ? undefined : res.message } : x)));
   };
 

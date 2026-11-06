@@ -66,16 +66,40 @@ jobs:
         # Secrets only here: dependency install scripts never see them.
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          # Migrations (db-check, tenders-sync, docs-watch) run over the session pooler like every other workflow.
+          DATABASE_URL_DIRECT: ${{ secrets.DATABASE_URL_DIRECT || secrets.DATABASE_URL }}
+          # ---- AI settings: keep identical to autonomous-news-pipeline.yml (tests/workflow-env.test.ts) ----
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          # "true" only for a key from a Google project WITHOUT billing; otherwise Gemini is skipped.
           GEMINI_FREE_TIER: ${{ vars.GEMINI_FREE_TIER }}
           REQUESTY_API_KEY: ${{ secrets.REQUESTY_API_KEY }}
           NVIDIA_API_KEY: ${{ secrets.NVIDIA_API_KEY }}
           MISTRAL_API_KEY: ${{ secrets.MISTRAL_API_KEY }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           ZAI_API_KEY: ${{ secrets.ZAI_API_KEY }}
+          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
+          GROK_API_KEY: ${{ secrets.GROK_API_KEY }}
           AI_MONTHLY_BUDGET_USD: ${{ vars.AI_MONTHLY_BUDGET_USD }}
           AI_DAILY_BUDGET_USD: ${{ vars.AI_DAILY_BUDGET_USD }}
+          GROK_DAILY_MAX_CALLS: ${{ vars.GROK_DAILY_MAX_CALLS }}
+          DEEPSEEK_DAILY_MAX_CALLS: ${{ vars.DEEPSEEK_DAILY_MAX_CALLS }}
+          AI_TIER1_CHAIN: ${{ vars.AI_TIER1_CHAIN }}
+          AI_TIER2_CHAIN: ${{ vars.AI_TIER2_CHAIN }}
+          DEEPSEEK_MODEL: ${{ vars.DEEPSEEK_MODEL || 'deepseek-chat' }}
+          GROK_MODEL: ${{ vars.GROK_MODEL || 'grok-4-fast' }}
+          DEEPSEEK_PRICE_IN: ${{ vars.DEEPSEEK_PRICE_IN }}
+          DEEPSEEK_PRICE_OUT: ${{ vars.DEEPSEEK_PRICE_OUT }}
+          GROK_PRICE_IN: ${{ vars.GROK_PRICE_IN }}
+          GROK_PRICE_OUT: ${{ vars.GROK_PRICE_OUT }}
+          GROQ_MODEL: ${{ vars.GROQ_MODEL }}
+          GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+          GEMINI_DEEP_MODEL: ${{ vars.GEMINI_DEEP_MODEL }}
+          REQUESTY_MODEL: ${{ vars.REQUESTY_MODEL }}
+          NVIDIA_MODEL: ${{ vars.NVIDIA_MODEL }}
+          MISTRAL_MODEL: ${{ vars.MISTRAL_MODEL }}
+          OPENROUTER_MODEL: ${{ vars.OPENROUTER_MODEL }}
+          ZAI_MODEL: ${{ vars.ZAI_MODEL }}
           IN_TASK: ${{ inputs.task }}
           IN_DRY: ${{ inputs.dry_run }}
           IN_MODELS: ${{ inputs.models }}
@@ -103,7 +127,7 @@ jobs:
               timeout 20 openssl s_client -starttls postgres -connect "$target" -showcerts </dev/null 2>/dev/null | grep -E '^ *[0-9]+ s:|^ +i:|Verify return' || true
               echo "::endgroup::"
               npm run db:check
-              npm run db:migrate ;;
+              DATABASE_URL="$DATABASE_URL_DIRECT" npm run db:migrate ;;
             reanalyse)
               # Digits only, at most 20 ids: the input reaches the shell through env, never inline.
               if ! printf '%s' "$IN_IDS" | grep -Eq '^ *[0-9]{1,9}( +[0-9]{1,9}){0,19} *$'; then echo "::error::ids must be 1-20 article ids separated by spaces"; exit 1; fi
@@ -113,10 +137,10 @@ jobs:
                 echo "::endgroup::"
               done ;;
             tenders-sync)
-              npm run db:migrate
+              DATABASE_URL="$DATABASE_URL_DIRECT" npm run db:migrate
               npm run tenders:sync -- --months 12 ;;
             docs-watch)
-              npm run db:migrate
+              DATABASE_URL="$DATABASE_URL_DIRECT" npm run db:migrate
               NODE_EXTRA_CA_CERTS=certs/rapidssl-tls-rsa-ca-g1.pem npm run docs:watch ;;
             *) echo "::error::unknown task"; exit 1 ;;
           esac
