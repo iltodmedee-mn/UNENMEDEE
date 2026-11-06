@@ -29,6 +29,7 @@ import { contentHash, slugify } from "@/lib/text";
 
 import type { DB } from "./index";
 import { appSettings, articles, assetDeclarations, documents, indicatorSnapshots, politicians, sources, tenders } from "./schema";
+import { parsePetitions, type PetitionsSnapshot } from "@/lib/participation/petitions";
 
 /**
  * Sample data for `npm run demo`, built from the real responses saved in tests/fixtures through the
@@ -165,6 +166,8 @@ export async function seedDemo(db: DB, fixtures = "tests/fixtures", now = new Da
     // /prices: 3 of the 13 goods (beef, petrol, canteen), every month since 2010-12, and the wage series.
     { key: "prices_nso", data: parsePrices(stat("nso-prices.json"), GOODS.filter((g) => ["beef", "petrol", "canteen"].includes(g.key))) },
     { key: "wages_nso", data: parseWages(stat("nso-wages.json")) },
+    // /participate: the parser test's petition page (authors removed); shown as captured, open or not.
+    { key: "petitions", data: { fetchedAt: now.toISOString(), items: parsePetitions(read("petitions-page.html"), unshoutTitle), skippedNamed: 0 } satisfies PetitionsSnapshot },
   ];
   for (const s of snapshots) {
     const row = { key: s.key, data: s.data, asOf, updatedAt: now };

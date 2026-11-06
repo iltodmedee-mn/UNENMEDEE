@@ -1,0 +1,503 @@
+<html><body><div class="bg-sm-base">
+<a class="pet-item d-flex flex-column " href="/Detail?id=20b9c1f6-dc16-4282-af05-148876e90c4c">
+                                <div class="item-header d-flex align-items-center justify-content-between px-3 py-2  ">
+                                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                                            <span class="pet-no fs-xs badge-main badge-sm bg-main" title="Өргөдлийн дугаар">PN-202609-61758</span>
+                                            <div class="d-flex justify-content-between">
+                                                <div class="live">
+                                                    <label class="fs-xxs text-danger me-2" id="tmr_end_20b9c1f6-dc16-4282-af05-148876e90c4c">
+                                                        Дуусахад :
+                                                    </label>
+                                                    <span id="tmr_20b9c1f6-dc16-4282-af05-148876e90c4c" class="fw-bold fs-xxs count-down " title="Огноо"></span>
+                                                </div>
+                                            </div>
+                                    </div>
+                                        <script>
+                                            $(document).ready(function () {
+                                                    $("#Sign_Btn_20b9c1f6-dc16-4282-af05-148876e90c4c").click(function (event) {
+                                                        event.preventDefault();
+                                                        FKPetition = this.getAttribute("alt");
+                                                        var PetitionNo = this.getAttribute("name");
+                                                        let span = $('#SignModalTxt');
+                                                        $.ajax({
+                                                            url: '/Index',
+                                                            method: 'GET',
+                                                            data: {
+                                                                handler: 'UserExistSign',
+                                                                FKPetition: FKPetition
+                                                            },
+                                                            success: function (resultData) {
+                                                                if (resultData.retData == true) {
+                                                                    var html = 'Та ' + PetitionNo + ' дугаартай өргөдөлд гарын үсэг зурсан байна.'
+                                                                    $("#SignWithAuth").attr("style", "display: none!important");
+                                                                }
+                                                                else {
+                                                                    var html = 'Та <span>' + PetitionNo + '</span> дугаартай өргөдөл дээр гарын үсэг зурж саналаа өгөх гэж байна.'
+                                                                    $("#SignWithAuth").attr("style", "display: block!important");
+                                                                }
+                                                                span.html(html);
+                                                                $('#SignModal').modal('show');
+                                                            },
+                                                            error: function (error) {
+                                                                console.log(error);
+                                                            },
+                                                            timeout: 60000 // sets timeout to 60 seconds
+                                                        });
+                                                    //$('#Pttn_No').html(PetitionNo);
+                                                    //$('#Pttn_No1').html(PetitionNo);
+                                                });
+                                            })
+                                        </script>
+                                            <button type="button" class="btn btn-warn btn-sm px-2 py-0 ms-auto fs-xxs" style="padding: 3px 6px 1px 6px!important; border-radius: 5px!important;" id="Sign_Btn_20b9c1f6-dc16-4282-af05-148876e90c4c" name="PN-202609-61758" alt="20b9c1f6-dc16-4282-af05-148876e90c4c">
+                                                Дэмжиж гарын үсэг зурах
+                                            </button>
+                                </div>
+                                <div class="item-body px-3 py-2 d-flex d-md-grid">
+                                    <div class="flex-fill d-flex flex-column detail gap-3 gap-md-2">
+                                        <div class="">
+                                            <div class="text-dark fs-md hover:text-primary fw-bold" style="line-height: 24px;">
+                                                &#x425;&#x423;&#x423;&#x41B;&#x42C; &#x411;&#x423;&#x421;&#x410;&#x410;&#x420; &#x425;&#x4E8;&#x420;&#x4E8;&#x41D;&#x413;&#x4E8;&#x416;&#x421;&#x4E8;&#x41D; &#x422;&#x4E8;&#x420;&#x418;&#x419;&#x41D; &#x410;&#x41B;&#x411;&#x410;&#x41D; &#x425;&#x410;&#x410;&#x413;&#x427;&#x414;&#x42B;&#x41D;  &#x425;&#x423;&#x423;&#x41B;&#x42C; &#x411;&#x423;&#x421;&#x410;&#x410;&#x420; &#x41E;&#x41B;&#x421;&#x41E;&#x41D; &#x425;&#x4E8;&#x420;&#x4E8;&#x41D;&#x413;&#x418;&#x419;&#x413; &#x425;&#x423;&#x420;&#x410;&#x410;&#x416; 100&#x421;&#x410;&#x42F; &#x422;&#x4E8;&#x413;&#x420;&#x4E8;&#x413;&#x41D;&#x4E8;&#x4E8;&#x421; &#x414;&#x42D;&#x42D;&#x428; &#x411;&#x41E;&#x41B; &#x411;&#x4AE;&#x425; &#x41D;&#x410;&#x421;&#x410;&#x410;&#x420; &#x41D;&#x42C; &#x425;&#x41E;&#x420;&#x418;&#x425; &#x422;&#x423;&#x425;&#x410;&#x419;
+                                            </div>
+                                            <span class="fs-xxs opacity-75 fst-italic">3. &#x425;&#x443;&#x443;&#x43B;&#x438;&#x439;&#x43D; &#x442;&#x4E9;&#x441;&#x4E9;&#x43B; &#x441;&#x430;&#x43D;&#x430;&#x430;&#x447;&#x43B;&#x430;&#x445; &#x442;&#x430;&#x43B;&#x430;&#x430;&#x440; &#x441;&#x430;&#x43D;&#x430;&#x43B; &#x433;&#x430;&#x440;&#x433;&#x430;&#x445;</span>
+                                        </div>
+                                        <div class="thumbnail mob">
+                                            <div class="img-shadow">
+                                                    <img src="icon/noimg.png" onerror="this.src='icon/noimg.png';" />
+                                            </div>
+                                        </div>
+                                        <div id="Descr_20b9c1f6-dc16-4282-af05-148876e90c4c" class="text-dark flex-grow-0 flex-md-fill flex-fill fw-light fs-xs overflow-md-hidden position-relative">Тайлбар (тестийн хувилбарт хасав).</div>
+                                    </div>
+                                    <div class="thumbnail">
+                                        <div class="img-shadow">
+                                                <img src="icon/noimg.png" onerror="this.src='icon/noimg.png';" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="item-body d-flex d-md-grid align-items-center px-3 py-2">
+                                    <div>
+                                        <div class="author text-dark">
+                                            <div class="d-grid align-items-center gap-2" style="grid-template-columns: auto 1fr;">
+                                                <span>И</span>
+                                                <p class="text-dark">Иргэн <strong>Иргэн</strong></p>
+                                            </div>
+
+                                            <div class="fs-xxs d-flex flex-wrap gap-2" title="Огноо">
+                                                <div>
+                                                    <i class="fa-regular fa-calendar me-2"></i>2026.10.02
+                                                </div>
+                                                <div>
+                                                    <i class="fa-regular fa-clock me-1"></i>
+                                                    17:22:10
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span title="Нийт 100000 гарын үсэг цуглуулахаас 60569-г цуглуулсан" class="d-flex align-items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="20" x="0" y="0" viewBox="0 0 60 60" style="enable-background:new 0 0 512 512" xml:space="preserve" class=""><g><path d="M34.82 29.04c5.71 0 10.35-4.64 10.35-10.34 0-5.71-4.64-10.35-10.35-10.35S24.47 12.99 24.47 18.7c0 5.7 4.64 10.34 10.35 10.34z" fill="var(--warning)" opacity="1" data-original="#000000" class=""></path><path d="M22.54 38.93c.66.61 1.04 1.49 1.04 2.41v9.3c0 .55.45 1 1 1H46V44c0-.56.45-1 1-1s1 .44 1 1v7.64h5c.55 0 1-.45 1-1v-7.38c0-7.24-5.89-13.13-13.14-13.13h-9.15c-2.33 0-4.49-1.04-5.93-2.84-3.65-4.54-7.01-9.72-10.01-15.4a5.169 5.169 0 0 0-3.4-2.63 5.216 5.216 0 0 0-4.23.85c-2.07 1.51-2.74 4.36-1.54 6.62 5.14 9.75 10.35 17.01 15.94 22.2z" fill="var(--warning)" opacity="1" data-original="#000000" class=""></path></g></svg>
+                                        <span class="text-nowrap">
+                                            <span class="fs-xxs">60,569</span> / <span class="text-warning fs-xxs">100,000</span>
+                                        </span>
+                                    </span>
+                                </div>
+                                    <script>
+                                        $(document).ready(function () {
+                                            var interval_0 = setInterval(function () {
+                                                var countDownDate = new Date(2026, 11 - 1, 8, 23, 2, 46).getTime();
+
+                                                var now = new Date().getTime();
+                                                var distance = countDownDate - now;
+
+                                                var days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                                                var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                                var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                                                var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                                                $('#tmr_20b9c1f6-dc16-4282-af05-148876e90c4c').html(days + "ө " + hours + "ц " + minutes + "м " + seconds + "с ");
+
+                                                if (distance < 0) {
+                                                    $('#tmr_20b9c1f6-dc16-4282-af05-148876e90c4c').html("Санал авах хугацаа дууссан");
+                                                    $('#tmr_end_20b9c1f6-dc16-4282-af05-148876e90c4c').html("");
+                                                    $("#Sign_Btn_20b9c1f6-dc16-4282-af05-148876e90c4c").remove();
+                                                    clearInterval(interval_0);
+                                                }
+                                            }, 1000);
+                                        })
+                                    </script>
+                            </a>
+                            <a class="pet-item d-flex flex-column " href="/Detail?id=966ada00-ffa0-4ce5-bc89-ffa57afbe299">
+                                <div class="item-header d-flex align-items-center justify-content-between px-3 py-2  ">
+                                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                                            <span class="pet-no fs-xs badge-main badge-sm bg-main" title="Өргөдлийн дугаар">PN-202608-79225</span>
+                                            <div class="d-flex justify-content-between">
+                                                <div class="live">
+                                                    <label class="fs-xxs text-danger me-2" id="tmr_end_966ada00-ffa0-4ce5-bc89-ffa57afbe299">
+                                                        Дуусахад :
+                                                    </label>
+                                                    <span id="tmr_966ada00-ffa0-4ce5-bc89-ffa57afbe299" class="fw-bold fs-xxs count-down " title="Огноо"></span>
+                                                </div>
+                                            </div>
+                                    </div>
+                                        <script>
+                                            $(document).ready(function () {
+                                                    $("#Sign_Btn_966ada00-ffa0-4ce5-bc89-ffa57afbe299").click(function (event) {
+                                                        event.preventDefault();
+                                                        FKPetition = this.getAttribute("alt");
+                                                        var PetitionNo = this.getAttribute("name");
+                                                        let span = $('#SignModalTxt');
+                                                        $.ajax({
+                                                            url: '/Index',
+                                                            method: 'GET',
+                                                            data: {
+                                                                handler: 'UserExistSign',
+                                                                FKPetition: FKPetition
+                                                            },
+                                                            success: function (resultData) {
+                                                                if (resultData.retData == true) {
+                                                                    var html = 'Та ' + PetitionNo + ' дугаартай өргөдөлд гарын үсэг зурсан байна.'
+                                                                    $("#SignWithAuth").attr("style", "display: none!important");
+                                                                }
+                                                                else {
+                                                                    var html = 'Та <span>' + PetitionNo + '</span> дугаартай өргөдөл дээр гарын үсэг зурж саналаа өгөх гэж байна.'
+                                                                    $("#SignWithAuth").attr("style", "display: block!important");
+                                                                }
+                                                                span.html(html);
+                                                                $('#SignModal').modal('show');
+                                                            },
+                                                            error: function (error) {
+                                                                console.log(error);
+                                                            },
+                                                            timeout: 60000 // sets timeout to 60 seconds
+                                                        });
+                                                    //$('#Pttn_No').html(PetitionNo);
+                                                    //$('#Pttn_No1').html(PetitionNo);
+                                                });
+                                            })
+                                        </script>
+                                            <button type="button" class="btn btn-warn btn-sm px-2 py-0 ms-auto fs-xxs" style="padding: 3px 6px 1px 6px!important; border-radius: 5px!important;" id="Sign_Btn_966ada00-ffa0-4ce5-bc89-ffa57afbe299" name="PN-202608-79225" alt="966ada00-ffa0-4ce5-bc89-ffa57afbe299">
+                                                Дэмжиж гарын үсэг зурах
+                                            </button>
+                                </div>
+                                <div class="item-body px-3 py-2 d-flex d-md-grid">
+                                    <div class="flex-fill d-flex flex-column detail gap-3 gap-md-2">
+                                        <div class="">
+                                            <div class="text-dark fs-md hover:text-primary fw-bold" style="line-height: 24px;">
+                                                &#x410;&#x416;&#x418;&#x41B;&#x422;&#x41D;&#x42B; &#x425;&#x425;&#x41E;&#x410;&#x422; &#x411;&#x41E;&#x41B;&#x41E;&#x41D; &#x41D;&#x414;-&#x42B;&#x41D; &#x428;&#x418;&#x41C;&#x422;&#x413;&#x42D;&#x41B; &#x422;&#x4E8;&#x41B;&#x4E8;&#x41B;&#x422;&#x418;&#x419;&#x413; &#x411;&#x423;&#x423;&#x420;&#x423;&#x423;&#x41B;&#x410;&#x425;.
+                                            </div>
+                                            <span class="fs-xxs opacity-75 fst-italic">1. &#x410;&#x436;&#x43B;&#x44B;&#x43D; &#x445;&#x44D;&#x441;&#x44D;&#x433; &#x431;&#x430;&#x439;&#x433;&#x443;&#x443;&#x43B;&#x430;&#x445;</span>
+                                        </div>
+                                        <div class="thumbnail mob">
+                                            <div class="img-shadow">
+                                                    <img src="icon/noimg.png" onerror="this.src='icon/noimg.png';" />
+                                            </div>
+                                        </div>
+                                        <div id="Descr_966ada00-ffa0-4ce5-bc89-ffa57afbe299" class="text-dark flex-grow-0 flex-md-fill flex-fill fw-light fs-xs overflow-md-hidden position-relative">Тайлбар (тестийн хувилбарт хасав).</div>
+                                    </div>
+                                    <div class="thumbnail">
+                                        <div class="img-shadow">
+                                                <img src="icon/noimg.png" onerror="this.src='icon/noimg.png';" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="item-body d-flex d-md-grid align-items-center px-3 py-2">
+                                    <div>
+                                        <div class="author text-dark">
+                                            <div class="d-grid align-items-center gap-2" style="grid-template-columns: auto 1fr;">
+                                                <span>И</span>
+                                                <p class="text-dark">Иргэн <strong>Иргэн</strong></p>
+                                            </div>
+
+                                            <div class="fs-xxs d-flex flex-wrap gap-2" title="Огноо">
+                                                <div>
+                                                    <i class="fa-regular fa-calendar me-2"></i>2026.09.01
+                                                </div>
+                                                <div>
+                                                    <i class="fa-regular fa-clock me-1"></i>
+                                                    17:48:08
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span title="Нийт 33000 гарын үсэг цуглуулахаас 8665-г цуглуулсан" class="d-flex align-items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="20" x="0" y="0" viewBox="0 0 60 60" style="enable-background:new 0 0 512 512" xml:space="preserve" class=""><g><path d="M34.82 29.04c5.71 0 10.35-4.64 10.35-10.34 0-5.71-4.64-10.35-10.35-10.35S24.47 12.99 24.47 18.7c0 5.7 4.64 10.34 10.35 10.34z" fill="var(--warning)" opacity="1" data-original="#000000" class=""></path><path d="M22.54 38.93c.66.61 1.04 1.49 1.04 2.41v9.3c0 .55.45 1 1 1H46V44c0-.56.45-1 1-1s1 .44 1 1v7.64h5c.55 0 1-.45 1-1v-7.38c0-7.24-5.89-13.13-13.14-13.13h-9.15c-2.33 0-4.49-1.04-5.93-2.84-3.65-4.54-7.01-9.72-10.01-15.4a5.169 5.169 0 0 0-3.4-2.63 5.216 5.216 0 0 0-4.23.85c-2.07 1.51-2.74 4.36-1.54 6.62 5.14 9.75 10.35 17.01 15.94 22.2z" fill="var(--warning)" opacity="1" data-original="#000000" class=""></path></g></svg>
+                                        <span class="text-nowrap">
+                                            <span class="fs-xxs">8,665</span> / <span class="text-warning fs-xxs">33,000</span>
+                                        </span>
+                                    </span>
+                                </div>
+                                    <script>
+                                        $(document).ready(function () {
+                                            var interval_1 = setInterval(function () {
+                                                var countDownDate = new Date(2026, 11 - 1, 7, 1, 16, 45).getTime();
+
+                                                var now = new Date().getTime();
+                                                var distance = countDownDate - now;
+
+                                                var days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                                                var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                                var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                                                var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                                                $('#tmr_966ada00-ffa0-4ce5-bc89-ffa57afbe299').html(days + "ө " + hours + "ц " + minutes + "м " + seconds + "с ");
+
+                                                if (distance < 0) {
+                                                    $('#tmr_966ada00-ffa0-4ce5-bc89-ffa57afbe299').html("Санал авах хугацаа дууссан");
+                                                    $('#tmr_end_966ada00-ffa0-4ce5-bc89-ffa57afbe299').html("");
+                                                    $("#Sign_Btn_966ada00-ffa0-4ce5-bc89-ffa57afbe299").remove();
+                                                    clearInterval(interval_1);
+                                                }
+                                            }, 1000);
+                                        })
+                                    </script>
+                            </a>
+                            <a class="pet-item d-flex flex-column " href="/Detail?id=e4367574-5d30-413e-940e-9c7481181063">
+                                <div class="item-header d-flex align-items-center justify-content-between px-3 py-2  ">
+                                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                                            <span class="pet-no fs-xs badge-main badge-sm bg-main" title="Өргөдлийн дугаар">PN-202610-66834</span>
+                                            <div class="d-flex justify-content-between">
+                                                <div class="live">
+                                                    <label class="fs-xxs text-danger me-2" id="tmr_end_e4367574-5d30-413e-940e-9c7481181063">
+                                                        Дуусахад :
+                                                    </label>
+                                                    <span id="tmr_e4367574-5d30-413e-940e-9c7481181063" class="fw-bold fs-xxs count-down " title="Огноо"></span>
+                                                </div>
+                                            </div>
+                                    </div>
+                                        <script>
+                                            $(document).ready(function () {
+                                                    $("#Sign_Btn_e4367574-5d30-413e-940e-9c7481181063").click(function (event) {
+                                                        event.preventDefault();
+                                                        FKPetition = this.getAttribute("alt");
+                                                        var PetitionNo = this.getAttribute("name");
+                                                        let span = $('#SignModalTxt');
+                                                        $.ajax({
+                                                            url: '/Index',
+                                                            method: 'GET',
+                                                            data: {
+                                                                handler: 'UserExistSign',
+                                                                FKPetition: FKPetition
+                                                            },
+                                                            success: function (resultData) {
+                                                                if (resultData.retData == true) {
+                                                                    var html = 'Та ' + PetitionNo + ' дугаартай өргөдөлд гарын үсэг зурсан байна.'
+                                                                    $("#SignWithAuth").attr("style", "display: none!important");
+                                                                }
+                                                                else {
+                                                                    var html = 'Та <span>' + PetitionNo + '</span> дугаартай өргөдөл дээр гарын үсэг зурж саналаа өгөх гэж байна.'
+                                                                    $("#SignWithAuth").attr("style", "display: block!important");
+                                                                }
+                                                                span.html(html);
+                                                                $('#SignModal').modal('show');
+                                                            },
+                                                            error: function (error) {
+                                                                console.log(error);
+                                                            },
+                                                            timeout: 60000 // sets timeout to 60 seconds
+                                                        });
+                                                    //$('#Pttn_No').html(PetitionNo);
+                                                    //$('#Pttn_No1').html(PetitionNo);
+                                                });
+                                            })
+                                        </script>
+                                            <button type="button" class="btn btn-warn btn-sm px-2 py-0 ms-auto fs-xxs" style="padding: 3px 6px 1px 6px!important; border-radius: 5px!important;" id="Sign_Btn_e4367574-5d30-413e-940e-9c7481181063" name="PN-202610-66834" alt="e4367574-5d30-413e-940e-9c7481181063">
+                                                Дэмжиж гарын үсэг зурах
+                                            </button>
+                                </div>
+                                <div class="item-body px-3 py-2 d-flex d-md-grid">
+                                    <div class="flex-fill d-flex flex-column detail gap-3 gap-md-2">
+                                        <div class="">
+                                            <div class="text-dark fs-md hover:text-primary fw-bold" style="line-height: 24px;">
+                                                &#x413;&#x410;&#x420;&#x410;&#x410;&#x428;&#x41D;&#x42B; &#x422;&#x410;&#x422;&#x412;&#x410;&#x420;&#x42B;&#x41D; &#x425;&#x4AE;&#x427;&#x418;&#x41D;&#x413;&#x4AE;&#x419; &#x411;&#x41E;&#x41B;&#x413;&#x41E;&#x425;
+                                            </div>
+                                            <span class="fs-xxs opacity-75 fst-italic">1. &#x410;&#x436;&#x43B;&#x44B;&#x43D; &#x445;&#x44D;&#x441;&#x44D;&#x433; &#x431;&#x430;&#x439;&#x433;&#x443;&#x443;&#x43B;&#x430;&#x445;</span>
+                                        </div>
+                                        <div class="thumbnail mob">
+                                            <div class="img-shadow">
+                                                    <img src="icon/noimg.png" onerror="this.src='icon/noimg.png';" />
+                                            </div>
+                                        </div>
+                                        <div id="Descr_e4367574-5d30-413e-940e-9c7481181063" class="text-dark flex-grow-0 flex-md-fill flex-fill fw-light fs-xs overflow-md-hidden position-relative">Тайлбар (тестийн хувилбарт хасав).</div>
+                                    </div>
+                                    <div class="thumbnail">
+                                        <div class="img-shadow">
+                                                <img src="icon/noimg.png" onerror="this.src='icon/noimg.png';" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="item-body d-flex d-md-grid align-items-center px-3 py-2">
+                                    <div>
+                                        <div class="author text-dark">
+                                            <div class="d-grid align-items-center gap-2" style="grid-template-columns: auto 1fr;">
+                                                <span>И</span>
+                                                <p class="text-dark">Иргэн <strong>Иргэн</strong></p>
+                                            </div>
+
+                                            <div class="fs-xxs d-flex flex-wrap gap-2" title="Огноо">
+                                                <div>
+                                                    <i class="fa-regular fa-calendar me-2"></i>2026.10.14
+                                                </div>
+                                                <div>
+                                                    <i class="fa-regular fa-clock me-1"></i>
+                                                    10:12:30
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span title="Нийт 33000 гарын үсэг цуглуулахаас 5647-г цуглуулсан" class="d-flex align-items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="20" x="0" y="0" viewBox="0 0 60 60" style="enable-background:new 0 0 512 512" xml:space="preserve" class=""><g><path d="M34.82 29.04c5.71 0 10.35-4.64 10.35-10.34 0-5.71-4.64-10.35-10.35-10.35S24.47 12.99 24.47 18.7c0 5.7 4.64 10.34 10.35 10.34z" fill="var(--warning)" opacity="1" data-original="#000000" class=""></path><path d="M22.54 38.93c.66.61 1.04 1.49 1.04 2.41v9.3c0 .55.45 1 1 1H46V44c0-.56.45-1 1-1s1 .44 1 1v7.64h5c.55 0 1-.45 1-1v-7.38c0-7.24-5.89-13.13-13.14-13.13h-9.15c-2.33 0-4.49-1.04-5.93-2.84-3.65-4.54-7.01-9.72-10.01-15.4a5.169 5.169 0 0 0-3.4-2.63 5.216 5.216 0 0 0-4.23.85c-2.07 1.51-2.74 4.36-1.54 6.62 5.14 9.75 10.35 17.01 15.94 22.2z" fill="var(--warning)" opacity="1" data-original="#000000" class=""></path></g></svg>
+                                        <span class="text-nowrap">
+                                            <span class="fs-xxs">5,647</span> / <span class="text-warning fs-xxs">33,000</span>
+                                        </span>
+                                    </span>
+                                </div>
+                                    <script>
+                                        $(document).ready(function () {
+                                            var interval_2 = setInterval(function () {
+                                                var countDownDate = new Date(2026, 11 - 1, 18, 18, 40, 13).getTime();
+
+                                                var now = new Date().getTime();
+                                                var distance = countDownDate - now;
+
+                                                var days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                                                var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                                var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                                                var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                                                $('#tmr_e4367574-5d30-413e-940e-9c7481181063').html(days + "ө " + hours + "ц " + minutes + "м " + seconds + "с ");
+
+                                                if (distance < 0) {
+                                                    $('#tmr_e4367574-5d30-413e-940e-9c7481181063').html("Санал авах хугацаа дууссан");
+                                                    $('#tmr_end_e4367574-5d30-413e-940e-9c7481181063').html("");
+                                                    $("#Sign_Btn_e4367574-5d30-413e-940e-9c7481181063").remove();
+                                                    clearInterval(interval_2);
+                                                }
+                                            }, 1000);
+                                        })
+                                    </script>
+                            </a>
+                            <a class="pet-item d-flex flex-column " href="/Detail?id=c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b">
+                                <div class="item-header d-flex align-items-center justify-content-between px-3 py-2  ">
+                                    <div class="d-flex gap-2 align-items-center flex-wrap">
+                                            <span class="pet-no fs-xs badge-main badge-sm bg-main" title="Өргөдлийн дугаар">PN-202609-48562</span>
+                                            <div class="d-flex justify-content-between">
+                                                <div class="live">
+                                                    <label class="fs-xxs text-danger me-2" id="tmr_end_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b">
+                                                        Дуусахад :
+                                                    </label>
+                                                    <span id="tmr_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b" class="fw-bold fs-xxs count-down " title="Огноо"></span>
+                                                </div>
+                                            </div>
+                                    </div>
+                                        <script>
+                                            $(document).ready(function () {
+                                                    $("#Sign_Btn_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b").click(function (event) {
+                                                        event.preventDefault();
+                                                        FKPetition = this.getAttribute("alt");
+                                                        var PetitionNo = this.getAttribute("name");
+                                                        let span = $('#SignModalTxt');
+                                                        $.ajax({
+                                                            url: '/Index',
+                                                            method: 'GET',
+                                                            data: {
+                                                                handler: 'UserExistSign',
+                                                                FKPetition: FKPetition
+                                                            },
+                                                            success: function (resultData) {
+                                                                if (resultData.retData == true) {
+                                                                    var html = 'Та ' + PetitionNo + ' дугаартай өргөдөлд гарын үсэг зурсан байна.'
+                                                                    $("#SignWithAuth").attr("style", "display: none!important");
+                                                                }
+                                                                else {
+                                                                    var html = 'Та <span>' + PetitionNo + '</span> дугаартай өргөдөл дээр гарын үсэг зурж саналаа өгөх гэж байна.'
+                                                                    $("#SignWithAuth").attr("style", "display: block!important");
+                                                                }
+                                                                span.html(html);
+                                                                $('#SignModal').modal('show');
+                                                            },
+                                                            error: function (error) {
+                                                                console.log(error);
+                                                            },
+                                                            timeout: 60000 // sets timeout to 60 seconds
+                                                        });
+                                                    //$('#Pttn_No').html(PetitionNo);
+                                                    //$('#Pttn_No1').html(PetitionNo);
+                                                });
+                                            })
+                                        </script>
+                                            <button type="button" class="btn btn-warn btn-sm px-2 py-0 ms-auto fs-xxs" style="padding: 3px 6px 1px 6px!important; border-radius: 5px!important;" id="Sign_Btn_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b" name="PN-202609-48562" alt="c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b">
+                                                Дэмжиж гарын үсэг зурах
+                                            </button>
+                                </div>
+                                <div class="item-body px-3 py-2 d-flex d-md-grid">
+                                    <div class="flex-fill d-flex flex-column detail gap-3 gap-md-2">
+                                        <div class="">
+                                            <div class="text-dark fs-md hover:text-primary fw-bold" style="line-height: 24px;">
+                                                &#x41D;&#x4E8;&#x410;&#x422; 1% &#x411;&#x41E;&#x41B;&#x413;&#x41E;&#x416; &#x411;&#x423;&#x423;&#x420;&#x423;&#x423;&#x41B;&#x410;&#x425;
+                                            </div>
+                                            <span class="fs-xxs opacity-75 fst-italic">3. &#x425;&#x443;&#x443;&#x43B;&#x438;&#x439;&#x43D; &#x442;&#x4E9;&#x441;&#x4E9;&#x43B; &#x441;&#x430;&#x43D;&#x430;&#x430;&#x447;&#x43B;&#x430;&#x445; &#x442;&#x430;&#x43B;&#x430;&#x430;&#x440; &#x441;&#x430;&#x43D;&#x430;&#x43B; &#x433;&#x430;&#x440;&#x433;&#x430;&#x445;</span>
+                                        </div>
+                                        <div class="thumbnail mob">
+                                            <div class="img-shadow">
+                                                    <img src="icon/noimg.png" onerror="this.src='icon/noimg.png';" />
+                                            </div>
+                                        </div>
+                                        <div id="Descr_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b" class="text-dark flex-grow-0 flex-md-fill flex-fill fw-light fs-xs overflow-md-hidden position-relative">Тайлбар (тестийн хувилбарт хасав).</div>
+                                    </div>
+                                    <div class="thumbnail">
+                                        <div class="img-shadow">
+                                                <img src="icon/noimg.png" onerror="this.src='icon/noimg.png';" />
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="item-body d-flex d-md-grid align-items-center px-3 py-2">
+                                    <div>
+                                        <div class="author text-dark">
+                                            <div class="d-grid align-items-center gap-2" style="grid-template-columns: auto 1fr;">
+                                                <span>И</span>
+                                                <p class="text-dark">Иргэн <strong>Иргэн</strong></p>
+                                            </div>
+
+                                            <div class="fs-xxs d-flex flex-wrap gap-2" title="Огноо">
+                                                <div>
+                                                    <i class="fa-regular fa-calendar me-2"></i>2026.10.02
+                                                </div>
+                                                <div>
+                                                    <i class="fa-regular fa-clock me-1"></i>
+                                                    17:20:50
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <span title="Нийт 100000 гарын үсэг цуглуулахаас 2768-г цуглуулсан" class="d-flex align-items-center gap-2">
+                                        <svg xmlns="http://www.w3.org/2000/svg" version="1.1" xmlns:xlink="http://www.w3.org/1999/xlink" width="20" height="20" x="0" y="0" viewBox="0 0 60 60" style="enable-background:new 0 0 512 512" xml:space="preserve" class=""><g><path d="M34.82 29.04c5.71 0 10.35-4.64 10.35-10.34 0-5.71-4.64-10.35-10.35-10.35S24.47 12.99 24.47 18.7c0 5.7 4.64 10.34 10.35 10.34z" fill="var(--warning)" opacity="1" data-original="#000000" class=""></path><path d="M22.54 38.93c.66.61 1.04 1.49 1.04 2.41v9.3c0 .55.45 1 1 1H46V44c0-.56.45-1 1-1s1 .44 1 1v7.64h5c.55 0 1-.45 1-1v-7.38c0-7.24-5.89-13.13-13.14-13.13h-9.15c-2.33 0-4.49-1.04-5.93-2.84-3.65-4.54-7.01-9.72-10.01-15.4a5.169 5.169 0 0 0-3.4-2.63 5.216 5.216 0 0 0-4.23.85c-2.07 1.51-2.74 4.36-1.54 6.62 5.14 9.75 10.35 17.01 15.94 22.2z" fill="var(--warning)" opacity="1" data-original="#000000" class=""></path></g></svg>
+                                        <span class="text-nowrap">
+                                            <span class="fs-xxs">2,768</span> / <span class="text-warning fs-xxs">100,000</span>
+                                        </span>
+                                    </span>
+                                </div>
+                                    <script>
+                                        $(document).ready(function () {
+                                            var interval_3 = setInterval(function () {
+                                                var countDownDate = new Date(2026, 11 - 1, 19, 2, 19, 49).getTime();
+
+                                                var now = new Date().getTime();
+                                                var distance = countDownDate - now;
+
+                                                var days = Math.floor(distance / (1000 * 60 * 60 * 24));
+                                                var hours = Math.floor((distance % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+                                                var minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
+                                                var seconds = Math.floor((distance % (1000 * 60)) / 1000);
+
+                                                $('#tmr_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b').html(days + "ө " + hours + "ц " + minutes + "м " + seconds + "с ");
+
+                                                if (distance < 0) {
+                                                    $('#tmr_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b').html("Санал авах хугацаа дууссан");
+                                                    $('#tmr_end_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b').html("");
+                                                    $("#Sign_Btn_c25e4fc1-beea-4bf7-abc1-ca5b9be0f71b").remove();
+                                                    clearInterval(interval_3);
+                                                }
+                                            }, 1000);
+                                        })
+                                    </script>
+                            </a>
+                            
+</div></body></html>

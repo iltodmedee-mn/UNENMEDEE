@@ -26,7 +26,7 @@ function healthy(): HealthSnapshot {
       hoursSinceRecheck: 58,
     },
     officials: { hoursSinceSync: 34, active: 126 },
-    indicators: { mongolbank: 3, budget_nso: 3, shilendans: 3, worldbank_tax: 3, audit_opinions: 3, soe_finance: 3, population: 3, prices_nso: 3, wages_nso: 3, officials_companies: 3 },
+    indicators: { mongolbank: 3, budget_nso: 3, shilendans: 3, worldbank_tax: 3, audit_opinions: 3, soe_finance: 3, population: 3, prices_nso: 3, wages_nso: 3, officials_companies: 3, petitions: 3 },
     population: { year: 2025, count: 3_425_162 },
     opendataHours: 3,
     social: { facebook: { hoursSinceOk: 9, unknown7d: 0 }, threads: { hoursSinceOk: 9, unknown7d: 0 }, telegram: { hoursSinceOk: null, unknown7d: 0 } },

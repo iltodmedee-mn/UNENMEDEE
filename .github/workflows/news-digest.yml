@@ -148,6 +148,11 @@ jobs:
           NODE_EXTRA_CA_CERTS: certs/rapidssl-tls-rsa-ca-g1.pem
         run: npm run docs:watch
 
+      - name: Sync open petitions to parliament (petition.parliament.mn, for /participate)
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
+        continue-on-error: true
+        run: npm run petitions:sync
+
       - name: Write the digest
         # A failed sync above never stops the digest; a failed digest never stops the steps below
         # (the pipeline may have written the edition already), but nothing runs on an old schema.

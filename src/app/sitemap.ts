@@ -45,6 +45,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl("/documents"), changeFrequency: "daily", priority: 0.6 },
     { url: absoluteUrl("/request"), changeFrequency: "monthly", priority: 0.5 },
     { url: absoluteUrl("/glossary"), changeFrequency: "monthly", priority: 0.4 },
+    { url: absoluteUrl("/participate"), changeFrequency: "daily", priority: 0.5 },
     { url: absoluteUrl("/method"), changeFrequency: "monthly", priority: 0.4 },
     { url: absoluteUrl("/about"), changeFrequency: "monthly", priority: 0.5 },
     ...TOPICS.map((t) => ({ url: absoluteUrl(`/topic/${t.key}`), changeFrequency: "hourly" as const, priority: 0.8 })),
