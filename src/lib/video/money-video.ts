@@ -195,7 +195,7 @@ export function moneyVideoSpec(story: MoneyStory, prices: PricesSnapshot | null)
       caption: `Энэ мөнгөөр *${about.caption}* ${names.short}`,
     });
   }
-  sentences.push({ scene: "cta", say: "Чи юу гэж бодож байна? Коммент дээр бичээрэй.", caption: "Чи юу гэж бодож байна? Коммент бичээрэй!" });
+  sentences.push({ scene: "cta", say: "Энэ мөнгө юунд зарцуулагдах вэ?", caption: "Энэ мөнгө юунд зарцуулагдах вэ?" });
 
   return {
     key: `money:${story.id}`,

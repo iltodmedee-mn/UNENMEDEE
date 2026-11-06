@@ -76,7 +76,7 @@ ${CINEMA_CSS}</style></head><body>
 <div id="L-hook" class="layer"><div id="ask" class="sticker disp">ЧАМД<br>ХАМААТАЙ<br>ЮУ?<small>30 секундэд ойлгоё</small></div></div>
 <div id="cards"></div>
 <div id="L-cta" class="layer"><div id="bubble" class="sticker">Чамд хамаатай юу?</div>
- <div class="chips"><span class="chip sticker">Коммент бич</span><span class="chip sticker" style="background:#2de2b0">Найздаа илгээ</span></div>
+ <div class="chips"><span class="chip sticker">iltodmedee.mn</span><span class="chip sticker" style="background:#2de2b0">Эх сурвалжтай</span></div>
  <div id="link"></div><div id="src" class="mono"></div></div>
 <div id="cap" class="abs"></div>
 <script>

@@ -57,10 +57,17 @@ const Row = z.object({ A: text, B: text, C: text, D: text, E: text, G: text, J: 
 /** "ССАЖЗЯ/20260101060", "ХЭАХСЦ2/20260202001": letters/digits, a slash, the year and a number. */
 const CODE = /^[\p{L}\d-]{1,24}\/\d{8,14}$/u;
 
-/** Winner cells that say no contract was signed. */
-export const NO_AWARD = /ирээгүй|ирүүлээгүй|хүчингүй|цуцал|зарлаагүй|байхгүй|шалгараагүй|үнэлээгүй|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.\s]*$/iu;
+/**
+ * Winner cells that say no contract was signed, or that hold a status instead of a name: Nov 2026
+ * rows read "Зарлагдаагүй", "Тендер зарлагдаагүй байна", "Зарласан байгаа", "эхлээгүй", "Хамгийн
+ * сайн үнэлэгдсэн", "Эрх бүхий оролцогч болохыг нотлох баримт бичгүүд", "оролцогч ороогүй" or "0",
+ * and the warning signs nearly named one of them as a buyer's main supplier.
+ */
+export const NO_AWARD =
+  /ирээгүй|ирүүлээгүй|ороогүй|хүчингүй|цуцал|зарлаагүй|зарлагдаагүй|^зарласан|эхлээгүй|байхгүй|шалгараагүй|үнэлээгүй|үнэлэгдсэн|баримт бич|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.\s\d]*$/iu;
 /** The same test for Postgres (`~*`), used by the /tenders "no winner" count. */
-export const NO_AWARD_SQL = "ирээгүй|ирүүлээгүй|хүчингүй|цуцал|зарлаагүй|байхгүй|шалгараагүй|үнэлээгүй|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.[:space:]]*$";
+export const NO_AWARD_SQL =
+  "ирээгүй|ирүүлээгүй|ороогүй|хүчингүй|цуцал|зарлаагүй|зарлагдаагүй|^зарласан|эхлээгүй|байхгүй|шалгараагүй|үнэлээгүй|үнэлэгдсэн|баримт бич|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.[:space:][:digit:]]*$";
 
 /** True when a winner cell names nobody ("-", "оролцогч ирээгүй"…). */
 export const namesNoWinner = (winner: string | null): boolean => winner !== null && NO_AWARD.test(winner);

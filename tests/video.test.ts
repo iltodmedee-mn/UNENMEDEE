@@ -345,7 +345,10 @@ describe("«ХҮН БҮРТ ХУВААВАЛ» money video", () => {
       "silence_start: 18.931",
     ].join("\n");
     const spec = moneyVideoSpec(story, snap)!;
-    const starts = sentenceStarts(spec.sentences.map((s) => s.say), parseSilences(log, 19.16), 19.16);
+    // The log is from a take recorded with the earlier closing line (two sentence ends in it).
+    const says = spec.sentences.map((s) => s.say);
+    says[says.length - 1] = "Чи юу гэж бодож байна? Коммент дээр бичээрэй.";
+    const starts = sentenceStarts(says, parseSilences(log, 19.16), 19.16);
     assert.deepEqual(starts, [0, 5.03, 8.7, 11.15, 13.65]);
   });
 

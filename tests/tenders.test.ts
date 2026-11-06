@@ -118,6 +118,14 @@ describe("tenders: Nov 2026 audit", () => {
     assert.equal(namesNoWinner("Тест ХХК"), false);
   });
 
+  it("never takes a status written in the winner cell for a winner (Nov 2026 rows)", () => {
+    for (const status of ["Зарлагдаагүй", "Тендер зарлагдаагүй байна", "Зарласан байгаа", "эхлээгүй", "Хамгийн сайн үнэлэгдсэн", "Эрх бүхий оролцогч болохыг нотлох баримт бичгүүд", "оролцогч ороогүй", "0"]) {
+      assert.equal(namesNoWinner(status), true, status);
+      assert.equal(parseTenders([[lot(status, "480000000")]], 2026, TODAY)[0].awarded, false, status);
+    }
+    for (const name of ["Медиконт", "Саммит компьютер технологи", "Ач есөн энх", "НИК", "Эрчим-Өгий"]) assert.equal(namesNoWinner(name), false, name);
+  });
+
   it("merges one lot carried over into the next year's filing", () => {
     const a = parseTenders([[lot("Тест ХХК", "480000000")]], 2025, TODAY);
     const b = parseTenders([[lot("Тест ХХК", "480000000")]], 2026, TODAY);

@@ -10,8 +10,9 @@ import { Panel } from "@/components/iltod/panel";
 import { ShareButton } from "@/components/iltod/share-button";
 import { FeedSkeleton } from "@/components/iltod/skeletons";
 import { formatDateMn, formatMntShort, formatNumber } from "@/lib/format";
+import { BUYER_SHARE, MIN_BUYER_LOTS, overBudgetPct } from "@/lib/procurement/signs";
 import { SHILENDANS_URL } from "@/lib/procurement/tenders";
-import { getTenders, type TenderItem } from "@/lib/queries";
+import { getTenders, getTenderSigns, type TenderItem, type TenderSigns } from "@/lib/queries";
 
 const TITLE = "Тендерийн үр дүн: хэн, юуг, хэдээр";
 const DESCRIPTION =
@@ -24,6 +25,7 @@ export const metadata: Metadata = {
 };
 
 function TenderRow({ t }: { t: TenderItem }) {
+  const over = overBudgetPct(t);
   return (
     <li className="flex flex-col gap-1.5 py-4">
       <p className="label-mono normal-case text-tertiary">
@@ -46,10 +48,99 @@ function TenderRow({ t }: { t: TenderItem }) {
           Шалгарсан: <span className="font-medium text-primary">{t.winner}</span>
         </span>
         {t.budgetMnt !== null && <span className="num-mono text-xs text-tertiary">төсөв {t.unitSuspect ? formatNumber(t.budgetMnt) : formatMntShort(t.budgetMnt)}</span>}
+        {over !== null && (
+          <span title="Гэрээний дүн батлагдсан төсвөөс их. Төсөв тодотгогдсон байж болно: зөрчил гэсэн үг биш.">
+            <Chip>төсвөөс +{over}%</Chip>
+          </span>
+        )}
       </div>
       <p className="label-mono normal-case text-quaternary">{t.code}</p>
     </li>
   );
+}
+
+const pctLabel = (share: number) => `${Math.round(share * 100)}%`;
+
+/** OCP-style signs (src/lib/procurement/signs.ts): procedures and buyers, never people. */
+function Signs({ data }: { data: TenderSigns }) {
+  const concentrated = data.buyers.filter((b) => b.kind === "concentration");
+  const nonCompetitive = data.buyers.filter((b) => b.kind === "non_competitive");
+  return (
+    <section id="signs" className="flex scroll-mt-24 flex-col gap-4">
+      <div className="flex flex-col gap-2">
+        <h2 className="headline text-2xl text-primary">Анхаарах шинж</h2>
+        <p className="text-sm text-secondary text-pretty">
+          Олон улсын Open Contracting Partnership-ийн аргачлалаар {data.year} оны гэрээнээс автоматаар тооцсон шинж. Шинж нь зөрчил гэсэн үг <b>биш</b>: тайлбар нэхэх, нягтлах шаардлагатай байж
+          болох газрыг л харуулна. Хүнийг биш, худалдан авалтын журам, захиалагч байгууллагыг тэмдэглэнэ. Нэгж тодорхойгүй дүнтэй мөрийг тооцоонд оруулаагүй.
+        </p>
+      </div>
+
+      <Ledger
+        cells={[
+          { label: "Шууд гэрээ", value: String(data.national.nonCompetitivePct).replace(".", ","), unit: "%", note: "улсын дундаж" },
+          { label: "Захиалагч", value: formatNumber(data.national.buyers), note: `${MIN_BUYER_LOTS}+ гэрээтэй` },
+          { label: "Нэг компанид", value: formatNumber(data.national.concentrated), note: `≥ ${pctLabel(BUYER_SHARE)} гэрээ нь` },
+          { label: "Өрсөлдөөнгүй", value: formatNumber(data.national.nonCompetitive), note: `≥ ${pctLabel(BUYER_SHARE)} гэрээ нь` },
+        ]}
+      />
+
+      {concentrated.length > 0 && (
+        <Panel title="Нэг нийлүүлэгчид төвлөрсөн захиалагч" note={`${concentrated.length}`}>
+          <p className="pt-3 text-sm text-tertiary">Захиалагчийн энэ оны гэрээний тал ба түүнээс дээш хувийг нэг компани авсан ({MIN_BUYER_LOTS}-аас дээш гэрээтэй байгууллага).</p>
+          <ul className="flex flex-col divide-y divide-line-soft">
+            {concentrated.map((b) => (
+              <li key={b.orgName} className="flex flex-col gap-1 py-3">
+                <p className="font-semibold text-primary text-pretty">{b.orgName}</p>
+                <p className="text-sm text-secondary">
+                  <span className="num-mono">{b.lots}</span> гэрээний <span className="num-mono">{b.count}</span> (<span className="num-mono">{b.pct}%</span>) нь{" "}
+                  <span className="font-medium text-primary">{b.winner}</span>
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {nonCompetitive.length > 0 && (
+        <Panel title="Өрсөлдөөнгүй аргын хувь өндөр захиалагч" note={`${nonCompetitive.length}`}>
+          <p className="pt-3 text-sm text-tertiary">
+            Шууд гэрээ, нэг эх үүсвэрээс авах аргаар олгосон гэрээ захиалагчийн гэрээний талаас их. Улсын дундаж {String(data.national.nonCompetitivePct).replace(".", ",")}%. Хууль зарим тохиолдолд (яаралтай,
+            ганц нийлүүлэгчтэй) энэ аргыг зөвшөөрдөг.
+          </p>
+          <ul className="flex flex-col divide-y divide-line-soft">
+            {nonCompetitive.map((b) => (
+              <li key={b.orgName} className="flex flex-col gap-1 py-3">
+                <p className="font-semibold text-primary text-pretty">{b.orgName}</p>
+                <p className="text-sm text-secondary">
+                  <span className="num-mono">{b.lots}</span> гэрээний <span className="num-mono">{b.count}</span> (<span className="num-mono">{b.pct}%</span>) нь өрсөлдөөнгүй аргаар
+                </p>
+              </li>
+            ))}
+          </ul>
+        </Panel>
+      )}
+
+      {data.overBudget.length > 0 && (
+        <Panel title="Төсвөөс их дүнтэй гэрээ" note={`${data.overBudgetCount}`}>
+          <p className="pt-3 text-sm text-tertiary">Гэрээний дүн батлагдсан төсвөөс их. Төсөв тодотгогдсон, нэмэлт ажил орсон байж болно. Хамгийн их зөрүүтэй {data.overBudget.length}.</p>
+          <ol className="flex flex-col divide-y divide-line-soft">
+            {data.overBudget.map((t) => (
+              <TenderRow key={t.id} t={t} />
+            ))}
+          </ol>
+        </Panel>
+      )}
+
+      <p className="text-sm text-tertiary text-pretty">
+        Тооцож чадаагүй шинж: нэг оролцогчтой тендер, зарлалын богино хугацаа, оны эцсийн зардлын огцом өсөлт. Шилэн дансны маягт 1831-д оролцогчийн тоо, зарласан огноо байдаггүй, түүх нь хэдхэн сар.
+      </p>
+    </section>
+  );
+}
+
+async function TenderSignsSection() {
+  const data = await getTenderSigns();
+  return data ? <Signs data={data} /> : null;
 }
 
 async function Tenders() {
@@ -99,7 +190,7 @@ async function Tenders() {
           (маягт 1831) өөрсдөө оруулдаг. Бид тэр нээлттэй өгөгдлийг өдөр бүр уншиж, өөрчлөлтгүйгээр харуулдаг. Огноо, нэр, дүнг байгууллага гараар бичдэг тул алдаатай байж болно: уншиж болохгүй огноог «огноо бичээгүй» гэж үлдээдэг. Зарим байгууллага ₮-ийн баганад мянган төгрөгөөр бичдэг: 1 саяас бага дүн эсвэл төсөв, гэрээний дүн 20 дахин зөрүүтэй мөрийг «нэгж тодорхойгүй» гэж тэмдэглээд нийлбэр, жагсаалтад оруулдаггүй. Бид тоог өөрчилж, тааж засдаггүй.
         </p>
         <p>
-          Гэрээний дүн төсвөөс бага эсвэл их байх, нэг компани олон удаа шалгарах нь өөрөө зөрчил гэсэн үг биш. Бид дүгнэлт хийдэггүй, зөвхөн албан ёсны тоог харуулна. Tender.gov.mn-ийг шууд уншдаггүй: тэр сайт роботуудыг хаадаг.
+          Гэрээний дүн төсвөөс бага эсвэл их байх, нэг компани олон удаа шалгарах нь өөрөө зөрчил гэсэн үг биш (доорх «Анхаарах шинж» хэсгийг үз). Бид дүгнэлт хийдэггүй, зөвхөн албан ёсны тоог харуулна. Tender.gov.mn-ийг шууд уншдаггүй: тэр сайт роботуудыг хаадаг.
         </p>
       </section>
     </div>
@@ -115,6 +206,11 @@ export default function TendersPage() {
       <Suspense fallback={<FeedSkeleton />}>
         <Tenders />
       </Suspense>
+      <div className="mt-10">
+        <Suspense fallback={null}>
+          <TenderSignsSection />
+        </Suspense>
+      </div>
     </div>
   );
 }
