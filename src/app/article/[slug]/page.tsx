@@ -6,6 +6,7 @@ import { Suspense, ViewTransition } from "react";
 
 import { AIMarkdownMessage } from "@/components/iltod/ai-markdown";
 import { AIBullets, AIMessage } from "@/components/iltod/ai-message";
+import { GlossaryPopovers, GlossaryText } from "@/components/iltod/glossary-text";
 import { ArticleGrid } from "@/components/iltod/article-grid";
 import { Chip, DeepBadge, RiskBadge, SourceBadge } from "@/components/iltod/badges";
 import { FactSpinPanel } from "@/components/iltod/fact-spin-panel";
@@ -23,6 +24,7 @@ import { TimeAgo } from "@/components/iltod/time-ago";
 import { aiModelLabel } from "@/lib/ai/model-label";
 import { archiveDateLabel, ubDateKey } from "@/lib/archive";
 import { formatDateMn, tldrSentences } from "@/lib/format";
+import { GLOSSARY, glossarySegments } from "@/lib/glossary";
 import { placeGenitive, placeOfDomain } from "@/lib/places";
 import { linkPeople } from "@/lib/officials/links";
 import { type ArticleDetail, type FeedFilter, getArticleBySlug, getCluster, getPoliticianNames, getRecentSlugs, getTopicNeighbours } from "@/lib/queries";
@@ -176,6 +178,11 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
   const paragraphs = article.cleanContent.split(/\n{2,}|\n/).filter((p) => p.trim().length > 0);
   const summaryTitle = article.summaryFallback ? "Хураангуй · эх текстийн эхний өгүүлбэрүүд" : article.sourceDomain === "opendata.gov.mn" ? "Хураангуй · дүрмээр гаргасан" : "AI хураангуй";
   const summaryNote = article.summaryFallback ? "AI ажиллаагүй" : article.sourceDomain === "opendata.gov.mn" ? "AI ашиглаагүй" : article.tier1Model ? aiModelLabel(article.tier1Model) : undefined;
+  // Plain-language marks on the first official terms of the summary (src/lib/glossary.ts).
+  const summary = tldrSentences(article.tldr);
+  const glossarySeen = new Set<string>();
+  const summarySegments = summary.map((b) => glossarySegments(b, glossarySeen));
+  const glossaryUsed = GLOSSARY.filter((t) => glossarySeen.has(t.slug));
   return (
     // A 720 px reading column; the progress line on top fills as the reader scrolls (CSS only).
     <article className="mx-auto flex w-full max-w-[45rem] flex-col gap-8">
@@ -247,8 +254,9 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
       {isProtocolStory(article) && <ProtocolNote />}
 
       <AIMessage tier="tier1" title={summaryTitle} note={summaryNote} className="border-t border-line pt-3">
-        <AIBullets items={tldrSentences(article.tldr)} className="text-md" />
+        <AIBullets items={summary} render={(_, i) => <GlossaryText segments={summarySegments[i]} />} className="text-md" />
       </AIMessage>
+      <GlossaryPopovers terms={glossaryUsed} />
 
       {/* The ₮ amounts moved out of the header row into their own ledger. */}
       {article.amounts.length > 0 && <KeyNumbers amounts={article.amounts} facts={article.facts} />}

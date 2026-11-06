@@ -1,4 +1,4 @@
-import { Archive, BankNote01, BookOpen01, Briefcase01, Building02, Building07, Calculator, File06, Globe02, Home02, InfoCircle, LayersThree01, LineChartUp02, Lock01, Mail01, Receipt, RefreshCw05, ShoppingCart01, Star01, Target04 } from "@untitledui/icons";
+import { Archive, BankNote01, BookClosed, BookOpen01, Briefcase01, Building02, Building07, Calculator, File06, Globe02, Home02, InfoCircle, LayersThree01, LineChartUp02, Lock01, Mail01, Receipt, RefreshCw05, ShoppingCart01, Star01, Target04 } from "@untitledui/icons";
 import type { ComponentType } from "react";
 
 import { TopicIcon } from "@/components/iltod/topic-icon";
@@ -64,6 +64,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/clusters", label: "Олон эх сурвалж", desc: "Нэг мэдээг олон сайт бичсэн", icon: LayersThree01 },
       { href: "/changes", label: "Өөрчлөлт", desc: "Төрийн сайт засварласан, устгасан", icon: RefreshCw05 },
       { href: "/archive", label: "Архив", desc: "Өдөр бүрийн мэдээ", icon: Archive },
+      { href: "/glossary", label: "Нэр томьёо", desc: "Тогтоол, тодотгол гэж юу вэ", icon: BookClosed },
     ],
   },
   {

@@ -42,13 +42,13 @@ export function AIMessage({
 }
 
 /** The brand square bullet list every AI summary uses. */
-export function AIBullets({ items, className }: { items: string[]; className?: string }) {
+export function AIBullets({ items, className, render }: { items: string[]; className?: string; render?: (item: string, index: number) => React.ReactNode }) {
   return (
     <ul className={cx("mt-2 flex flex-col gap-2 text-md text-primary", className)}>
-      {items.map((b) => (
+      {items.map((b, i) => (
         <li key={b} className="flex gap-2.5">
           <span aria-hidden className="mt-[0.55em] size-2 shrink-0 rounded-[2px] bg-brand-solid" />
-          <span>{b}</span>
+          <span>{render ? render(b, i) : b}</span>
         </li>
       ))}
     </ul>
