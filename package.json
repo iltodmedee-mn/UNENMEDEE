@@ -27,6 +27,7 @@
     "budget:sync": "tsx scripts/sync-budget.ts",
     "tenders:sync": "tsx scripts/sync-tenders.ts",
     "docs:watch": "tsx scripts/watch-documents.ts",
+    "petitions:sync": "tsx scripts/sync-petitions.ts",
     "promises:import": "tsx scripts/import-programme.ts",
     "discord:commands": "tsx scripts/discord-commands.ts",
     "push:send": "tsx scripts/send-push.ts",

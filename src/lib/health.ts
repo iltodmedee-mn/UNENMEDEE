@@ -25,6 +25,8 @@ export const INDICATOR_MAX_AGE_H: Record<string, number> = {
   wages_nso: 150 * 24,
   // officials-sync.yml (weekly): MPs' declared companies looked up in Шилэн данс.
   officials_companies: 14 * 24,
+  // news-digest.yml (twice a day): open petitions to parliament for /participate.
+  petitions: 3 * 24,
 };
 
 /** No pipeline start for this long is a problem (runs are every 30 min, ~50 min long). */

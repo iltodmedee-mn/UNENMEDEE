@@ -1,4 +1,4 @@
-import { Archive, BankNote01, BookClosed, BookOpen01, Briefcase01, Building02, Building07, Calculator, File06, Globe02, Home02, InfoCircle, LayersThree01, LineChartUp02, Lock01, Mail01, Receipt, RefreshCw05, ShoppingCart01, Star01, Target04 } from "@untitledui/icons";
+import { Archive, BankNote01, BookClosed, BookOpen01, Briefcase01, Building02, Building07, Calculator, File06, Globe02, Home02, InfoCircle, LayersThree01, LineChartUp02, Lock01, Mail01, MessageChatCircle, Receipt, RefreshCw05, ShoppingCart01, Star01, Target04 } from "@untitledui/icons";
 import type { ComponentType } from "react";
 
 import { TopicIcon } from "@/components/iltod/topic-icon";
@@ -88,6 +88,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/projects", label: "Төслүүд", desc: "Том төсөл: хэдэн жил, хэдэн ₮", icon: Building07 },
       { href: "/officials/companies", label: "Төрийн компани", desc: "Орлого, ашиг, цалин", icon: Building02 },
       { href: "/topic/local#places", label: "Миний аймаг", desc: "21 аймаг, 9 дүүрэг", icon: topicIcon("local"), match: ["/topic/local", "/place/"] },
+      { href: "/participate", label: "Оролцох", desc: "Нээлттэй өргөдөл, санал өгөх", icon: MessageChatCircle },
       { href: "/request", label: "Мэдээлэл хүсэх", desc: "Төрөөс мэдээлэл авах захидал", icon: Mail01 },
       { href: "/sources", label: "Эх сурвалж", desc: "Хянаж буй төрийн сайтууд", icon: Globe02, match: ["/sources", "/source/"] },
     ],
