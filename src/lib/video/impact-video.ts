@@ -96,7 +96,24 @@ export function spokenText(text: string): string {
   });
   // "сарын 01-нээс": a leading zero is read aloud as "тэг".
   t = t.replace(/(^|[^\d.,])0(\d)(?!\d)/g, "$1$2");
+  t = sayParliament(t);
   return t.replace(/₮/g, " төгрөг").replace(/\s+/g, " ").trim();
+}
+
+/** Front-vowel spellings of a case ending, as the back-vowel "Хурал" takes them. */
+const BACK_VOWEL: Record<string, string> = { ийн: "ын", ийг: "ыг", ээс: "аас", ээр: "аар", тэй: "тай", нд: "д" };
+
+/**
+ * "УИХ" with its case ending said in full (the owner's ask, Nov 2026: the voice spelled the
+ * letters): "УИХ" → "Улсын Их Хурал", "УИХ-ын" → "Улсын Их Хурлын", "УИХ-д" → "Улсын Их Хуралд".
+ * "Хурал" drops its second vowel before a vowel ending (Хурлын, Хурлаас, Хурлыг).
+ */
+function sayParliament(t: string): string {
+  return t.replace(/(?<!\p{L})УИХ(?:\s*-\s*(\p{L}+))?(?!\p{L})/gu, (_, suffix?: string) => {
+    if (!suffix) return "Улсын Их Хурал";
+    const s = BACK_VOWEL[suffix.toLowerCase()] ?? suffix.toLowerCase();
+    return /^[аэиоуөүыяеё]/.test(s) ? `Улсын Их Хурл${s}` : `Улсын Их Хурал${s}`;
+  });
 }
 
 /** Digits in a caption are highlighted ("*600*"), as in the other videos. */
@@ -147,7 +164,7 @@ export function impactVideoSpec(story: ImpactStory): ImpactSpec | null {
     action: "ЮУ ХИЙХ ВЭ",
   };
   const hook: Sentence = { scene: "hook", say: sentence(`Сайн байна уу, Ил тод мэдээ. ${spokenText(headline)}`), caption: highlight(headline) };
-  const outro: Sentence = { scene: "cta", say: `Эх сурвалж нь ${source}. Энэ бол Ил тод мэдээ.`, caption: `Эх сурвалж: ${source}` };
+  const outro: Sentence = { scene: "cta", say: `Эх сурвалж нь ${spokenText(source)}. Энэ бол Ил тод мэдээ.`, caption: `Эх сурвалж: ${source}` };
   const candidates: ImpactSpec["cards"] = [];
   if (what) candidates.push({ scene: "what", label: labels.what, text: what });
   if (who && change) candidates.push({ scene: "who", label: labels.who, text: who });

@@ -34,6 +34,18 @@ describe("spokenText: the forms a speech model misreads become words", () => {
     assert.equal(spokenText("100,000₮ хүртэл"), "100000 төгрөг хүртэл");
     assert.equal(spokenText("91 хувьд хүрлээ"), "91 хувьд хүрлээ");
   });
+
+  it("says УИХ in full, with its case ending", () => {
+    assert.equal(spokenText("УИХ баталлаа"), "Улсын Их Хурал баталлаа");
+    assert.equal(spokenText("УИХ-ын чуулган эхэллээ"), "Улсын Их Хурлын чуулган эхэллээ");
+    assert.equal(spokenText("УИХ-аас баталсан хууль"), "Улсын Их Хурлаас баталсан хууль");
+    assert.equal(spokenText("төслийг УИХ-д өргөн барилаа"), "төслийг Улсын Их Хуралд өргөн барилаа");
+    assert.equal(spokenText("УИХ-ыг тараах"), "Улсын Их Хурлыг тараах");
+    assert.equal(spokenText("УИХ-тай хамтран"), "Улсын Их Хуралтай хамтран");
+    assert.equal(spokenText("УИХ-ийн гишүүн"), "Улсын Их Хурлын гишүүн");
+    assert.equal(spokenText("УИХ-ынхан"), "Улсын Их Хурлынхан");
+    assert.equal(spokenText("УИХАЙ"), "УИХАЙ");
+  });
 });
 
 describe("impactVideoSpec", () => {
