@@ -103,14 +103,47 @@ export async function publishThreads(opts: { token: string; post: ThreadsPost; f
   const created = await call(f, `${THREADS_API}/v1.0/me/threads`, { method: "POST", body });
   const id = String(created.id ?? "");
   if (!id) throw new Error("Threads returned no container id");
+  await waitFinished(f, id, token, checks, wait, sleep);
+  const published = await publishStep(() => call(f, `${THREADS_API}/v1.0/me/threads_publish`, { method: "POST", body: new URLSearchParams({ creation_id: id, access_token: token }) }));
+  return String(published.id ?? id);
+}
+
+/** Polls a container until FINISHED; never publishes one that is not ready. */
+async function waitFinished(f: Fetch, id: string, token: string, checks: number, wait: number, sleep: (ms: number) => Promise<void>): Promise<void> {
   for (let i = 0; ; i++) {
     const s = await call(f, `${THREADS_API}/v1.0/${encodeURIComponent(id)}?${new URLSearchParams({ fields: "status,error_message", access_token: token })}`);
-    if (s.status === "FINISHED") break;
+    if (s.status === "FINISHED") return;
     if (s.status === "ERROR" || s.status === "EXPIRED") throw new Error(`Threads container ${s.status}: ${String(s.error_message ?? "")}`);
-    // Never publish a container that is not ready: the post would fail or go out without its card.
+    // The post would fail or go out without its card.
     if (i >= checks - 1) throw new Error(`Threads container not finished after ${i + 1} checks (${String(s.status ?? "?")})`);
     await sleep(wait);
   }
+}
+
+/** Threads' limit for one carousel. */
+export const THREADS_CAROUSEL_MAX = 20;
+
+/**
+ * A carousel of our JPEG cards (the weekly quiz): one IMAGE item per card, each waited for, then
+ * the CAROUSEL container with the text, waited for and published. Returns the post id.
+ */
+export async function publishThreadsCarousel(opts: { token: string; imageUrls: string[]; text: string; fetchImpl?: Fetch; sleep?: (ms: number) => Promise<void> }): Promise<string> {
+  const f = opts.fetchImpl ?? fetch;
+  const sleep = opts.sleep ?? ((ms: number) => new Promise((r) => setTimeout(r, ms)));
+  const token = opts.token;
+  if (opts.imageUrls.length < 2 || opts.imageUrls.length > THREADS_CAROUSEL_MAX) throw new Error(`Threads carousel needs 2–${THREADS_CAROUSEL_MAX} images, got ${opts.imageUrls.length}`);
+  const children: string[] = [];
+  for (const imageUrl of opts.imageUrls) {
+    const item = await call(f, `${THREADS_API}/v1.0/me/threads`, { method: "POST", body: new URLSearchParams({ media_type: "IMAGE", image_url: imageUrl, is_carousel_item: "true", access_token: token }) });
+    const id = String(item.id ?? "");
+    if (!id) throw new Error("Threads returned no carousel item id");
+    children.push(id);
+  }
+  for (const id of children) await waitFinished(f, id, token, 10, 3_000, sleep);
+  const parent = await call(f, `${THREADS_API}/v1.0/me/threads`, { method: "POST", body: new URLSearchParams({ media_type: "CAROUSEL", children: children.join(","), text: opts.text, access_token: token }) });
+  const id = String(parent.id ?? "");
+  if (!id) throw new Error("Threads returned no carousel container id");
+  await waitFinished(f, id, token, 10, 3_000, sleep);
   const published = await publishStep(() => call(f, `${THREADS_API}/v1.0/me/threads_publish`, { method: "POST", body: new URLSearchParams({ creation_id: id, access_token: token }) }));
   return String(published.id ?? id);
 }

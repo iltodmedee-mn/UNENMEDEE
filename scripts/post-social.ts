@@ -9,6 +9,7 @@
  *   npm run social:post -- --mode weekly            # "7 хоногийн ТОП" on Mondays (--any-day to test)
  *   npm run social:post -- --mode video             # the newest generated video (make-video.ts) as a Reel on Facebook, Instagram and Threads
  *   npm run social:post -- --mode promo             # the Launchpad campaign post due today (src/lib/social/promo.ts), 3–7 Nov 2026
+ *   npm run social:post -- --mode weekly-quiz       # Sunday 19:00 the weekly quiz carousel, the next evening its answers (src/lib/social/weekly-quiz.ts; --any-day posts the quiz now)
  *
  * Facebook needs FB_PAGE_ID (variable) and FB_PAGE_TOKEN (secret). Threads needs THREADS_TOKEN
  * (secret) once: the long-lived token is then kept and refreshed weekly in app_settings
@@ -29,9 +30,9 @@ import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { storedNeutrality } from "@/lib/ai/fact-spin";
 import { appSettings, articles, clusters, digests, politicians, socialPosts, sources, videos } from "@/db/schema";
-import { type ArticleForPost, articlePost, type DigestForPost, digestPost, FacebookError, publishReel, publishToPage, resolveFacebookPage } from "@/lib/social/facebook";
-import { INSTAGRAM_SETTINGS_KEY, type InstagramPost, instagramArticlePost, instagramDigestPost, publishInstagram, refreshInstagramToken } from "@/lib/social/instagram";
-import { publishThreads, refreshToken, THREADS_SETTINGS_KEY, threadsArticlePost, threadsDigestPost } from "@/lib/social/threads";
+import { type ArticleForPost, articlePost, type DigestForPost, digestPost, FacebookError, publishAlbum, publishReel, publishToPage, resolveFacebookPage } from "@/lib/social/facebook";
+import { INSTAGRAM_SETTINGS_KEY, type InstagramPost, instagramArticlePost, instagramDigestPost, publishInstagram, publishInstagramCarousel, refreshInstagramToken } from "@/lib/social/instagram";
+import { publishThreads, publishThreadsCarousel, refreshToken, THREADS_SETTINGS_KEY, threadsArticlePost, threadsDigestPost } from "@/lib/social/threads";
 import { publishTelegram, telegramArticlePost, telegramDigestPost, type TelegramPost } from "@/lib/social/telegram";
 import { discordArticlePost, discordChannelId, discordDigestPost, type DiscordPost, discordQuizPost, publishDiscord } from "@/lib/social/discord";
 import { makeQuiz, type Quiz } from "@/lib/social/quiz";
@@ -43,6 +44,22 @@ import { outcomeUnknown } from "@/lib/social/outcome";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
 import { duePromo, type PromoPost } from "@/lib/social/promo";
+import {
+  answersCaption,
+  answersDue,
+  answersImageUrl,
+  answersThreadsText,
+  buildWeeklyQuiz,
+  isQuizTime,
+  parseWeeklyQuiz,
+  type QuizCandidate,
+  quizCaption,
+  quizImageUrls,
+  quizThreadsText,
+  quizWeek,
+  WEEKLY_QUIZ_KEY,
+  type WeeklyQuiz,
+} from "@/lib/social/weekly-quiz";
 
 const { values } = parseArgs({
   options: {
@@ -71,6 +88,9 @@ interface Platform {
   video?(v: VideoForPost): { preview: string; publish(): Promise<string> };
   /** The Launchpad campaign reel (same three platforms). */
   promo?(p: PromoPost, videoUrl: string): { preview: string; publish(): Promise<string> };
+  /** The weekly quiz carousel and, the next evening, its answers card (Facebook, Instagram, Threads). */
+  weeklyQuiz?(q: WeeklyQuiz): { preview: string; publish(): Promise<string> };
+  weeklyAnswers?(q: WeeklyQuiz): { preview: string; publish(): Promise<string> };
 }
 
 /** A generated video and the public URL the platforms fetch it from (/reel). */
@@ -81,8 +101,8 @@ interface VideoForPost {
 }
 
 function facebook(pageId: string, token: string): Platform {
-  const make = (post: { message: string; link: string }) => ({
-    preview: `${post.link}\n${post.message}`,
+  const make = (post: { message: string; link: string; imageUrl?: string }) => ({
+    preview: `${post.imageUrl ?? post.link}\n${post.message}`,
     publish: () => publishToPage({ pageId, token, post }),
   });
   return {
@@ -95,6 +115,12 @@ function facebook(pageId: string, token: string): Platform {
       return { preview: `${v.url}\n${description}`, publish: () => publishReel({ pageId, token, videoUrl: v.url, description }) };
     },
     promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.facebook}`, publish: () => publishReel({ pageId, token, videoUrl, description: pr.facebook }) }),
+    weeklyQuiz: (q) => {
+      const message = quizCaption(q, "facebook");
+      const imageUrls = quizImageUrls(q);
+      return { preview: `${imageUrls.join("\n")}\n${message}`, publish: () => publishAlbum({ pageId, token, imageUrls, message }) };
+    },
+    weeklyAnswers: (q) => make({ message: answersCaption(q, "facebook"), link: PRODUCTION_URL, imageUrl: answersImageUrl(q) }),
   };
 }
 
@@ -110,6 +136,16 @@ function threads(token: string): Platform {
       return { preview: `${v.url}\n${text}`, publish: () => publishThreads({ token, post: { text, link: v.url, videoUrl: v.url } }) };
     },
     promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.threads}`, publish: () => publishThreads({ token, post: { text: pr.threads, link: videoUrl, videoUrl } }) }),
+    weeklyQuiz: (q) => {
+      const text = quizThreadsText(q);
+      const imageUrls = quizImageUrls(q);
+      return { preview: `${imageUrls.join("\n")}\n${text}`, publish: () => publishThreadsCarousel({ token, imageUrls, text }) };
+    },
+    weeklyAnswers: (q) => {
+      const text = answersThreadsText(q);
+      const imageUrl = answersImageUrl(q);
+      return { preview: `${imageUrl}\n${text}`, publish: () => publishThreads({ token, post: { text, link: PRODUCTION_URL, imageUrl } }) };
+    },
   };
 }
 
@@ -148,6 +184,12 @@ function instagram(token: string): Platform {
       return { preview: `${v.url}\n${caption}`, publish: () => publishInstagram({ token, post: { videoUrl: v.url, caption } }) };
     },
     promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.instagram}`, publish: () => publishInstagram({ token, post: { videoUrl, caption: pr.instagram } }) }),
+    weeklyQuiz: (q) => {
+      const caption = quizCaption(q, "instagram");
+      const imageUrls = quizImageUrls(q);
+      return { preview: `${imageUrls.join("\n")}\n${caption}`, publish: () => publishInstagramCarousel({ token, imageUrls, caption }) };
+    },
+    weeklyAnswers: (q) => make({ imageUrl: answersImageUrl(q), caption: answersCaption(q, "instagram") }),
   };
 }
 
@@ -183,6 +225,13 @@ async function storedToken(db: Db, key: string, envToken: string | undefined, re
   return state.token;
 }
 
+type PostKind = "digest" | "article" | "quiz" | "weekly" | "video" | "promo" | "wquiz" | "wquiz_ans";
+/**
+ * Kinds whose refusal is retried at most VIDEO_MAX_TRIES times ("failed:n"), not every run: each
+ * try uploads files to the platform (a Reel, the quiz's unpublished photos and containers).
+ */
+const LIMITED_TRIES = new Set<PostKind>(["video", "promo", "wquiz", "wquiz_ans"]);
+
 const notPosted = (platform: string, kind: string, ref: unknown) =>
   sql`not exists (select 1 from ${socialPosts} where ${socialPosts.platform} = ${platform} and ${socialPosts.kind} = ${kind} and ${socialPosts.refId} = ${ref})`;
 
@@ -191,12 +240,12 @@ const notPosted = (platform: string, kind: string, ref: unknown) =>
  * next run. Once it may have gone out (published but the DB update failed, or the answer was lost
  * to a timeout) the reservation stays, marked for a manual check: a repost would be a duplicate.
  */
-async function post(db: Db, p: Platform, kind: "digest" | "article" | "quiz" | "weekly" | "video" | "promo", refId: number, item: { preview: string; publish(): Promise<string> }) {
+async function post(db: Db, p: Platform, kind: PostKind, refId: number, item: { preview: string; publish(): Promise<string> }) {
   console.log(`  → ${p.name} ${kind} #${refId}: ${item.preview.replace(/\n/g, "\n    ")}`);
   if (dry) return;
   let [row] = await db.insert(socialPosts).values({ platform: p.name, kind, refId }).onConflictDoNothing().returning({ id: socialPosts.id });
   let tries = 0;
-  if (!row && (kind === "video" || kind === "promo")) {
+  if (!row && LIMITED_TRIES.has(kind)) {
     // A video the platform refused before ("failed:n"): claim the row for one more try, atomically.
     const [prev] = await db
       .select({ postId: socialPosts.postId })
@@ -221,12 +270,12 @@ async function post(db: Db, p: Platform, kind: "digest" | "article" | "quiz" | "
       console.error(`::warning::${p.name} ${kind} #${refId}: no answer (${err instanceof Error ? err.message : err}); kept as posted, check the page by hand.`);
       return;
     }
-    if (kind === "video" || kind === "promo") {
+    if (LIMITED_TRIES.has(kind)) {
       // A refused reel is retried at most VIDEO_MAX_TRIES times, not every 30 min for 48 h
       // (each Facebook try leaves an unpublished upload on the Page).
       const n = tries + 1;
       await db.update(socialPosts).set({ postId: `failed:${n}` }).where(eq(socialPosts.id, row.id));
-      if (n >= VIDEO_MAX_TRIES) console.error(`::error::${p.name} video #${refId} refused ${n} times; not tried again.`);
+      if (n >= VIDEO_MAX_TRIES) console.error(`::error::${p.name} ${kind} #${refId} refused ${n} times; not tried again.`);
       throw err;
     }
     await db.delete(socialPosts).where(eq(socialPosts.id, row.id));
@@ -433,6 +482,84 @@ async function postPromo(db: Db, p: Platform) {
   await post(db, p, "promo", pr.day, p.promo(pr, `${PRODUCTION_URL}${pr.video}`));
 }
 
+/** The week's stories that may hold a quiz question: published, AI-summarized, dated, a ₮ amount in the headline. */
+async function quizCandidates(db: Db, now: Date): Promise<QuizCandidate[]> {
+  const title = sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`;
+  const rows = await db
+    .select({
+      id: articles.id,
+      slug: articles.slug,
+      title,
+      entities: articles.extractedEntities,
+      importance: articles.importanceScore,
+      clusterId: articles.clusterId,
+      sourceName: sources.name,
+      domain: sources.domain,
+      category: sources.category,
+      topic: articles.topic,
+      publishedAt: articles.publishedAt,
+    })
+    .from(articles)
+    .innerJoin(sources, eq(articles.sourceId, sources.id))
+    .where(
+      and(
+        eq(articles.isPublished, true),
+        isNotNull(articles.tldrSummary),
+        eq(articles.summaryFallback, false),
+        gte(articles.publishedAt, new Date(now.getTime() - 7 * 86_400_000)),
+        sql`${articles.publishedAt} <= ${now}`,
+        sql`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false) = false`,
+        sql`${title} ~ '[0-9]'`,
+        sql`jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0`,
+      ),
+    );
+  return rows.map((r) => ({
+    id: r.id,
+    slug: r.slug,
+    title: r.title,
+    amounts: r.entities?.amounts_mnt ?? [],
+    importance: r.importance,
+    clusterId: r.clusterId,
+    sourceName: r.sourceName,
+    topic: topicFor(r.domain, r.category, r.topic).label,
+    // Never null here (the query asks for a publication time in the last 7 days).
+    publishedAt: r.publishedAt ?? now,
+  }));
+}
+
+async function storedQuiz(db: Db): Promise<WeeklyQuiz | null> {
+  const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, WEEKLY_QUIZ_KEY));
+  return parseWeeklyQuiz(row?.value);
+}
+
+/**
+ * This week's quiz: the stored one when it is already this week's (every platform and every run
+ * posts the same questions, and the cards read it), else built from the last 7 days and stored.
+ */
+async function thisWeeksQuiz(db: Db, now: Date): Promise<WeeklyQuiz | null> {
+  const stored = await storedQuiz(db);
+  if (stored?.week === quizWeek(now)) return stored;
+  const quiz = buildWeeklyQuiz(await quizCandidates(db, now), now);
+  if (!quiz) return null;
+  if (!dry) {
+    const value = JSON.stringify(quiz);
+    await db.insert(appSettings).values({ key: WEEKLY_QUIZ_KEY, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+  }
+  return quiz;
+}
+
+/** The answers, on a platform whose quiz post went out, from 19:00 the next day (answersDue). */
+async function postQuizAnswers(db: Db, p: Platform, quiz: WeeklyQuiz, now: Date) {
+  if (!p.weeklyAnswers) return;
+  const [sent] = await db
+    .select({ createdAt: socialPosts.createdAt })
+    .from(socialPosts)
+    .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, "wquiz"), eq(socialPosts.refId, quiz.week), isNotNull(socialPosts.postId), sql`${socialPosts.postId} not like 'failed:%'`));
+  if (!sent && !dry) return console.log(`🧠 ${p.name}: the quiz of week ${quiz.week} did not go out here, so no answers.`);
+  if (sent && !answersDue(now, sent.createdAt) && !dry) return console.log(`🧠 ${p.name}: answers are due from 19:00 the day after the quiz.`);
+  await post(db, p, "wquiz_ans", quiz.week, p.weeklyAnswers(quiz));
+}
+
 async function main() {
   if (!hasDatabase()) {
     console.error("✗ DATABASE_URL is not set.");
@@ -440,6 +567,15 @@ async function main() {
     return;
   }
   const db = getDb();
+  const mode =
+    values.mode === "digest" || values.mode === "quiz" || values.mode === "weekly" || values.mode === "video" || values.mode === "promo" || values.mode === "weekly-quiz" ? values.mode : "news";
+  const now = new Date();
+  let answersFor: WeeklyQuiz | null = null;
+  if (mode === "weekly-quiz" && !dry && !values["any-day"] && !isQuizTime(now)) {
+    // Every 30 minutes from the pipeline: nothing to do on most runs, so no platform calls then.
+    answersFor = await storedQuiz(db);
+    if (!answersFor || !answersDue(now, new Date(answersFor.createdAt))) return console.log("🧠 No weekly quiz or answers due now (quiz: Sunday 19:00 Ulaanbaatar, answers the next evening).");
+  }
   const platforms: Platform[] = [];
   const fbToken = process.env.FB_PAGE_TOKEN?.trim();
   // A Page token's /me is the page itself, so FB_PAGE_ID is optional; a user token is swapped for
@@ -472,7 +608,11 @@ async function main() {
   else if (dcToken || dcChannel) console.error("::error::Discord needs both the DISCORD_BOT_TOKEN secret and DISCORD_CHANNEL_ID (the channel id or its discord.com/channels/… URL, docs/FACEBOOK.md).");
   else console.log("🎮 Discord is off: set DISCORD_BOT_TOKEN and DISCORD_CHANNEL_ID, see docs/FACEBOOK.md.");
 
-  const mode = values.mode === "digest" || values.mode === "quiz" || values.mode === "weekly" || values.mode === "video" || values.mode === "promo" ? values.mode : "news";
+  let quiz: WeeklyQuiz | null = null;
+  if (mode === "weekly-quiz" && !answersFor) {
+    quiz = await thisWeeksQuiz(db, now);
+    if (!quiz) return console.log("🧠 Fewer than 3 stories this week name a ₮ amount a question can hide: no quiz.");
+  }
   let weekly: WeeklyTop | null = null;
   if (mode === "weekly") {
     if (!isWeeklyDue(new Date()) && !values["any-day"] && !dry) return console.log("📊 The weekly list goes out on Mondays (Ulaanbaatar); --any-day to post now.");
@@ -487,6 +627,11 @@ async function main() {
       else if (mode === "weekly" && weekly) await postWeekly(db, p, weekly);
       else if (mode === "video") await postVideo(db, p);
       else if (mode === "promo") await postPromo(db, p);
+      else if (mode === "weekly-quiz") {
+        if (quiz && p.weeklyQuiz) await post(db, p, "wquiz", quiz.week, p.weeklyQuiz(quiz));
+        if (dry && quiz) await postQuizAnswers(db, p, quiz, now);
+        if (answersFor) await postQuizAnswers(db, p, answersFor, now);
+      }
       else await postNews(db, p);
     } catch (err) {
       const hint = err instanceof FacebookError && err.hint ? ` ${err.hint}` : "";
