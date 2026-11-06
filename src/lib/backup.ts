@@ -139,9 +139,16 @@ async function importInto(db: DB, lines: AsyncIterable<string> | Iterable<string
     pending.rows = [];
   };
 
+  let skipped = 0;
   for await (const raw of lines) {
     const line = raw.trim();
     if (!line) continue;
+    // A stray non-JSON line (a tool's banner or warning that reached stdout) must not void a
+    // restore; it is counted and reported, and the data lines around it are still loaded.
+    if (!line.startsWith("{")) {
+      skipped++;
+      continue;
+    }
     const parsed = JSON.parse(line) as { t?: unknown; r?: unknown };
     if (typeof parsed.t !== "string" || typeof parsed.r !== "object" || parsed.r === null) throw new Error("not a backup line");
     const t = findTable(parsed.t);
@@ -156,6 +163,7 @@ async function importInto(db: DB, lines: AsyncIterable<string> | Iterable<string
     if (pending.rows.length >= PAGE) await flush();
   }
   await flush();
+  if (skipped) console.error(`::warning::${skipped} non-JSON line(s) in the backup file were skipped (something printed to stdout during the export)`);
 
   if (!opts.dryRun) {
     for (const t of BACKUP_TABLES) {
