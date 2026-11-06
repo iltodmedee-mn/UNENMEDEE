@@ -5,6 +5,7 @@ import { getDb, hasDatabase } from "@/db";
 import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, tenders, documents, watchedPages, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
 import { ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
+import { type BuyerSign, buyerSigns, type BuyerStats, isNonCompetitive, nationalShares, type NationalShares } from "@/lib/procurement/signs";
 import { NO_AWARD_SQL } from "@/lib/procurement/tenders";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
 import type { DonationsSummary } from "@/lib/donations";
@@ -1493,6 +1494,16 @@ const tenderColumns = {
   unitSuspect: tenders.unitSuspect,
 };
 
+// A lot without a result date belongs to its code's year ("…/2026…"), not to the day we first
+// saw it: the 12-month first sync counted 119 lots with 2025 codes as this year's (Nov 2026 audit).
+const tenderThisYear = sql`coalesce(${tenders.resultDate}, make_date(nullif(substring(${tenders.code} from '/(\d{4})'), '')::int, 1, 1)) >= date_trunc('year', now() at time zone 'Asia/Ulaanbaatar')::date`;
+// Stored rows keep the awarded flag of the sync that wrote them, so a winner cell later known to be a
+// status ("Зарлагдаагүй", "эхлээгүй") is checked again here.
+const tenderAwarded = sql`${tenders.awarded} and not coalesce(${tenders.winner} ~* ${NO_AWARD_SQL}, false)`;
+// A lot re-filed under an edited title has a new key: the same organisation, code, amount and
+// winner is one contract, counted and listed once (53 such pairs, ~5 тэрбум₮, Nov 2026 audit).
+const tenderFirstOfSame = sql`not exists (select 1 from ${tenders} t2 where t2.awarded and t2.code = ${tenders.code} and t2.org_name = ${tenders.orgName} and t2.contract_mnt is not distinct from ${tenders.contractMnt} and t2.winner is not distinct from ${tenders.winner} and t2.id < ${tenders.id})`;
+
 /** /tenders: Шилэн данс form-1831 results (src/lib/procurement), facts only. */
 export async function getTenders(limit = 60): Promise<TendersOverview | null> {
   "use cache";
@@ -1500,37 +1511,31 @@ export async function getTenders(limit = 60): Promise<TendersOverview | null> {
   cacheTag("tenders");
   return safe("getTenders", null, async () => {
     const db = getDb();
-    const yearStart = sql`date_trunc('year', now() at time zone 'Asia/Ulaanbaatar')::date`;
-    // A lot without a result date belongs to its code's year ("…/2026…"), not to the day we first
-    // saw it: the 12-month first sync counted 119 lots with 2025 codes as this year's (Nov 2026 audit).
-    const codeYear = sql`make_date(nullif(substring(${tenders.code} from '/(\d{4})'), '')::int, 1, 1)`;
-    const thisYear = sql`coalesce(${tenders.resultDate}, ${codeYear}) >= ${yearStart}`;
-    // A lot re-filed under an edited title has a new key: the same organisation, code, amount and
-    // winner is one contract, counted and listed once (53 such pairs, ~5 тэрбум₮, Nov 2026 audit).
-    const firstOfSame = sql`not exists (select 1 from ${tenders} t2 where t2.awarded and t2.code = ${tenders.code} and t2.org_name = ${tenders.orgName} and t2.contract_mnt is not distinct from ${tenders.contractMnt} and t2.winner is not distinct from ${tenders.winner} and t2.id < ${tenders.id})`;
+    const thisYear = tenderThisYear;
+    const firstOfSame = tenderFirstOfSame;
     const [latest, largest, [totals], [synced]] = await Promise.all([
       db
         .select(tenderColumns)
         .from(tenders)
-        .where(and(eq(tenders.awarded, true), firstOfSame))
+        .where(and(tenderAwarded, firstOfSame))
         .orderBy(sql`coalesce(${tenders.awardedSeenAt}, ${tenders.resultDate}::timestamptz) desc nulls last`, desc(tenders.id))
         .limit(limit),
       db
         .select(tenderColumns)
         .from(tenders)
-        .where(and(eq(tenders.awarded, true), eq(tenders.unitSuspect, false), thisYear, firstOfSame))
+        .where(and(tenderAwarded, eq(tenders.unitSuspect, false), thisYear, firstOfSame))
         .orderBy(desc(tenders.contractMnt))
         .limit(15),
       db
         .select({
           year: sql<number>`extract(year from now() at time zone 'Asia/Ulaanbaatar')::int`,
-          awarded: sql<number>`count(*) filter (where ${tenders.awarded} and ${firstOfSame})::int`,
-          sum: sql<string>`coalesce(sum(${tenders.contractMnt}) filter (where ${tenders.awarded} and not ${tenders.unitSuspect} and ${firstOfSame}), 0)::text`,
-          suspect: sql<number>`count(*) filter (where ${tenders.awarded} and ${tenders.unitSuspect} and ${firstOfSame})::int`,
+          awarded: sql<number>`count(*) filter (where ${tenderAwarded} and ${firstOfSame})::int`,
+          sum: sql<string>`coalesce(sum(${tenders.contractMnt}) filter (where ${tenderAwarded} and not ${tenders.unitSuspect} and ${firstOfSame}), 0)::text`,
+          suspect: sql<number>`count(*) filter (where ${tenderAwarded} and ${tenders.unitSuspect} and ${firstOfSame})::int`,
           orgs: sql<number>`count(distinct ${tenders.orgName})::int`,
           // Only lots whose result says nobody won ("оролцогч ирээгүй", "-"): a named winner with no
           // amount yet is not "no winner" (it was 263 of the 501 on the card, Nov 2026 audit).
-          noAward: sql<number>`count(*) filter (where not ${tenders.awarded} and ${tenders.winner} ~* ${NO_AWARD_SQL})::int`,
+          noAward: sql<number>`count(*) filter (where ${tenders.winner} ~* ${NO_AWARD_SQL})::int`,
         })
         .from(tenders)
         .where(thisYear),
@@ -1548,6 +1553,83 @@ export async function getTenders(limit = 60): Promise<TendersOverview | null> {
       unitSuspectCount: totals.suspect,
       syncedAt: synced?.value ?? null,
     };
+  });
+}
+
+export interface TenderSigns {
+  buyers: BuyerSign[];
+  national: NationalShares;
+  /** This year's contracts signed above their approved budget, furthest above first. */
+  overBudget: TenderItem[];
+  overBudgetCount: number;
+  year: number;
+}
+
+/**
+ * /tenders "Анхаарах шинж" (src/lib/procurement/signs.ts): this year's clean awards only (a named
+ * winner, an amount, no unclear unit, each contract once).
+ */
+export async function getTenderSigns(): Promise<TenderSigns | null> {
+  "use cache";
+  cacheLife("hours");
+  cacheTag("tenders");
+  return safe("getTenderSigns", null, async () => {
+    const db = getDb();
+    const clean = and(tenderAwarded, eq(tenders.unitSuspect, false), isNotNull(tenders.winner), tenderThisYear, tenderFirstOfSame);
+    const overBudget = sql`${tenders.budgetMnt} > 0 and ${tenders.contractMnt} > ${tenders.budgetMnt}`;
+    const [byMethod, byWinner, over, [{ overCount, year }]] = await Promise.all([
+      db
+        .select({ orgName: tenders.orgName, method: tenders.method, n: sql<number>`count(*)::int` })
+        .from(tenders)
+        .where(clean)
+        .groupBy(tenders.orgName, tenders.method),
+      db
+        .select({ orgName: tenders.orgName, winner: tenders.winner, n: sql<number>`count(*)::int` })
+        .from(tenders)
+        .where(clean)
+        .groupBy(tenders.orgName, tenders.winner),
+      db
+        .select(tenderColumns)
+        .from(tenders)
+        .where(and(clean, overBudget))
+        .orderBy(sql`(${tenders.contractMnt} - ${tenders.budgetMnt})::float / ${tenders.budgetMnt} desc`, desc(tenders.id))
+        .limit(20),
+      db
+        .select({
+          overCount: sql<number>`count(*) filter (where ${overBudget})::int`,
+          year: sql<number>`extract(year from now() at time zone 'Asia/Ulaanbaatar')::int`,
+        })
+        .from(tenders)
+        .where(clean),
+    ]);
+    if (byMethod.length === 0) return null;
+    const stats = new Map<string, BuyerStats>();
+    const statsOf = (orgName: string) => {
+      let s = stats.get(orgName);
+      if (!s) stats.set(orgName, (s = { orgName, lots: 0, topWinner: null, topWinnerLots: 0, nonCompetitiveLots: 0 }));
+      return s;
+    };
+    let totalLots = 0;
+    let nonCompetitiveLots = 0;
+    for (const r of byMethod) {
+      const s = statsOf(r.orgName);
+      s.lots += r.n;
+      totalLots += r.n;
+      if (isNonCompetitive(r.method)) {
+        s.nonCompetitiveLots += r.n;
+        nonCompetitiveLots += r.n;
+      }
+    }
+    for (const r of byWinner) {
+      const s = statsOf(r.orgName);
+      // Ties go to the name that sorts first, so a reload never swaps the supplier shown.
+      if (r.winner && (r.n > s.topWinnerLots || (r.n === s.topWinnerLots && s.topWinner !== null && r.winner.localeCompare(s.topWinner, "mn") < 0))) {
+        s.topWinner = r.winner;
+        s.topWinnerLots = r.n;
+      }
+    }
+    const all = [...stats.values()];
+    return { buyers: buyerSigns(all), national: nationalShares(all, totalLots, nonCompetitiveLots), overBudget: over, overBudgetCount: overCount, year };
   });
 }
 
