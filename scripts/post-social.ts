@@ -26,7 +26,7 @@ import "dotenv/config";
 import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
-import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { storedNeutrality } from "@/lib/ai/fact-spin";
@@ -41,7 +41,7 @@ import { biggestAmount, isWeeklyDue, mostNamed, previousWeek, type WeeklyTop, we
 import { sharedShortNames } from "@/lib/officials/flags";
 import { currentState, needsRefresh, refreshSeverity, type TokenState } from "@/lib/social/token-state";
 import { PRODUCTION_URL } from "@/lib/site";
-import { ABANDONED_AFTER_MS, abandonedReservation, UnknownOutcomeError } from "@/lib/social/outcome";
+import { countSince, mayPost, neverPosted, type PostKind, postedAt, publishOnce } from "@/lib/social/post-ledger";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
 import { errorDetail, errorLine } from "@/lib/log-safe";
@@ -234,89 +234,11 @@ async function storedToken(db: Db, key: string, envToken: string | undefined, re
   return state.token;
 }
 
-type PostKind = "digest" | "article" | "quiz" | "weekly" | "video" | "promo" | "wquiz" | "wquiz_ans";
-/**
- * Kinds whose refusal is retried at most VIDEO_MAX_TRIES times ("failed:n"), not every run: each
- * try uploads files to the platform (a Reel, the quiz's unpublished photos and containers).
- */
-const LIMITED_TRIES = new Set<PostKind>(["video", "promo", "wquiz", "wquiz_ans"]);
-
-const notPosted = (platform: string, kind: string, ref: unknown) =>
-  sql`not exists (select 1 from ${socialPosts} where ${socialPosts.platform} = ${platform} and ${socialPosts.kind} = ${kind} and ${socialPosts.refId} = ${ref})`;
-
-/**
- * Reserve, post, record the id. Only a post the platform clearly refused frees the row for the
- * next run. Once it may have gone out (published but the DB update failed, or the answer was lost
- * to a timeout) the reservation stays, marked for a manual check: a repost would be a duplicate.
- */
+/** Print what would go out; unless --dry-run, hand it to the post ledger (reserve → publish → record). */
 async function post(db: Db, p: Platform, kind: PostKind, refId: number, item: { preview: string; publish(): Promise<string> }) {
   console.log(`  → ${p.name} ${kind} #${refId}: ${item.preview.replace(/\n/g, "\n    ")}`);
   if (dry) return;
-  let [row] = await db.insert(socialPosts).values({ platform: p.name, kind, refId }).onConflictDoNothing().returning({ id: socialPosts.id });
-  let tries = 0;
-  if (!row && LIMITED_TRIES.has(kind)) {
-    // A video the platform refused before ("failed:n"): claim the row for one more try, atomically.
-    const [prev] = await db
-      .select({ postId: socialPosts.postId })
-      .from(socialPosts)
-      .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, kind), eq(socialPosts.refId, refId)));
-    tries = failedTries(prev?.postId);
-    if (tries > 0 && tries < VIDEO_MAX_TRIES) {
-      [row] = await db
-        .update(socialPosts)
-        .set({ postId: null })
-        .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, kind), eq(socialPosts.refId, refId), eq(socialPosts.postId, `failed:${tries}`)))
-        .returning({ id: socialPosts.id });
-    }
-  }
-  if (!row) {
-    // A reservation with no post id from a run that died (cancelled, killed) is "already posted"
-    // forever and nobody hears of it. It may also be a post that went out before the run died, so
-    // it is never posted again here: it becomes "unknown" (a ::warning:: now, a watchdog line for
-    // 7 days), the same as any other post whose outcome cannot be known, for a check by hand.
-    const [prev] = await db
-      .select({ postId: socialPosts.postId, createdAt: socialPosts.createdAt })
-      .from(socialPosts)
-      .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, kind), eq(socialPosts.refId, refId)));
-    if (prev && abandonedReservation(prev.postId, prev.createdAt, new Date())) {
-      const marked = await db
-        .update(socialPosts)
-        .set({ postId: "unknown" })
-        .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, kind), eq(socialPosts.refId, refId), isNull(socialPosts.postId), lt(socialPosts.createdAt, new Date(Date.now() - ABANDONED_AFTER_MS))))
-        .returning({ id: socialPosts.id });
-      if (marked.length) console.error(`::warning::${p.name} ${kind} #${refId}: the run that reserved it at ${prev.createdAt.toISOString()} died before storing a post id. It may or may not be on ${p.name}: check the page by hand (marked "unknown", never posted twice).`);
-    }
-  }
-  if (!row) return console.log("    already posted, skipped");
-  let id: string;
-  try {
-    id = await item.publish();
-  } catch (err) {
-    // Only the publish call itself can leave the outcome unknown (publishStep / the one-call
-    // platforms throw UnknownOutcomeError); a timeout on a container step is a refusal, retried.
-    if (err instanceof UnknownOutcomeError || (err as { name?: string } | null)?.name === "UnknownOutcomeError") {
-      await db.update(socialPosts).set({ postId: "unknown" }).where(eq(socialPosts.id, row.id));
-      console.error(`::warning::${p.name} ${kind} #${refId}: no answer (${errorLine(err, 400)}); kept as posted, check the page by hand.`);
-      return;
-    }
-    if (LIMITED_TRIES.has(kind)) {
-      // A refused reel is retried at most VIDEO_MAX_TRIES times, not every 30 min for 48 h
-      // (each Facebook try leaves an unpublished upload on the Page).
-      const n = tries + 1;
-      await db.update(socialPosts).set({ postId: `failed:${n}` }).where(eq(socialPosts.id, row.id));
-      if (n >= VIDEO_MAX_TRIES) console.error(`::error::${p.name} ${kind} #${refId} refused ${n} times; not tried again.`);
-      throw err;
-    }
-    await db.delete(socialPosts).where(eq(socialPosts.id, row.id));
-    throw err;
-  }
-  console.log(`    ✓ posted ${id}`);
-  try {
-    await db.update(socialPosts).set({ postId: id }).where(eq(socialPosts.id, row.id));
-  } catch (err) {
-    // Published: keep the reservation (without its id) rather than posting it again next run.
-    console.error(`::warning::${p.name} post ${id} went out but its id was not stored: ${errorLine(err, 400)}`);
-  }
+  await publishOnce(db, { platform: p.name, kind, refId, publish: item.publish });
 }
 
 async function postDigest(db: Db, p: Platform) {
@@ -328,16 +250,13 @@ async function postDigest(db: Db, p: Platform) {
     .where(gte(digests.createdAt, new Date(Date.now() - 12 * 3_600_000)))
     .orderBy(desc(digests.createdAt))
     .limit(1);
-  const [d] = newest ? await db.select().from(digests).where(and(eq(digests.id, newest.id), notPosted(p.name, "digest", digests.id))) : [];
+  const [d] = newest ? await db.select().from(digests).where(and(eq(digests.id, newest.id), neverPosted(p.name, "digest", digests.id))) : [];
   if (!d || d.items.length === 0) return console.log(`📘 ${p.name}: no new digest edition to post.`);
   await post(db, p, "digest", d.id, p.digest(d));
 }
 
 async function postNews(db: Db, p: Platform) {
-  const [{ today }] = await db
-    .select({ today: sql<number>`count(*)::int` })
-    .from(socialPosts)
-    .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, "article"), gte(socialPosts.createdAt, new Date(Date.now() - 24 * 3_600_000))));
+  const today = await countSince(db, p.name, "article", new Date(Date.now() - 24 * 3_600_000));
   const room = Math.min(PER_RUN, PER_DAY - today);
   if (room <= 0) return console.log(`📘 ${p.name}: daily news limit reached (${today}/${PER_DAY}).`);
   const rows = await db
@@ -367,7 +286,7 @@ async function postNews(db: Db, p: Platform) {
         gte(articles.publishedAt, new Date(Date.now() - 24 * 3_600_000)),
         sql`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false) = false`,
         or(gte(articles.importanceScore, IMPORTANCE_MIN), eq(articles.riskFlag, true)),
-        notPosted(p.name, "article", articles.id),
+        neverPosted(p.name, "article", articles.id),
         // One post per story: skip articles whose cluster already went out on this platform.
         sql`(${articles.clusterId} is null or not exists (select 1 from ${socialPosts} sp join ${articles} a2 on a2.id = sp.ref_id where sp.platform = ${p.name} and sp.kind = 'article' and a2.cluster_id = ${articles.clusterId}))`,
       ),
@@ -396,10 +315,7 @@ const QUIZ_EVERY_H = 20;
 /** The daily quiz: the most important story of the last 3 days whose headline names a ₮ amount. */
 async function postQuiz(db: Db, p: Platform) {
   if (!p.quiz) return;
-  const [{ recent }] = await db
-    .select({ recent: sql<number>`count(*)::int` })
-    .from(socialPosts)
-    .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, "quiz"), gte(socialPosts.createdAt, new Date(Date.now() - QUIZ_EVERY_H * 3_600_000))));
+  const recent = await countSince(db, p.name, "quiz", new Date(Date.now() - QUIZ_EVERY_H * 3_600_000));
   if (recent > 0) return console.log(`🧠 ${p.name}: today's quiz is already out.`);
   const rows = await db
     .select({ id: articles.id, slug: articles.slug, title: articles.title, entities: articles.extractedEntities })
@@ -414,7 +330,7 @@ async function postQuiz(db: Db, p: Platform) {
         // makeQuiz needs a ₮ amount in the headline itself.
         sql`${articles.title} ~ '[0-9]'`,
         sql`jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0`,
-        notPosted(p.name, "quiz", articles.id),
+        neverPosted(p.name, "quiz", articles.id),
       ),
     )
     .orderBy(sql`${articles.importanceScore} desc nulls last`, desc(articles.publishedAt))
@@ -475,10 +391,6 @@ async function postWeekly(db: Db, p: Platform, w: WeeklyTop) {
   await post(db, p, "weekly", w.week, p.weekly(w));
 }
 
-/** A video a platform refused is tried this many times in all (`social_posts.post_id` = "failed:n"). */
-const VIDEO_MAX_TRIES = 3;
-const failedTries = (postId: string | null | undefined) => Number(/^failed:(\d+)$/.exec(postId ?? "")?.[1] ?? 0);
-
 /** Videos older than this are not posted any more (their file is cleared after VIDEO_KEEP_DAYS). */
 const VIDEO_POST_WITHIN_H = 48;
 
@@ -492,9 +404,7 @@ async function postVideo(db: Db, p: Platform) {
       and(
         isNotNull(videos.mp4),
         gte(videos.createdAt, new Date(Date.now() - VIDEO_POST_WITHIN_H * 3_600_000)),
-        // Not posted, or refused fewer than VIDEO_MAX_TRIES times.
-        sql`not exists (select 1 from ${socialPosts} where ${socialPosts.platform} = ${p.name} and ${socialPosts.kind} = 'video' and ${socialPosts.refId} = ${videos.id}
-          and (${socialPosts.postId} is null or ${socialPosts.postId} not like 'failed:%' or split_part(${socialPosts.postId}, ':', 2)::int >= ${VIDEO_MAX_TRIES}))`,
+        mayPost(p.name, "video", videos.id),
       ),
     )
     .orderBy(desc(videos.createdAt))
@@ -587,12 +497,9 @@ async function thisWeeksQuiz(db: Db, now: Date): Promise<WeeklyQuiz | null> {
 /** The answers, on a platform whose quiz post went out, from 19:00 the next day (answersDue). */
 async function postQuizAnswers(db: Db, p: Platform, quiz: WeeklyQuiz, now: Date) {
   if (!p.weeklyAnswers) return;
-  const [sent] = await db
-    .select({ createdAt: socialPosts.createdAt })
-    .from(socialPosts)
-    .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, "wquiz"), eq(socialPosts.refId, quiz.week), isNotNull(socialPosts.postId), sql`${socialPosts.postId} not like 'failed:%'`));
+  const sent = await postedAt(db, p.name, "wquiz", quiz.week);
   if (!sent && !dry) return console.log(`🧠 ${p.name}: the quiz of week ${quiz.week} did not go out here, so no answers.`);
-  if (sent && !answersDue(now, sent.createdAt) && !dry) return console.log(`🧠 ${p.name}: answers are due from 19:00 the day after the quiz.`);
+  if (sent && !answersDue(now, sent) && !dry) return console.log(`🧠 ${p.name}: answers are due from 19:00 the day after the quiz.`);
   await post(db, p, "wquiz_ans", quiz.week, p.weeklyAnswers(quiz));
 }
 
