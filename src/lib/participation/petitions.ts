@@ -41,7 +41,12 @@ const pad = (n: string | number) => String(n).padStart(2, "0");
 /** A person's short name in a title: an initial and a capitalised name ("Б.Бат", "Х. Баттулга"). */
 export function namesPerson(title: string): boolean {
   // Case-insensitive after the initial: "Б.БАТ" and "Б. Баттулга" (unshoutTitle lowercases a shouted one) name a person too.
-  return /(?<![\p{L}])[А-ЯӨҮЁ]\.\s?[А-ЯӨҮЁа-яөүё]{3,}/u.test(title);
+  if (/(?<![\p{L}])[А-ЯӨҮЁ]\.\s?[А-ЯӨҮЁа-яөүё]{3,}/u.test(title)) return true;
+  // A full name ("Хүрэлсүх Ухнаа огцрох"): two capitalised words next to a dismissal / blame / sentence word.
+  const name = "[А-ЯӨҮЁ][а-яөүё]{2,}(?:-[А-ЯӨҮЁ][а-яөүё]+)?";
+  const pair = `${name}\\s+${name}\\p{L}*`;
+  const verb = "(?:огцр|хариуцлага|шалга|ял(?![а-яөүё]))";
+  return new RegExp(`(?<![\\p{L}])${pair}(?:\\s+\\S+)?\\s+\\S*${verb}|${verb}\\S*\\s+(?:\\S+\\s+)?${pair}`, "u").test(title);
 }
 
 /** The end time of each card, by petition id, from the countdown scripts. */

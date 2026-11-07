@@ -26,7 +26,7 @@ import { parsePrices, parseWages, PRICES_TABLE, pricesQuery, WAGES_TABLE, wagesQ
 import { fetchShilendans } from "@/lib/budget/shilendans";
 import { fetchSoeSnapshot } from "@/lib/soe/shilendans";
 import { fetchTaxShare } from "@/lib/budget/worldbank";
-import { errorDetail } from "@/lib/log-safe";
+import { errorDetail, errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 
@@ -115,7 +115,7 @@ async function main() {
         await getDb().insert(indicatorSnapshots).values(row).onConflictDoUpdate({ target: indicatorSnapshots.key, set: row });
       } catch (err) {
         failed++;
-        console.error(`  ✗ ${job.key}: ${err instanceof Error ? err.message : err} (previous snapshot kept)`);
+        console.error(`  ✗ ${job.key}: ${errorLine(err, 400)} (previous snapshot kept)`);
       }
     }),
   );

@@ -20,7 +20,7 @@ import { assetDeclarations, politicians } from "@/db/schema";
 import { detailsDegraded, mayRetire } from "@/lib/officials/roster-guard";
 import { fetchMember, fetchRoster, type MemberInfo } from "@/lib/officials/parliament";
 import { fetchDeclarations, searchXacxomId, xacxomPageUrl, type Declaration } from "@/lib/officials/xacxom";
-import { errorDetail } from "@/lib/log-safe";
+import { errorDetail, errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false }, limit: { type: "string" } } });
 
@@ -54,7 +54,7 @@ async function main() {
       if (!member.electionKnown) withoutElection++;
     } catch (err) {
       failed++;
-      console.error(`  ✗ ${base.fullName}: ${err instanceof Error ? err.message : err}`);
+      console.error(`  ✗ ${base.fullName}: ${errorLine(err, 400)}`);
       continue;
     }
     pending.push(
@@ -72,7 +72,7 @@ async function main() {
         })
         .catch((err) => {
           failed++;
-          console.error(`  ✗ ${member.shortName}: ${err instanceof Error ? err.message : err}`);
+          console.error(`  ✗ ${member.shortName}: ${errorLine(err, 400)}`);
         }),
     );
   }

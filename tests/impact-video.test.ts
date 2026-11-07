@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { impactHtml } from "@/lib/video/impact-html";
-import { amountWords } from "@/lib/video/money-video";
+import { amountWords, weighsOrAccuses } from "@/lib/video/money-video";
 import { IMPACT_MAX_CHARS, impactNarration, type ImpactStory, impactVideoSpec, spokenText, verifyImpactSpec } from "@/lib/video/impact-video";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type ImpactVideoMeta } from "@/lib/video/posts";
 import { kindsFor } from "@/lib/video/schedule";
@@ -100,6 +100,21 @@ describe("impactVideoSpec", () => {
     assert.equal(impactVideoSpec({ ...pension, title: "Төсвийн зарлага 9-ээс 43.5 их наяд ₮ болж өссөн ч иргэдийн орлого 62% л өссөн" }), null);
     assert.equal(impactVideoSpec({ ...pension, title: "Уул уурхайн тусгай зөвшөөрөлд авлигын эрсдэл илэрч, 11 зөвлөмж өглөө" }), null);
     assert.equal(impactVideoSpec({ ...pension, impact: { ...pension.impact!, change: "Хууль бус шан авсан нь илэрлээ" } }), null);
+  });
+
+  it("refuses a named person next to a violation, guilt, a case or a dismissal (Audit 6 C1)", () => {
+    const heads = [
+      "Сайд Б.Бат хууль зөрчсөн гэж ҮАГ дүгнэв",
+      "Шүүх Б.Батыг гэм буруутайд тооцов",
+      "Сайдад эрүүгийн хэрэг үүсгэв",
+      "Д.Ганмаа хариуцлага тооцож, чөлөөллөө",
+    ];
+    for (const title of heads) assert.equal(impactVideoSpec({ ...pension, title }), null, title);
+    assert.equal(impactVideoSpec({ ...pension, summary: ["Сайд Б.Бат хууль зөрчсөн гэж дүгнэжээ."] }), null);
+    for (const t of ["Дарга нарт хариуцлага тооцож, 3 хүнийг албан тушаалаас нь чөлөөлөв", "Шалгалтаар 12 тэрбумын зөрчил илэрлээ", "Сайд Б.Бат компанийг 5 тэрбумаар торгов"]) {
+      assert.equal(weighsOrAccuses(t), true, t);
+    }
+    assert.equal(weighsOrAccuses("Зөрчилгүй байгууллагад урамшуулал олгоно"), false);
   });
 
   it("needs what changes and one more answer", () => {

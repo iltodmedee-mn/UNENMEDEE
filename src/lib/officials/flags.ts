@@ -123,13 +123,19 @@ export function declarationFlags(rows: DeclarationLike[], hiddenYears: number[] 
  */
 export function attributable<T extends { shortName: string; isActive?: boolean }>(people: T[]): T[] {
   const shared = sharedShortNames(people);
-  return people.filter((p) => p.isActive !== false && !shared.has(p.shortName));
+  return people.filter((p) => p.isActive !== false && !shared.has(normShort(p.shortName)));
 }
+
+/** "Д. Ганмаа" = "Д.Ганмаа": compared without the space after the initial's dot. */
+const normShort = (name: string): string => name.replace(/\.\s+/g, ".");
 
 /** Short names ("Д.Цогтбаатар") that more than one of these people share: nothing can be matched by name alone. */
 export function sharedShortNames(people: { shortName: string }[]): Set<string> {
   const seen = new Set<string>();
   const shared = new Set<string>();
-  for (const p of people) (seen.has(p.shortName) ? shared : seen).add(p.shortName);
+  for (const p of people) {
+    const n = normShort(p.shortName);
+    (seen.has(n) ? shared : seen).add(n);
+  }
   return shared;
 }

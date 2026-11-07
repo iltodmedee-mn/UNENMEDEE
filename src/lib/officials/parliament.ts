@@ -102,7 +102,8 @@ export function parseMemberDetail(json: unknown, base: RosterEntry): MemberInfo 
   return {
     ...base,
     fullName: d.full_name?.trim() || base.fullName,
-    shortName: d.short_name?.trim() || base.shortName,
+    // "Д. Ганмаа" and "Д.Ганмаа" are one spelling: the site matches names by exact string.
+    shortName: d.short_name?.trim().replace(/\.\s+/g, ".") || base.shortName,
     constituency: election?.constituency_name ?? null,
     votes: election?.votes_received ?? null,
     electionSystem: election?.election_system ?? null,

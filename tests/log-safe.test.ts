@@ -52,3 +52,23 @@ describe("errorDetail", () => {
     assert.ok(errorDetail(new Error("x".repeat(5000)), 500).length <= 500);
   });
 });
+
+describe("secrets in a failed database write (Audit 6 O1)", () => {
+  const drizzleShaped = () =>
+    new Error('Failed query: insert into "app_settings" ("key", "value") values ($1, $2)\nparams: threads,{"token":"THAA-SECRET"}', {
+      cause: new Error("Connection terminated"),
+    });
+
+  it("never prints the params of a drizzle query error", () => {
+    for (const text of [errorLine(drizzleShaped(), 2000), errorDetail(drizzleShaped())]) {
+      assert.ok(!text.includes("THAA-SECRET"), text);
+      assert.ok(!text.includes("params"), text);
+      assert.ok(text.includes("Failed query"), text);
+      assert.ok(text.includes("Connection terminated"), text);
+    }
+  });
+
+  it("replaces backticks so a headline cannot close the issue's code fence", () => {
+    assert.equal(oneLine("a ``` b"), "a ''' b");
+  });
+});

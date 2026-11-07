@@ -47,4 +47,12 @@ describe("₮ chips", () => {
     assert.equal(amountValue("ам.доллар 5 сая"), null);
     assert.equal(largestAmount(["250 мянган ам.доллар", "40 сая ₮"]), "40 сая ₮");
   });
+
+  it("reads only amounts carrying a ₮ / төгрөг mark (Audit 6 W2)", () => {
+    for (const t of ["3 сая хүн", "2 тэрбум кВт.ц", "2026 он", "1.5 тэрбум кВт.ц", "300 төгсөгч", "2 сая төгсөлтийн"]) assert.equal(amountValue(t), null, t);
+    assert.equal(amountValue("2026 онд 5 тэрбум ₮"), 5_000_000_000);
+    assert.equal(amountValue("5 тэрбум төгрөг"), 5_000_000_000);
+    assert.equal(largestAmount(["2 тэрбум кВт.ц", "40 сая ₮"]), "40 сая ₮");
+    assert.equal(largestAmount(["3 сая хүн"]), undefined);
+  });
 });

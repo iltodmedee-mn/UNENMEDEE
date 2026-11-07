@@ -218,13 +218,18 @@ async function storedToken(db: Db, key: string, envToken: string | undefined, re
     } catch (err) {
       // Loud once the stored token nears its 60-day expiry (src/lib/social/token-state.ts).
       const severity = refreshSeverity(state);
-      console.error(`::${severity}::${key} token refresh failed: ${err instanceof Error ? err.message : err}`);
+      console.error(`::${severity}::${key} token refresh failed: ${errorLine(err, 400)}`);
       if (severity === "error") process.exitCode = 1;
     }
   }
   if (!dry && (!stored || stored.token !== state.token || stored.refreshedAt !== state.refreshedAt)) {
     const value = JSON.stringify(state);
-    await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+    try {
+      await db.insert(appSettings).values({ key, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+    } catch (err) {
+      // drizzle's message carries the written values (the live token); only the cause travels on.
+      throw new Error(`app_settings write failed (${key})`, { cause: (err as { cause?: unknown }).cause });
+    }
   }
   return state.token;
 }
@@ -291,7 +296,7 @@ async function post(db: Db, p: Platform, kind: PostKind, refId: number, item: { 
     // platforms throw UnknownOutcomeError); a timeout on a container step is a refusal, retried.
     if (err instanceof UnknownOutcomeError || (err as { name?: string } | null)?.name === "UnknownOutcomeError") {
       await db.update(socialPosts).set({ postId: "unknown" }).where(eq(socialPosts.id, row.id));
-      console.error(`::warning::${p.name} ${kind} #${refId}: no answer (${err instanceof Error ? err.message : err}); kept as posted, check the page by hand.`);
+      console.error(`::warning::${p.name} ${kind} #${refId}: no answer (${errorLine(err, 400)}); kept as posted, check the page by hand.`);
       return;
     }
     if (LIMITED_TRIES.has(kind)) {
@@ -310,7 +315,7 @@ async function post(db: Db, p: Platform, kind: PostKind, refId: number, item: { 
     await db.update(socialPosts).set({ postId: id }).where(eq(socialPosts.id, row.id));
   } catch (err) {
     // Published: keep the reservation (without its id) rather than posting it again next run.
-    console.error(`::warning::${p.name} post ${id} went out but its id was not stored: ${err instanceof Error ? err.message : err}`);
+    console.error(`::warning::${p.name} post ${id} went out but its id was not stored: ${errorLine(err, 400)}`);
   }
 }
 
@@ -666,7 +671,7 @@ async function main() {
       else await postNews(db, p);
     } catch (err) {
       const hint = err instanceof FacebookError && err.hint ? ` ${err.hint}` : "";
-      console.error(`::error::${p.name}: ${err instanceof Error ? err.message : err}${hint}`);
+      console.error(`::error::${p.name}: ${errorLine(err, 400)}${hint}`);
       process.exitCode = 1;
     }
   }

@@ -8,6 +8,8 @@ export function oneLine(text: unknown, max = 300): string {
   return String(text ?? "")
      
     .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]+/g, " ")
+    // A backtick would close the code fence the watchdog issue prints headlines in.
+    .replace(/`/g, "'")
     .slice(0, max);
 }
 
@@ -18,6 +20,14 @@ const MAX_CAUSES = 6;
 function tags(e: ErrorLike): string {
   const t = [e.code, e.status ?? e.statusCode].filter((v) => v !== undefined && v !== null && v !== "").map(String);
   return t.length ? ` [${t.join(" ")}]` : "";
+}
+
+/**
+ * drizzle's "Failed query: <sql>\nparams: <values>" carries the written values: a stored token, a
+ * VAPID private key, a push endpoint. Only the first line (the SQL) is ever printed.
+ */
+function safeMessage(message: string): string {
+  return /^\s*Failed query:/.test(message) ? message.split("\n")[0] : message;
 }
 
 /** The error chain as "name [code]: message ← cause …", one level per entry (newest first). */
@@ -33,7 +43,7 @@ function chain(err: unknown): { line: string; body?: string }[] {
     }
     const e = cur as ErrorLike;
     const body = e.body ?? (typeof e.error === "object" && e.error !== null ? e.error : undefined);
-    out.push({ line: `${e.name}${tags(e)}: ${e.message || "(no message)"}`, body: body === undefined ? undefined : typeof body === "string" ? body : safeJson(body) });
+    out.push({ line: `${e.name}${tags(e)}: ${safeMessage(e.message) || "(no message)"}`, body: body === undefined ? undefined : typeof body === "string" ? body : safeJson(body) });
     // An AggregateError (Node's connect attempts) carries its reasons in `errors`, not `cause`.
     cur = e.cause ?? (Array.isArray(e.errors) ? e.errors[0] : undefined);
   }

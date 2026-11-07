@@ -8,7 +8,7 @@ import { estimateCostUsd, getPrice, isTextModel } from "@/lib/ai/pricing";
 import { AIUnavailableError, callAIWithFallback, isRequestSpecific, PROVIDER_TRIP, resetProviderTrips, TruncatedError, type UsageRecord } from "@/lib/ai/router";
 import { shouldPark } from "@/lib/ai/fallback";
 import { GeminiError } from "@/lib/ai/gemini";
-import { parseJsonLoose, Tier1Schema, Tier2Schema } from "@/lib/ai/schemas";
+import { ClusterSchema, DigestSchema, parseJsonLoose, Tier1Schema, Tier2Schema } from "@/lib/ai/schemas";
 
 import { type Reply, startMockLLM, TIER1_OK, TIER2_OK } from "./helpers/mock-llm";
 
@@ -49,6 +49,19 @@ describe("Tier1Schema", () => {
     assert.equal(r.neutrality_score, 35, "string coerced");
     assert.equal(r.tldr_summary.split("\n").length, 3, "array joined into lines");
     assert.deepEqual(r.facts, ["48.5 тэрбум төгрөг", "Түргэн Зам ХХК"], "deduplicated");
+  });
+
+  it("shortens over-long model text instead of failing the reply (Audit 6 P7)", () => {
+    const long = "Тайлбар үг ".repeat(200);
+    const r = Tier1Schema.parse({ tldr_summary: "Хангалттай урт хураангуй өгүүлбэр.", facts: [long], risk_reason: long, entities: { people: [], orgs: [], amounts_mnt: [] } });
+    assert.ok(r.facts[0].length <= 300 && r.facts[0].endsWith("…"));
+    assert.ok(r.risk_reason.length <= 300);
+    const t2 = Tier2Schema.parse({ analysis_markdown: "а".repeat(50_000), citizen_questions: [] });
+    assert.ok(t2.analysis_markdown.length <= 12_000);
+    const c = ClusterSchema.parse({ title: "Гарчиг энд", synthesis: "дүгнэлт ".repeat(400) });
+    assert.ok(c.synthesis.length <= 1_500);
+    const d = DigestSchema.parse({ title: "Тойм гарчиг", intro: "оршил ".repeat(400), items: [{ id: 1, headline: "Гарчиг энд", why: "" }] });
+    assert.ok(d.intro.length <= 600);
   });
 
   it("rejects empty summaries", () => {

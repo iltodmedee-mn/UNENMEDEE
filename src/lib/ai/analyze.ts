@@ -12,6 +12,7 @@ import { clusterMessages, tier1Messages, tier2Messages, type ArticleForAI, type 
 import type { BudgetGuard } from "./limits";
 import { callAIWithFallback, type Purpose, type UsageLogger } from "./router";
 import { ClusterSchema, Tier1Schema, Tier2Schema, type Tier1Result, type Tier2Result } from "./schemas";
+import { HAS_MNT_MARKER } from "@/lib/format";
 import { errorLine } from "@/lib/log-safe";
 
 export interface AnalysisOutcome {
@@ -72,7 +73,7 @@ export function ruleBasedAnalysis(input: ArticleForAI): Tier1Result | null {
 
 /** Regex-found MNT amounts are merged in so money tags never depend on the model alone. */
 function withRegexAmounts(t1: Tier1Result, text: string): Tier1Result {
-  const amounts = [...new Set([...t1.entities.amounts_mnt, ...extractMntAmounts(text, 8)])].slice(0, 15);
+  const amounts = [...new Set([...t1.entities.amounts_mnt.filter((a) => HAS_MNT_MARKER.test(a)), ...extractMntAmounts(text, 8)])].slice(0, 15);
   return { ...t1, entities: { ...t1.entities, amounts_mnt: amounts } };
 }
 

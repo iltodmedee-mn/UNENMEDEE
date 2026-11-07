@@ -13,12 +13,21 @@ import { z } from "zod";
 /** Words that make a declared name an organisation rather than a private person. */
 // "сан" (fund) only as a word of its own: a private lender whose name ends in it ("Г.Отгонсан")
 // read as an organisation, so a person was shown and looked up.
-const ORG = /(^|[\s"«»“”(])(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|LLC|LTD|INC|JSC)([\s"«»“”).,]|$)|(?<!\p{L})банк|bank|(?<!\p{L})сан(?!\p{L})|хоршоо|групп|корпораци|компани|нөхөрлөл|fund/iu;
+const ORG = /(^|[\s"«»“”(])(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|LLC|LTD|INC|JSC)([\s"«»“”).,]|$)|(?<!\p{L})банк|bank|(?<![\p{L}.])сан(?!\p{L})|хоршоо|групп|корпораци|компани|нөхөрлөл|fund/iu;
 /** Organisations we list but do not look up: banks and funds lend to everyone, and every citizen holds Erdenes Tavantolgoi shares. */
-const NOT_A_SUPPLIER = /(?<!\p{L})банк|bank|ббсб|хадгаламж|зээлийн хоршоо|(?<!\p{L})сан(?!\p{L})|fund|эрдэнэс\s*тавантолгой/iu;
+const NOT_A_SUPPLIER = /(?<!\p{L})банк|bank|ббсб|хадгаламж|зээлийн хоршоо|(?<![\p{L}.])сан(?!\p{L})|fund|эрдэнэс\s*тавантолгой/iu;
 const LEGAL_FORM = /(^|\s)(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|LLC|LTD|INC|JSC)(?=\s|$)/gi;
 
-export const isOrgName = (name: string): boolean => ORG.test(name);
+/** A person's short name inside an item ("Б.Батболд (Хаан банк)"): an initial, a dot, a capitalised name. */
+const PERSON_NAME = /(?<!\p{L})[А-ЯӨҮЁ]\.\s?[А-ЯӨҮЁ][а-яөүё]+/u;
+/** The item ends with a legal form: "Б.Бат ХХК" is a company named after its owner. */
+const ENDS_WITH_FORM = /(^|[\s"«»“”])(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|ҮЦК|ТББ|LLC|LTD|INC|JSC)[\s"«»“”).]*$/iu;
+
+export const isOrgName = (name: string): boolean => {
+  // A bank in brackets after a person's name does not make the person an organisation.
+  if (PERSON_NAME.test(name) && !ENDS_WITH_FORM.test(name)) return false;
+  return ORG.test(name);
+};
 
 /** The name without legal form and quotes, spacing kept: what Шилэн данс is searched with. */
 export function bareName(name: string): string {

@@ -45,6 +45,9 @@ describe("parliament petitions", () => {
     assert.equal(namesPerson("Б.Батыг огцруулах"), true);
     assert.equal(namesPerson("Б.БАТЫГ ОГЦРУУЛАХ"), true, "a shouted title still names a person");
     assert.equal(namesPerson("Б. баттулгад хариуцлага тооцох"), true, "unshoutTitle lowercases a spaced initial's name");
+    assert.equal(namesPerson("Хүрэлсүх Ухнаа огцрох"), true, "a full name next to a dismissal");
+    assert.equal(namesPerson("Оюун-Эрдэнэ Лувсаннамсрайг огцруулах"), true);
+    assert.equal(namesPerson("Сайд нар хариуцлага хүлээх"), false);
     assert.equal(namesPerson("АТГ-ын тайланг нийтлэх"), false);
     assert.equal(namesPerson("НӨАТ 1% болгож бууруулах"), false);
     assert.equal(namesPerson("Ажилтны ХХОАТ болон НД-ын шимтгэл"), false);

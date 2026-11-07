@@ -13,9 +13,10 @@
  * out. The voice reads the same texts; the forms a speech model misreads (a decimal before
  * тэрбум, "2026-11-01", "11-р сар") are turned into words first (`spokenText`, tested Oct 31 2026).
  */
+import { namesPerson } from "@/lib/participation/petitions";
 import type { ReaderImpact } from "@/lib/types";
 
-import { amountWords, CHARGE, weighsOrAccuses } from "./money-video";
+import { amountWords, CHARGE, PERSON_CHARGE, weighsOrAccuses } from "./money-video";
 import type { Sentence } from "./price-video";
 
 /** Notices and ceremonies score lower; a decision people feel scores 65+. */
@@ -147,6 +148,8 @@ export function impactVideoSpec(story: ImpactStory): ImpactSpec | null {
   // Something to tell beyond the headline: what happened, or what changes and for whom / when.
   if (!what && !(change && (who || when || action))) return null;
   if ([headline, who, change, when, action, what].some((f) => f && CHARGE.test(f))) return null;
+  // A named person next to a charge, dismissal or violation never becomes a video (Audit 6 C1).
+  if ([headline, what].some((f) => f && namesPerson(f) && (CHARGE.test(f) || PERSON_CHARGE.test(f)))) return null;
 
   const source = sourceLabel(story.sourceName);
   const asks: Record<ImpactSpec["cards"][number]["scene"], string> = {

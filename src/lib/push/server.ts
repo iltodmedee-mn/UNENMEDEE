@@ -37,13 +37,18 @@ export async function ensureVapidKeys(db: DB): Promise<{ publicKey: string; priv
   if (n > 0) throw new Error(`VAPID keys are missing from app_settings while ${n} push subscription(s) exist: restore the keys, never generate a new pair`);
   const keys = webpush.generateVAPIDKeys();
   // onConflictDoNothing: if two runs race, the first pair wins and both re-read it.
-  await db
-    .insert(appSettings)
-    .values([
-      { key: PUBLIC_KEY, value: keys.publicKey },
-      { key: PRIVATE_KEY, value: keys.privateKey },
-    ])
-    .onConflictDoNothing();
+  try {
+    await db
+      .insert(appSettings)
+      .values([
+        { key: PUBLIC_KEY, value: keys.publicKey },
+        { key: PRIVATE_KEY, value: keys.privateKey },
+      ])
+      .onConflictDoNothing();
+  } catch (err) {
+    // drizzle's message carries the written values (the private key); only the cause travels on.
+    throw new Error(`app_settings write failed (${PRIVATE_KEY})`, { cause: (err as { cause?: unknown }).cause });
+  }
   return ensureVapidKeys(db);
 }
 

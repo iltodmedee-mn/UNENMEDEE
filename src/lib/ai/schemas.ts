@@ -7,6 +7,20 @@ import { RISK_FLAG_THRESHOLD } from "@/lib/types";
 import { cleanModelText } from "./fact-spin";
 import { cleanImpact, cleanReaderTitle } from "./reader-view";
 
+/**
+ * Cuts a model text to `max` characters at a word boundary (with "…"). A long-but-valid reply is
+ * shortened, never failed: a failure would park the article (Audit 6 P7).
+ */
+export function clip(value: string, max: number): string {
+  if (value.length <= max) return value;
+  const cut = value.slice(0, max - 1);
+  const space = cut.search(/\s\S*$/);
+  return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
+}
+
+/** Longest single model text (a fact, a reason, a question) kept. */
+const ITEM_MAX = 300;
+
 /** LLMs sometimes return numbers as strings or out of range: coerce and clamp. */
 const score = z.coerce
   .number()
@@ -24,13 +38,13 @@ const optionalScore = z.unknown().transform((v) => {
  * A model text field. `z.coerce.string()` turned a missing key into the text "undefined" (zod 4)
  * and an object into "[object Object]"; both reached the article page and the Tier-2 prompt.
  */
-const text = z.unknown().optional().transform((v) => cleanModelText(typeof v === "number" ? String(v) : v));
+const text = z.unknown().optional().transform((v) => clip(cleanModelText(typeof v === "number" ? String(v) : v), ITEM_MAX));
 
 const stringList = (max: number) =>
   z
     .array(z.unknown())
     .catch([])
-    .transform((xs) => [...new Set(xs.map((x) => cleanModelText(typeof x === "number" ? String(x) : x)).filter(Boolean))].slice(0, max));
+    .transform((xs) => [...new Set(xs.map((x) => clip(cleanModelText(typeof x === "number" ? String(x) : x), ITEM_MAX)).filter(Boolean))].slice(0, max));
 
 // A reply whose summary holds its own JSON keys (LEAKED_KEYS, format.ts) fails, so the repair retry runs.
 
@@ -80,7 +94,7 @@ export const Tier1Schema = z
 export type Tier1Result = z.output<typeof Tier1Schema>;
 
 export const Tier2Schema = z.object({
-  analysis_markdown: z.string().min(80),
+  analysis_markdown: z.string().min(80).transform((v) => clip(v, 12_000)),
   citizen_questions: stringList(8),
 });
 
@@ -88,7 +102,7 @@ export type Tier2Result = z.output<typeof Tier2Schema>;
 
 export const ClusterSchema = z.object({
   title: z.string().min(5).max(200),
-  synthesis: z.string().min(40),
+  synthesis: z.string().min(40).transform((v) => clip(v, 1_500)),
 });
 
 export type ClusterResult = z.output<typeof ClusterSchema>;
@@ -109,7 +123,7 @@ const DigestItemSchema = z.object({
 
 export const DigestSchema = z.object({
   title: z.unknown().transform((v) => plain(v).slice(0, 200)).refine((s) => s.length >= 5, "title is empty"),
-  intro: z.unknown().transform(plain).refine((s) => s.length >= 30, "intro is empty"),
+  intro: z.unknown().transform((v) => clip(plain(v), 600)).refine((s) => s.length >= 30, "intro is empty"),
   items: z
     .array(z.unknown())
     .transform((list) => list.flatMap((item) => {
