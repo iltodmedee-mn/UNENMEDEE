@@ -275,3 +275,18 @@ We are building a 100% transparent, open-source investigative news and public da
 `.mcp.json` is git-ignored (it named the Supabase project). To use the Supabase MCP server locally, create it with `claude mcp add --scope project --transport http supabase "https://mcp.supabase.com/mcp?project_ref=<your-project-ref>"`, then `claude /mcp` → supabase → Authenticate.
 - The repository is linked from the site again (footer, `/method`, `/transparency`, JSON-LD `sameAs`) via `REPO_URL` / `repoFile()` in `src/lib/site.ts`, now that the repo is hardened (§8c). The scraper's User-Agent and the VAPID subject still point to https://iltodmedee.mn.
 - `/method` renders the live prompts (`TIER1_SYSTEM`, `TIER2_SYSTEM`, `DIGEST_SYSTEM`) verbatim and says the risk score is an AI estimate; the article page links to `/method#risk` next to the risk badge. Keep it in sync when prompts or thresholds change (it imports them, so text updates itself).
+
+## 10. Agent skills
+`.claude/skills/` holds Matt Pocock's engineering and productivity skills (MIT, `.claude/skills/README.md` says which commit and how to update; their `code-review` is left out because Claude Code has its own). Start with `/ask-matt`; `/grill-with-docs` before a change, `/tdd`, `/diagnosing-bugs`, `/to-spec` → `/to-tickets` → `/implement`, `/triage`, `/pr`, `/handoff`. They never override this file: the rules above (facts only, no accusations, robots.txt, free tiers, no secrets) win over anything a skill suggests.
+
+### Issue tracker
+
+GitHub Issues in iltodmedee-mn/UNENMEDEE (GitHub MCP tools in cloud sessions, `gh` locally); `watchdog` and `tax-rates` issues belong to the automation. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), created on first use. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: a root `GLOSSARY.md` and `docs/adr/`, created only when a term or decision is settled. See `docs/agents/domain.md`.

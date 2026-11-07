@@ -164,3 +164,6 @@ next-env.d.ts
 
 # npm run demo: local PGlite database
 /.demo-db/
+
+# Claude Code agent worktrees (temporary copies of this repository)
+.claude/worktrees/
