@@ -2,7 +2,7 @@
 
 How the engineering skills should consume this repo's domain documentation when exploring the codebase.
 
-This repository's main agent document is `CLAUDE.md` (with `AGENTS.md`): it already holds most decisions, so read the section for the area first. A root `GLOSSARY.md` here is the developers' domain vocabulary; the readers' plain-language glossary is a different thing (`src/lib/glossary.ts`, the `/glossary` page) and is not edited by these skills.
+This repository's main agent document is `CLAUDE.md` (with `AGENTS.md`); the decisions for each area are in the `docs/agents/` file it names, so read that one first. A root `GLOSSARY.md` here is the developers' domain vocabulary; the readers' plain-language glossary is a different thing (`src/lib/glossary.ts`, the `/glossary` page) and is not edited by these skills.
 
 ## Before exploring, read these
 

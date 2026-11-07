@@ -9,7 +9,7 @@ export interface PersonLink {
 /**
  * People named in an article (AI-extracted short names like "Ж.Алдаржавхлан") linked to the active
  * MP with that exact short name. A short name two members share, now or across terms, never links:
- * the text cannot say which one it means (same rule as news mentions and alerts, CLAUDE.md §6d).
+ * the text cannot say which one it means (same rule as news mentions and alerts, docs/agents/civic.md §6d).
  * Pass every politician, inactive ones included (`attributable`).
  */
 export function linkPeople(names: string[], politicians: { id: number; shortName: string; isActive?: boolean }[]): PersonLink[] {

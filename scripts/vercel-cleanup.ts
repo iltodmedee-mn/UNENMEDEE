@@ -35,7 +35,7 @@ async function api<T>(path: string, init: RequestInit = {}): Promise<T> {
 
 async function main() {
   if (!token || !projectId) {
-    console.error("::error::Set the VERCEL_TOKEN secret and VERCEL_PROJECT_ID (see CLAUDE.md §8).");
+    console.error("::error::Set the VERCEL_TOKEN secret and VERCEL_PROJECT_ID (see docs/agents/ops.md §8).");
     process.exitCode = 1;
     return;
   }
