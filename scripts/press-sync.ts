@@ -12,10 +12,11 @@ import "dotenv/config";
 import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
-import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { and, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { articles, pressItems, pressLinks } from "@/db/schema";
+import { aiSummarized } from "@/lib/story-rules";
 import { OUTLETS, parseNewsMn, parseRssItems, type FeedItem } from "@/lib/press/feeds";
 import { matchPress, PRESS_AFTER_DAYS, type GovDoc, type PressDoc } from "@/lib/press/match";
 import { API_MAX_BYTES, politeFetch, readJsonLimited, readTextLimited } from "@/lib/scraper/http";
@@ -67,7 +68,7 @@ async function main() {
   const gov = await db
     .select({ id: articles.id, title: articles.title, summary: articles.tldrSummary, publishedAt: articles.publishedAt })
     .from(articles)
-    .where(and(eq(articles.isPublished, true), isNotNull(articles.tldrSummary), eq(articles.summaryFallback, false), gte(articles.publishedAt, new Date(Date.now() - MATCH_DAYS * 86_400_000))));
+    .where(and(aiSummarized, gte(articles.publishedAt, new Date(Date.now() - MATCH_DAYS * 86_400_000))));
   const pressDocs: PressDoc[] = press.map((p) => ({ id: p.id, title: p.title, publishedAt: p.publishedAt ?? p.foundAt }));
   const govDocs: GovDoc[] = gov.map((g) => ({ id: g.id, title: g.title, summary: g.summary ?? "", publishedAt: g.publishedAt }));
   const matches = matchPress(govDocs, pressDocs);
