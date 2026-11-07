@@ -12,7 +12,7 @@ import { getIndicator } from "@/lib/queries";
 import { absoluteUrl, jsonLd } from "@/lib/site";
 import { breadcrumbLd } from "@/lib/structured-data";
 import { ubDateKey } from "@/lib/archive";
-import { PIT_SOURCES, sharesFromSpending } from "@/lib/tax/receipt";
+import { PIT_SOURCES, sharesFromSpending, SI_SOURCES } from "@/lib/tax/receipt";
 
 export const metadata: Metadata = {
   title: "Цалингийн татвар тооцоолуур: ХХОАТ, НДШ хаашаа явдаг вэ",
@@ -76,7 +76,7 @@ export default async function TaxPage() {
         УИХ 2026-06-26-нд баталсан татварын багц хуулиар цалингийн ХХОАТ өөрчлөгдөнө: <strong className="text-secondary">2027-01-01</strong>-нээс НДШ хассаны дараах сарын
         792,000 ₮ хүртэлх цалин татваргүй, цалингийн татварын хөнгөлөлт хүчингүй болно; <strong className="text-secondary">2028-01-01</strong>-нээс 792,000–2,000,000 ₮-ийн хэсэгт 1%,
         түүнээс дээш 10% (жилд 120 саяас дээш 15%, 180 саяас дээш 20%). Тооцоолуур өнөөдрийн хүчинтэй шатлалаар тооцож, ирэх өөрчлөлтийг доор нь харуулна. Эх сурвалж:{" "}
-        {PIT_SOURCES.map((src, i) => (
+        {[...PIT_SOURCES, ...SI_SOURCES].map((src, i) => (
           <span key={src.url}>
             {i > 0 && ", "}
             <a href={src.url} target="_blank" rel="noopener nofollow" className="underline hover:text-secondary">

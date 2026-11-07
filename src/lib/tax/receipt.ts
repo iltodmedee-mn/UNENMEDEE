@@ -7,7 +7,44 @@
 /** Employee social insurance (НДШ), share of gross pay. Source: PwC Worldwide Tax Summaries. */
 export const SI_RATE = 0.115;
 /** The day the rates above were last written against their source; the watchdog asks for a re-check yearly. */
-export const RATES_CHECKED = "2026-11-04";
+export const RATES_CHECKED = "2026-11-07";
+
+/**
+ * The monthly minimum wage (хөдөлмөрийн хөлсний доод хэмжээ), set by the National Tripartite
+ * Committee under the Minimum Wage Law; each entry is in force from its day. Only used for the НДШ
+ * ceiling below. Checked on RATES_CHECKED against the decisions named in SI_SOURCES.
+ */
+export const MIN_WAGE: { from: string; monthly: number }[] = [
+  { from: "2024-01-01", monthly: 660_000 },
+  { from: "2025-04-01", monthly: 792_000 }, // Гурван талт үндэсний хорооны 2024-10-07-ны 03 дугаар тогтоол
+  { from: "2027-01-01", monthly: 1_000_000 }, // the committee's 2026-08-17 decision (mlsp.gov.mn)
+];
+/**
+ * Нийгмийн даатгалын ерөнхий хууль (2023, in force 2024-01-01) 19.4: for a mandatorily insured
+ * person the monthly wage on which contributions are paid (and benefits are set) is at most the
+ * monthly minimum wage × 10 (× 7 for a voluntarily insured one). The employer's share has no
+ * ceiling (21.1). The employee's whole 11.5 % (8.5 pension + 0.8 benefit + 0.2 unemployment under
+ * 18.1, 2 % health under the Health Insurance Law) is withheld up to that ceiling in practice
+ * (ndaatgal.mn: 7 920 000 ₮ → at most 910 800 ₮ a month in 2026).
+ */
+export const SI_CAP_MULTIPLE = 10;
+
+/** The minimum wage in force on an Ulaanbaatar day ("2026-11-07"). */
+export function minWage(day: string): number {
+  return (MIN_WAGE.filter((m) => m.from <= day).at(-1) ?? MIN_WAGE[0]).monthly;
+}
+
+/** The monthly wage above which no more НДШ is withheld (law 19.4). */
+export function siCapMonthly(day: string): number {
+  return minWage(day) * SI_CAP_MULTIPLE;
+}
+
+/** The ceiling's sources, printed above the calculator with PIT_SOURCES. */
+export const SI_SOURCES: { name: string; url: string }[] = [
+  { name: "legalinfo.mn, Нийгмийн даатгалын ерөнхий хууль 19.4 (шимтгэлийн дээд хэмжээ)", url: "https://legalinfo.mn/mn/detail?lawId=16760148379551" },
+  { name: "ndaatgal.mn, доод цалин 792 000 ₮ (2025-04-01)", url: "https://orhon.ndaatgal.mn/" },
+  { name: "mlsp.gov.mn, доод цалин 1 000 000 ₮ (2027-01-01)", url: "https://mlsp.gov.mn/content/detail/4164" },
+];
 
 /** One band of the yearly ХХОАТ scale on wages: `rate` applies to the part of the income up to `upTo` (₮ a year). */
 export interface PitBand {
@@ -92,11 +129,14 @@ export interface BudgetShare {
 }
 
 /** Monthly НДШ and ХХОАТ for a gross salary on an Ulaanbaatar day (an estimate: no tax credit). */
-export function payrollParts(grossMonthly: number, day: string): { si: number; pit: number; total: number } {
-  if (!Number.isFinite(grossMonthly) || grossMonthly <= 0) return { si: 0, pit: 0, total: 0 };
-  const si = Math.round(grossMonthly * SI_RATE);
-  const pit = Math.round(annualPit((grossMonthly - grossMonthly * SI_RATE) * 12, day) / 12);
-  return { si, pit, total: si + pit };
+export function payrollParts(grossMonthly: number, day: string): { si: number; pit: number; total: number; capped: boolean } {
+  if (!Number.isFinite(grossMonthly) || grossMonthly <= 0) return { si: 0, pit: 0, total: 0, capped: false };
+  // НДШ stops at the law's ceiling (19.4); the ХХОАТ base is the pay less the НДШ really withheld,
+  // so a salary above the ceiling used to show too much НДШ and too little ХХОАТ.
+  const cap = siCapMonthly(day);
+  const si = Math.round(Math.min(grossMonthly, cap) * SI_RATE);
+  const pit = Math.round(annualPit((grossMonthly - si) * 12, day) / 12);
+  return { si, pit, total: si + pit, capped: grossMonthly > cap };
 }
 
 /** Rough monthly ХХОАТ + НДШ for a gross salary (shown to the reader as an estimate). */

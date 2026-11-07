@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { annualPit, estimatePayrollTax, looksLikeSalary, payrollFromInputs, payrollParts, pitSchedule, sharesFromSpending, taxReceipt, upcomingSchedules } from "@/lib/tax/receipt";
+import { annualPit, estimatePayrollTax, looksLikeSalary, minWage, payrollFromInputs, payrollParts, pitSchedule, sharesFromSpending, siCapMonthly, taxReceipt, upcomingSchedules } from "@/lib/tax/receipt";
 
 describe("Миний татвар", () => {
   it("estimates НДШ 11.5% plus ХХОАТ 10% after НДШ", () => {
@@ -48,7 +48,7 @@ describe("Миний татвар", () => {
   });
 
   it("estimates a 3 000 000 ₮ salary and 1 000 000 ₮ of shopping", () => {
-    assert.deepEqual(payrollParts(3_000_000, "2026-11-04"), { si: 345_000, pit: 265_500, total: 610_500 });
+    assert.deepEqual(payrollParts(3_000_000, "2026-11-04"), { si: 345_000, pit: 265_500, total: 610_500, capped: false });
     const payroll = payrollFromInputs({ salary: 3_000_000, exact: 0, day: "2026-11-04" });
     assert.deepEqual(payroll, { monthly: 610_500, source: "estimate" });
     const r = taxReceipt({ payrollMonthly: payroll.monthly, purchasesMonthly: 1_000_000 }, [{ name: "A", share: 1 }]);
@@ -89,7 +89,21 @@ describe("ХХОАТ schedules (law of 2026-06-26)", () => {
   });
 
   it("a 700 000 ₮ salary pays no ХХОАТ from 2027, only НДШ", () => {
-    assert.deepEqual(payrollParts(700_000, "2027-02-01"), { si: 80_500, pit: 0, total: 80_500 });
-    assert.deepEqual(payrollParts(700_000, "2026-11-04"), { si: 80_500, pit: 61_950, total: 142_450 });
+    assert.deepEqual(payrollParts(700_000, "2027-02-01"), { si: 80_500, pit: 0, total: 80_500, capped: false });
+    assert.deepEqual(payrollParts(700_000, "2026-11-04"), { si: 80_500, pit: 61_950, total: 142_450, capped: false });
+  });
+
+  it("НДШ stops at the law's ceiling, 10 × the minimum wage in force (НДЕХ 19.4); the ХХОАТ base is the pay less that НДШ", () => {
+    assert.equal(minWage("2024-06-01"), 660_000);
+    assert.equal(minWage("2025-03-31"), 660_000);
+    assert.equal(minWage("2025-04-01"), 792_000);
+    assert.equal(siCapMonthly("2026-11-07"), 7_920_000);
+    assert.equal(siCapMonthly("2027-01-01"), 10_000_000);
+    // 10 000 000 ₮ in 2026: НДШ 11.5 % of 7 920 000 = 910 800 (not 1 150 000), ХХОАТ 10 % of the rest.
+    assert.deepEqual(payrollParts(10_000_000, "2026-11-07"), { si: 910_800, pit: 908_920, total: 1_819_720, capped: true });
+    // 2027: the ceiling moves with the 1 000 000 ₮ minimum wage, so the same salary is not capped.
+    assert.equal(payrollParts(10_000_000, "2027-02-01").capped, false);
+    assert.equal(payrollParts(10_000_000, "2027-02-01").si, 1_150_000);
+    assert.equal(payrollParts(7_920_000, "2026-11-07").capped, false);
   });
 });
