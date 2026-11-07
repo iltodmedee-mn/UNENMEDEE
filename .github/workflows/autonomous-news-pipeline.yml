@@ -44,6 +44,9 @@ jobs:
     # Forks keep the code but never run the scheduled jobs (no secrets, no Actions minutes).
     if: github.repository_owner == 'iltodmedee-mn'
     runs-on: ubuntu-latest
+    outputs:
+      feed_report: ${{ steps.feed_check.outputs.report }}
+      feed_checked: ${{ steps.feed_check.outcome == 'success' }}
     # Normal runs take 15-40 min; a 30-day backfill uses the extra time.
     timeout-minutes: 150
     env:
@@ -236,6 +239,19 @@ jobs:
         continue-on-error: true
         run: npm run press:sync
 
+      # What readers see (src/lib/feed-check.ts): the newest 40 home-feed stories against a few rules
+      # (Cyrillic, no broken text, no duplicate headline, no flood from one site, no old page shown as
+      # new, no future date). Read-only; the feed_issue job below opens or closes the issue.
+      - name: Check the home feed as readers see it
+        id: feed_check
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
+        continue-on-error: true
+        env:
+          FEED_REPORT: feed-check.md
+        run: |
+          npm run feed:check
+          echo "report=$(base64 -w0 < feed-check.md 2>/dev/null)" >> "$GITHUB_OUTPUT"
+
       - name: Notify subscribers about important news
         id: push_news
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
@@ -326,3 +342,36 @@ jobs:
             exit 1
           fi
           echo "✓ every step succeeded"
+
+  # Opens, updates or closes the "feed-check" issue (GitHub e-mails the owner when it opens). A job
+  # of its own so only this one, which runs no scraped content, holds issues: write.
+  feed_issue:
+    needs: pipeline
+    if: ${{ !cancelled() && needs.pipeline.outputs.feed_checked == 'true' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      REPORT_B64: ${{ needs.pipeline.outputs.feed_report }}
+    steps:
+      - name: Open, update or close the feed-check issue
+        run: |
+          printf '%s' "$REPORT_B64" | base64 -d > report.md || : > report.md
+          gh label create feed-check --color e11d48 --description "Home feed check: what readers see is wrong" 2>/dev/null || true
+          open=$(gh issue list --label feed-check --state open --json number --jq '.[0].number')
+          if [ -s report.md ]; then
+            if [ -z "$open" ]; then
+              gh issue create --title "🧐 Нүүр хуудасны мэдээнд асуудал илэрлээ" --label feed-check --body-file report.md
+            else
+              old=$(gh issue view "$open" --json body --jq .body | head -1)
+              if [ "$old" != "$(head -1 report.md)" ]; then
+                gh issue edit "$open" --body-file report.md
+                gh issue comment "$open" --body "Асуудлын жагсаалт өөрчлөгдлөө: дээрх текстийг харна уу."
+              fi
+            fi
+          elif [ -n "$open" ]; then
+            gh issue close "$open" --comment "✓ Нүүр хуудасны мэдээ дахин хэвийн."
+          fi
