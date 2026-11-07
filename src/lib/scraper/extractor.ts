@@ -231,8 +231,11 @@ function iconStampDate(doc: Document, headline?: string): Date | null {
   for (const icon of container.querySelectorAll("i[class], span[class], svg[class]")) {
     if (!STAMP_ICON.test(icon.getAttribute("class") ?? "")) continue;
     const text = (icon.parentElement?.textContent ?? "").trim();
-    if (text.length > 40) continue;
-    const d = dateFromText(text);
+    // A stamp line with more after it (khural.mn: "Огноо: 2025-07-29 · Дугаар: 06/01 · Нээгдсэн: 218")
+    // is read from the text right after the icon only, up to the next element.
+    const own = text.length > 40 ? (icon.nextSibling?.nodeType === 3 ? (icon.nextSibling.textContent ?? "").trim() : "") : text;
+    if (!own || own.length > 40) continue;
+    const d = dateFromText(own);
     if (d) return d;
   }
   return null;

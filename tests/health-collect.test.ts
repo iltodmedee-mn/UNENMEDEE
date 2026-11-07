@@ -109,6 +109,7 @@ describe("watchdog collectors (PGlite)", () => {
     assert.equal(i.duplicateHashes, 1);
     assert.equal(i.widespreadClusters, 0);
     assert.deepEqual(i.silentSources, ["silent.gov.mn"]);
+    assert.deepEqual(i.undatedBursts, []);
   });
 
   it("social: only a real post id counts, unknown is counted for 7 days", async () => {
