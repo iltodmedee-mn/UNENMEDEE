@@ -37,4 +37,15 @@ describe("hook highlight", () => {
       .map((w) => w.word);
     assert.deepEqual(hot, ["₮600,000", "болно"]);
   });
+
+  it("highlights a number typed with space thousands as one number", () => {
+    const words = (t: string) => hot(t).split(" ");
+    assert.deepEqual(words("2027 оноос 792 000 ₮ хүртэлх цалин татваргүй"), ["792", "000", "₮", "хүртэлх"]);
+    assert.deepEqual(words("Тэтгэвэр 1 000 000 төгрөг болно"), ["1", "000", "000", "төгрөг", "болно"]);
+    assert.deepEqual(words("4 500 айл орон сууцтай болно"), ["4", "500", "айл"]);
+  });
+
+  it("a year followed by 'он:' is a year, not the fact", () => {
+    assert.equal(hot("2026 он: 5 тэрбум төгрөг"), "5 тэрбум төгрөг");
+  });
 });

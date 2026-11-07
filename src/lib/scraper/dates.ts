@@ -78,3 +78,18 @@ export function isFutureDate(d: Date, now = new Date()): boolean {
   }
   return d.getTime() > now.getTime() + 3_600_000;
 }
+
+/**
+ * A machine-readable date (meta tag, JSON-LD, <time datetime>). A value without a zone
+ * ("2026-10-23 17:41:12", "2026-10-23T17:41") is Ulaanbaatar wall-clock time (UTC+8): read as
+ * UTC it would be 8 hours late and the feed would sort it under the next morning's news.
+ */
+export function parseDateValue(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  let v = value.trim();
+  const local = v.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)$/);
+  if (local) v = `${local[1]}T${local[2]}+08:00`;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime()) || d.getUTCFullYear() < 2000 || isFutureDate(d)) return null;
+  return d;
+}

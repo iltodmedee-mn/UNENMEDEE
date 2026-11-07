@@ -1,6 +1,6 @@
 import { normalizeText } from "@/lib/text";
 
-import { isDateLine } from "./titles";
+import { isDateLine, OUR_PREFIX } from "./titles";
 
 /**
  * Re-checking stored articles against their source page ("Эх хуудасны өөрчлөлт", /changes).
@@ -120,9 +120,6 @@ export interface Comparison extends SourceDiff {
   /** How many pieces of our copy were compared (below MIN_SENTENCES the result is not trusted). */
   compared: number;
 }
-
-/** Lines we add ourselves when storing (legalinfo.ts's issuer line): never on the source page. */
-const OUR_PREFIX = /^Батлагдсан байгууллага:[^\n]*\n+/;
 
 export function compareTexts(stored: string, fresh: string): Comparison {
   const ours = splitSentences(stored.replace(OUR_PREFIX, ""));

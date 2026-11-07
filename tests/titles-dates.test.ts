@@ -120,6 +120,10 @@ describe("shouting headlines", () => {
   });
   it("keeps abbreviations before a hyphenated case ending and names after initials", () => {
     assert.equal(unshoutTitle("ШТС-УУДЫН ЭЭЛЖ ХҮЛЭЭЛЦЭХ ЦАГИЙГ 11:00 ЦАГ БОЛГОН ӨӨРЧИЛЛӨӨ"), "ШТС-уудын ээлж хүлээлцэх цагийг 11:00 цаг болгон өөрчиллөө");
+    assert.equal(unshoutTitle("ЕРӨНХИЙ САЙД Л.ОЮУН-ЭРДЭНЭ АЖЛЫН АЙЛЧЛАЛ ХИЙЛЭЭ"), "Ерөнхий сайд Л.Оюун-Эрдэнэ ажлын айлчлал хийлээ");
+    assert.equal(unshoutTitle("Б.БАТ-ЭРДЭНЭ ИРГЭДТЭЙ УУЛЗЛАА"), "Б.Бат-Эрдэнэ иргэдтэй уулзлаа");
+    assert.equal(unshoutTitle("Б.БАТ-ЭРДЭНЭ-ТЭЙ УУЛЗЛАА"), "Б.Бат-Эрдэнэ-тэй уулзлаа");
+    assert.equal(unshoutTitle("ЭРЧИМ-ХҮЧНИЙ САЛБАРТ ХУРАЛ БОЛЛОО"), "Эрчим-хүчний салбарт хурал боллоо", "ordinary hyphenated words stay lower case");
     assert.equal(unshoutTitle("АҮЭБЯ-НЫ ДАРГА Б.ДАШПҮРЭВ С.К.ШОЙГУ-ТАЙ УУЛЗЛАА"), "АҮЭБЯ-ны дарга Б.Дашпүрэв С.К.Шойгу-тай уулзлаа");
     assert.equal(unshoutTitle("УЛААН БУРХАН ӨВЧИН ЭРГЭН ТАРХАЖ БАЙНА. БИД ЧАДАХ УУ?"), "Улаан бурхан өвчин эргэн тархаж байна. Бид чадах уу?");
   });
@@ -285,5 +289,12 @@ describe("department about-pages are not news", () => {
     assert.ok(!looksLikeUnitPage("Авлигатай тэмцэх газар", "Өнөөдөр АТГ хэвлэлийн бага хурал хийж, 3 хэргийг шүүхэд шилжүүлснээ мэдэгдлээ."));
     assert.ok(!looksLikeUnitPage("Чанвон хотод төвийн явуулын үйлчилгээ үзүүлнэ", "ТАНИЛЦУУЛГА"));
     assert.ok(!looksLikeUnitPage("Сайд иргэдтэй асуулт хариултын уулзалт хийлээ", "Өнөөдөр"));
+  });
+});
+
+describe("firstSentenceTitle skips our own lines", () => {
+  it("never takes the issuer line legalinfo.mn acts start with", () => {
+    const text = "Батлагдсан байгууллага: Хууль зүй, дотоод хэргийн яам\n\nЖурам шинэчлэн батлах тухай шийдвэр гарлаа.";
+    assert.equal(firstSentenceTitle(text), "Журам шинэчлэн батлах тухай шийдвэр гарлаа");
   });
 });

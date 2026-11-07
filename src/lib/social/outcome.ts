@@ -56,3 +56,18 @@ export async function publishStep<T>(fn: () => Promise<T>): Promise<T> {
   }
 }
 
+
+/** A reservation that never got a post id this long ago belongs to a run that died before publishing. */
+export const ABANDONED_AFTER_MS = 2 * 3_600_000;
+
+/**
+ * True when a `social_posts` row has no post id (not "unknown", not "failed:n") and was reserved
+ * more than ABANDONED_AFTER_MS ago: a cancelled or killed run left it. post-social marks it
+ * "unknown" (never posts it again: the run may have died after the platform accepted it), so the
+ * watchdog reports it instead of it reading "already posted" in silence forever.
+ */
+export function abandonedReservation(postId: string | null | undefined, createdAt: Date | null | undefined, now: Date): boolean {
+  if (postId !== null && postId !== undefined) return false;
+  if (!createdAt) return false;
+  return now.getTime() - createdAt.getTime() > ABANDONED_AFTER_MS;
+}

@@ -37,7 +37,7 @@ import { narration, priceVideoSpec, type Scene, type VideoSpec, verifySpec } fro
 import type { VideoMeta } from "@/lib/video/posts";
 import { analyseAudio, MAX_BYTES, renderVideo } from "@/lib/video/render";
 import { sceneHtml } from "@/lib/video/scene-html";
-import { dueSlot, kindsFor, type VideoSlot } from "@/lib/video/schedule";
+import { claimValue, dueSlot, kindsFor, mayClaim, slotStart, type VideoSlot } from "@/lib/video/schedule";
 import { buildTimeline, plausibleTake, sentenceStarts, speechBounds, type Timeline } from "@/lib/video/timing";
 import { CreditsRefused, describeSecret, elevenLabsFromEnv, speakElevenLabs } from "@/lib/video/elevenlabs";
 import { speak } from "@/lib/video/tts";
@@ -61,16 +61,45 @@ const dry = values["dry-run"];
 
 const SLOT_CLAIM_KEY = "video_slot_claim";
 
-/** The Ulaanbaatar start of `slot` today as the claim value; true when this run set it first. */
+/** The claim this run holds (null: none, or released), so a run that stores nothing gives the slot back. */
+let myClaim: string | null = null;
+let madeVideo = false;
+
+/**
+ * Claims `slot` as a lease (`<slot start>|<claimed at>`): one run wins, and a claim whose run
+ * failed before storing a video expires after CLAIM_LEASE_MS instead of blocking the slot for good.
+ * The write is a compare-and-swap on the value read, so two runs cannot both win.
+ */
 async function claimSlot(db: DB, slot: VideoSlot): Promise<boolean> {
-  const ub = new Date(Date.now() + 8 * 3_600_000);
-  const value = new Date(Date.UTC(ub.getUTCFullYear(), ub.getUTCMonth(), ub.getUTCDate(), slot.from) - 8 * 3_600_000).toISOString();
+  const now = new Date();
+  const start = slotStart(now, slot);
+  const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, SLOT_CLAIM_KEY));
+  const stored = typeof row?.value === "string" ? row.value : null;
+  if (!mayClaim(stored, start, now)) return false;
+  const value = claimValue(start, now);
   const won = await db
     .insert(appSettings)
     .values({ key: SLOT_CLAIM_KEY, value })
-    .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() }, setWhere: sql`${appSettings.value} <> ${value}` })
+    .onConflictDoUpdate({
+      target: appSettings.key,
+      set: { value, updatedAt: new Date() },
+      setWhere: stored === null ? sql`false` : sql`${appSettings.value} = ${stored}`,
+    })
     .returning({ key: appSettings.key });
+  if (won.length > 0) myClaim = value;
   return won.length > 0;
+}
+
+/** A run that ends without a stored video (error, nothing to make) gives its claim back, if it is still ours. */
+async function releaseClaim(): Promise<void> {
+  if (!myClaim || madeVideo) return;
+  const value = myClaim;
+  myClaim = null;
+  try {
+    await getDb().delete(appSettings).where(and(eq(appSettings.key, SLOT_CLAIM_KEY), eq(appSettings.value, value)));
+  } catch (err) {
+    console.log(`::warning::could not release the slot claim: ${errorDetail(err)}`);
+  }
 }
 
 async function main() {
@@ -173,6 +202,7 @@ async function main() {
     .values({ key, meta, mp4, bytes: mp4.length, durationS: total })
     .onConflictDoUpdate({ target: videos.key, set: { meta, mp4, bytes: mp4.length, durationS: total, createdAt: new Date() } })
     .returning({ id: videos.id });
+  madeVideo = true;
   console.log(`   stored as video #${stored.id}`);
 }
 
@@ -290,4 +320,7 @@ main()
     console.error(`::error::make-video: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
-  .finally(() => closeDb());
+  .finally(async () => {
+    await releaseClaim();
+    await closeDb();
+  });

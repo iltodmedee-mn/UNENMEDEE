@@ -62,6 +62,13 @@ describe("Tier1Schema", () => {
   });
 });
 
+function mock_console() {
+  const orig = console.warn;
+  const lines: string[] = [];
+  console.warn = (...a: unknown[]) => void lines.push(a.join(" "));
+  return { lines, restore: () => void (console.warn = orig) };
+}
+
 describe("router with a mock OpenAI-compatible server", () => {
   let mock: Awaited<ReturnType<typeof startMockLLM>>;
   let script: (model: string, i: number) => Reply;
@@ -182,6 +189,23 @@ describe("router with a mock OpenAI-compatible server", () => {
     }
   });
 
+  it("a failing usage log after a valid answer neither trips the provider nor loses the answer", async () => {
+    script = () => ({ content: TIER2_OK });
+    const brokenLog = async () => {
+      throw new Error("Query read timeout");
+    };
+    const warn = mock_console();
+    try {
+      for (let i = 0; i < PROVIDER_TRIP + 1; i++) {
+        const res = await callAIWithFallback({ tier: "tier2", purpose: "tier2", messages: [{ role: "user", content: "x" }], schema: Tier2Schema, log: brokenLog });
+        assert.equal(res.provider, "grok", "the answer is kept and the provider is never skipped");
+      }
+      assert.ok(warn.lines.some((l) => /usage log failed/.test(l)));
+    } finally {
+      warn.restore();
+    }
+  });
+
   it("falls back from Grok to DeepSeek when Grok errors", async () => {
     script = (model) => (model === "mock-grok" ? { status: 400 } : { content: TIER2_OK });
     const res = await callAIWithFallback({ tier: "tier2", purpose: "tier2", messages: [{ role: "user", content: "x" }], schema: Tier2Schema, log });
@@ -250,6 +274,9 @@ describe("clustering", () => {
   it("re-synthesizes clusters only at growth milestones", () => {
     assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15].map((n) => shouldResynthesize(n - 1, n)), [false, true, true, false, true, false, false, true, false, true, true]);
     assert.equal(shouldResynthesize(3, 3), false);
+    // A cluster whose synthesis call failed keeps its count; the next refresh must try again.
+    assert.equal(shouldResynthesize(2, 2, false), true);
+    assert.equal(shouldResynthesize(1, 1, false), false);
     // A jump over a milestone counts (a cluster born with 4 members in one --recluster run).
     assert.equal(shouldResynthesize(0, 4), true);
     assert.equal(shouldResynthesize(3, 6), true);

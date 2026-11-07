@@ -4,6 +4,7 @@ import type { DB } from "@/db";
 import { articles, seenUrls, sources } from "@/db/schema";
 import { contentHash, slugify, truncate } from "@/lib/text";
 
+import { API_ADAPTERS } from "./adapters";
 import type { ArticleSink } from "./crawl";
 import { isDayLevel, isFutureDate, MAX_AGE_DAYS, publishDecision } from "./dates";
 import { isStaticPageUrl } from "./links";
@@ -13,11 +14,17 @@ import type { ScrapedItem, SourceRef, SourceRunResult } from "./types";
 /** Hard cap per article to protect the 500 MB Supabase free tier (~15 KB of text). */
 export const MAX_STORED_CHARS = 15_000;
 
-/** Sources whose items legitimately share titles (a dataset name per release). */
-const REPEATING_TITLES = new Set(["opendata.gov.mn"]);
+/**
+ * Sources whose items legitimately share titles (a dataset name per release). API and feed items
+ * (legalinfo.mn acts, parliament, zasag, police, the gov.mn portal) carry a real headline, never a
+ * `<title>`: a repeated "ЖУРАМ БАТЛАХ ТУХАЙ" is a second act, not the site's name.
+ */
+export function repeatsTitles(domain: string): boolean {
+  return domain === "opendata.gov.mn" || Object.hasOwn(API_ADAPTERS, domain);
+}
 
 export interface SinkOptions {
-  /** Dated items older than this many days are stored unpublished (a backfill passes its window). */
+  /** Dated items older than this many days are stored unpublished (a backfill passes its window; it also marks a backfill). */
   maxAgeDays?: number;
 }
 
@@ -31,6 +38,8 @@ export const NO_TEXT_HASH = "no-text";
 export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
   const maxAgeDays = Math.max(options.maxAgeDays ?? MAX_AGE_DAYS, MAX_AGE_DAYS);
   const claimed = new Set<string>();
+  // A backfill reads many genuine posts of one past day: the stray-stamp rule would date the 11th as "found now".
+  const backfill = options.maxAgeDays !== undefined;
   return {
     async filterNewUrls(urls) {
       if (urls.length === 0) return new Set();
@@ -64,7 +73,7 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
       if (dup.length || deletedDup.length) return "duplicate";
       let title = item.title;
       let siteTitle = isGenericTitle(title, [source.name]);
-      if (!siteTitle && !REPEATING_TITLES.has(source.domain)) {
+      if (!siteTitle && !repeatsTitles(source.domain)) {
         // The same title already used by this site this month: it is the site's title, not a headline.
         const seen = await db
           .select({ id: articles.id })
@@ -86,7 +95,7 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
       let publishedAt = item.publishedAt && !isFutureDate(item.publishedAt) ? item.publishedAt : null;
       // A day-level date from weeks ago that this source already gave 10+ articles is a stamp in
       // the page chrome (judcouncil.mn dated 39 stories "2019-10-22"): keep the story, drop the date.
-      if (publishedAt && isDayLevel(publishedAt) && publishedAt.getTime() < Date.now() - SHARED_DATE_MIN_DAYS * 86_400_000) {
+      if (!backfill && publishedAt && isDayLevel(publishedAt) && publishedAt.getTime() < Date.now() - SHARED_DATE_MIN_DAYS * 86_400_000) {
         const same = await db
           .select({ n: sql<number>`count(*)::int` })
           .from(articles)

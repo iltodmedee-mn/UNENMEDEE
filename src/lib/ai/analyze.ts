@@ -278,8 +278,9 @@ export async function assignCluster(db: DB, id: number, log?: UsageLogger, budge
  * and a cluster of two or more without any synthesis yet is always refreshed.
  */
 export function shouldResynthesize(previousCount: number, newCount: number, hasSynthesis = true): boolean {
-  if (newCount < 2 || newCount === previousCount) return false;
-  if (!hasSynthesis) return true;
+  if (newCount < 2) return false;
+  if (!hasSynthesis) return true; // also when the count did not change: the earlier synthesis call failed
+  if (newCount === previousCount) return false;
   const milestone = (n: number) => [2, 3, 5, 8].includes(n) || (n > 8 && n % 5 === 0);
   for (let n = previousCount + 1; n <= newCount; n++) if (milestone(n)) return true;
   return false;

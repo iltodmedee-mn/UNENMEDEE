@@ -183,6 +183,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   log.setLevel(log.LEVELS.WARNING);
   const progress = opts.onProgress ?? (() => {});
   const deadline = Date.now() + opts.budgetMs;
+  const browserEnabled = opts.browser ?? process.env.SCRAPER_BROWSER !== "0";
   const states = new Map<number, SourceState>(
     sources.map((s) => [
       s.id,
@@ -316,7 +317,13 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
           } else if (mode === "http") {
             state.queuedArticles -= 1; // give the slot back; the browser pass may fill it
             state.found -= 1;
-            state.needsBrowserArticles.push(url);
+            // No text and no browser pass to try: a photo or video post, remembered like the API
+            // sources do, so it is not fetched (8 s) again every run.
+            if (!article && !browserEnabled) await sink.markNoText?.(state.source, url);
+            else state.needsBrowserArticles.push(url);
+          } else if (!article) {
+            // The browser read it too and found no article text: never fetch it again.
+            await sink.markNoText?.(state.source, url);
           }
         }
       }
@@ -554,7 +561,6 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   }
 
   // ---------------------------------------------------------------- passes
-  const browserEnabled = opts.browser ?? process.env.SCRAPER_BROWSER !== "0";
   const httpDeadline = Date.now() + httpBudgetMs(opts.budgetMs, browserEnabled);
   await runPass(
     "http",

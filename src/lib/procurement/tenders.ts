@@ -63,11 +63,20 @@ const CODE = /^[\p{L}\d-]{1,24}\/\d{8,14}$/u;
  * сайн үнэлэгдсэн", "Эрх бүхий оролцогч болохыг нотлох баримт бичгүүд", "оролцогч ороогүй" or "0",
  * and the warning signs nearly named one of them as a buyer's main supplier.
  */
-export const NO_AWARD =
-  /ирээгүй|ирүүлээгүй|ороогүй|хүчингүй|цуцал|зарлаагүй|зарлагдаагүй|^зарласан|эхлээгүй|байхгүй|шалгараагүй|үнэлээгүй|үнэлэгдсэн|баримт бич|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.\s\d]*$/iu;
+const NO_AWARD_WORDS =
+  "ирээгүй|ирүүлээгүй|ороогүй|хүчингүй|цуцал|зарлаагүй|зарлагдаагүй|эхлээгүй|байхгүй|шалгараагүй|үнэлээгүй|үнэлэгдсэн|баримт бич|дахин зарла|хүлээж авч байгаа|боломжгүй";
+/**
+ * A company's legal form at the end of the cell: "Цуцалт сервис ХХК", "Баримт бичиг ХХК" are
+ * suppliers whose names contain a status word, not statuses.
+ */
+const LEGAL_FORMS = "ХХК|ХК|ТӨХК|СӨХК|ББСБ|ХЗХ|ТББ|ТӨҮГ|ОНӨҮГ|ОНӨААТҮГ";
+
+export const NO_AWARD = new RegExp(
+  `^(?!.*(?:^|[\\s"«(])(?:${LEGAL_FORMS})[\\s.»")]*$)(?:зарласан|[-–—.\\s\\d]*$|.*?(?:${NO_AWARD_WORDS}))`,
+  "iu",
+);
 /** The same test for Postgres (`~*`), used by the /tenders "no winner" count. */
-export const NO_AWARD_SQL =
-  "ирээгүй|ирүүлээгүй|ороогүй|хүчингүй|цуцал|зарлаагүй|зарлагдаагүй|^зарласан|эхлээгүй|байхгүй|шалгараагүй|үнэлээгүй|үнэлэгдсэн|баримт бич|дахин зарла|хүлээж авч байгаа|боломжгүй|^[-–—.[:space:][:digit:]]*$";
+export const NO_AWARD_SQL = `^(?!.*(?:^|[[:space:]"«(])(?:${LEGAL_FORMS})[[:space:].»")]*$)(?:зарласан|[-–—.[:space:][:digit:]]*$|.*(?:${NO_AWARD_WORDS}))`;
 
 /** True when a winner cell names nobody ("-", "оролцогч ирээгүй"…). */
 export const namesNoWinner = (winner: string | null): boolean => winner !== null && NO_AWARD.test(winner);
@@ -90,7 +99,11 @@ export function methodLabel(raw: string | null): string | null {
 /** Whole tögrög from "1068516025" or "355543123.27"; anything that is not a plain number is null. */
 export function amount(raw: string | null): number | null {
   if (!raw) return null;
-  const s = raw.replace(/[\s,]/g, "");
+  // A single comma followed by 1-2 digits at the end is a decimal comma ("4 343 956,27"), not a
+  // thousands separator: stripping it made the amount 100 times too big.
+  const t = raw.trim();
+  const decimalComma = (t.match(/,/g) ?? []).length === 1 && /,\d{1,2}$/.test(t);
+  const s = decimalComma ? t.replace(/[\s.]/g, "").replace(",", ".") : t.replace(/[\s,]/g, "");
   if (!/^\d{1,15}(\.\d{1,4})?$/.test(s)) return null;
   const n = Math.round(Number(s));
   return n > 0 ? n : null;

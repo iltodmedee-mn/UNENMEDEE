@@ -1,5 +1,6 @@
 import * as cheerio from "cheerio";
 
+import { parseDateValue } from "@/lib/scraper/dates";
 import { normalizeText } from "@/lib/text";
 
 export { OUTLETS, type Outlet } from "./outlets";
@@ -12,10 +13,9 @@ export interface FeedItem {
 
 const strip = (html: string) => normalizeText(cheerio.load(`<div>${html}</div>`)("div").text()).replace(/\s+/g, " ").trim();
 
+/** A feed date; one without a zone is Ulaanbaatar time (parseDateValue), not UTC. */
 function validDate(s: string | undefined | null): Date | null {
-  if (!s) return null;
-  const d = new Date(s);
-  return Number.isNaN(d.getTime()) ? null : d;
+  return parseDateValue(s);
 }
 
 /** RSS 2.0 (ikon.mn, sonin.mn): title, link and pubDate with its zone (the description is not read). */

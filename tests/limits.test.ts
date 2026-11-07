@@ -4,7 +4,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 
 import { analyzeArticle, ruleBasedAnalysis } from "@/lib/ai/analyze";
 import { budgetConfig, checkAllowance, createBudgetGuard, isPaid, type BudgetGuard, type UsageSnapshot } from "@/lib/ai/limits";
-import { AIUnavailableError, callAIWithFallback, chainFor, openRouterModel, spreadFree, zaiModel, type UsageRecord } from "@/lib/ai/router";
+import { AIUnavailableError, callAIWithFallback, chainFor, chainForCall, openRouterModel, spreadFree, zaiModel, type UsageRecord } from "@/lib/ai/router";
 import { Tier1Schema, Tier2Schema } from "@/lib/ai/schemas";
 import { opendataItemToScraped, parseOpendataResponse } from "@/lib/scraper/adapters/opendata";
 
@@ -13,6 +13,29 @@ import { startMockLLM, TIER1_OK, TIER2_OK } from "./helpers/mock-llm";
 const cfg = budgetConfig({ AI_MONTHLY_BUDGET_USD: "3", AI_DAILY_BUDGET_USD: "0.3", GROK_DAILY_MAX_CALLS: "5", GEMINI_DAILY_MAX_CALLS: "800" });
 const usage = (u: Partial<UsageSnapshot> = {}): UsageSnapshot => ({ monthUsd: 0, dayUsd: 0, dayCalls: {}, ...u });
 
+describe("budget guard across reloads", () => {
+  it("keeps unlogged calls (429, timeout) when the snapshot reloads, and resets on a new UTC day", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-07T10:00:00Z") });
+    const c = budgetConfig({ GROK_DAILY_MAX_CALLS: "5" });
+    const guard = createBudgetGuard(async () => usage(), c);
+    for (let window = 0; window < 3; window++) {
+      await guard.check("grok"); // loads (or reloads) the snapshot
+      for (let i = 0; i < 4; i++) if ((await guard.check("grok")).ok) guard.record("grok", 0, true);
+      t.mock.timers.tick(61_000);
+    }
+    assert.equal((await guard.check("grok")).ok, false, "5 unlogged calls in total close the provider");
+    // A logged call is already in the database count: not added twice.
+    const logged = createBudgetGuard(async () => usage({ dayCalls: { grok: 1 } }), c);
+    await logged.check("grok");
+    logged.record("grok", 0);
+    t.mock.timers.tick(61_000);
+    assert.equal((await logged.check("grok")).ok, true);
+    // The next UTC day starts empty.
+    t.mock.timers.tick(14 * 3600_000);
+    assert.equal((await guard.check("grok")).ok, true);
+  });
+});
+
 describe("budget limits", () => {
   it("uses safe defaults when env vars are missing", () => {
     const d = budgetConfig({});
@@ -20,6 +43,16 @@ describe("budget limits", () => {
     assert.equal(d.dailyUsd, 0.3);
     assert.equal(d.dailyMaxCalls.grok, 5);
     assert.equal(d.requestsPerMinute.gemini, 10);
+  });
+
+  it("a written AI_TIER1_CHAIN is used exactly as written, the default one rotates", () => {
+    const written = { AI_TIER1_CHAIN: "groq,nvidia,gemini" };
+    const a = chainForCall("tier1", written);
+    const b = chainForCall("tier1", written);
+    assert.deepEqual(a, ["groq", "nvidia", "gemini"]);
+    assert.deepEqual(b, a);
+    const seen = new Set([chainForCall("tier1", {}).join(), chainForCall("tier1", {}).join()]);
+    assert.equal(seen.size, 2, "the default chain rotates its free head");
   });
 
   it("blocks paid providers once the monthly or daily budget is spent", () => {

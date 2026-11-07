@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
 import { describe, it } from "node:test";
@@ -158,5 +159,15 @@ describe("push endpoints and logs", () => {
     assert.equal(oneLine("Гарчиг\n::error::fake\r\n##[warning]x"), "Гарчиг ::error::fake ##[warning]x");
     assert.equal(oneLine("a b\u0085c"), "a b c");
     assert.equal(oneLine("x".repeat(500), 10), "x".repeat(10));
+  });
+});
+
+describe("Audit 6: publisher-controlled bodies are read with a size limit", () => {
+  it("recheck, repair-dates and discover-sources never buffer res.text() / res.json()", () => {
+    for (const f of ["scripts/recheck-sources.ts", "scripts/repair-dates.ts", "scripts/discover-sources.ts"]) {
+      const src = readFileSync(f, "utf8");
+      assert.doesNotMatch(src, /\bres\.(text|json)\(\)/, f);
+      assert.match(src, /readTextLimited|readJsonLimited/, f);
+    }
   });
 });

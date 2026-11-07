@@ -193,3 +193,10 @@ describe("wordPressPostId (re-check reads WordPress posts through the REST API)"
     assert.equal(wordPressPostId(`<html><body class="home"></body></html>`), null);
   });
 });
+
+describe("feed dates without a zone", () => {
+  it("are Ulaanbaatar time, not UTC", () => {
+    const rss = `<rss><channel><item><title>x</title><link>https://a.gov.mn/n/1</link><pubDate>2026-11-05 17:41:00</pubDate></item></channel></rss>`;
+    assert.equal(parseFeed(rss)[0].publishedAt?.toISOString(), "2026-11-05T09:41:00.000Z");
+  });
+});

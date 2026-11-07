@@ -1,5 +1,7 @@
 import * as cheerio from "cheerio";
 
+import { parseDateValue } from "./dates";
+
 export interface LinkCandidate {
   url: string;
   text: string;
@@ -160,8 +162,8 @@ export function parseFeed(xml: string): { url: string; title: string; publishedA
     const url = link.attr("href") || link.text().trim();
     const title = node.children("title").first().text().trim();
     const dateText = node.children("pubDate, published, updated, dc\\:date").first().text().trim();
-    const date = dateText ? new Date(dateText) : null;
-    if (url) items.push({ url, title, publishedAt: date && !Number.isNaN(date.getTime()) ? date : null });
+    // No zone = Ulaanbaatar time (parseDateValue), not the runner's UTC.
+    if (url) items.push({ url, title, publishedAt: parseDateValue(dateText) });
   });
   return items;
 }

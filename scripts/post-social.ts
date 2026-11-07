@@ -26,7 +26,7 @@ import "dotenv/config";
 import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
-import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { storedNeutrality } from "@/lib/ai/fact-spin";
@@ -41,7 +41,7 @@ import { biggestAmount, isWeeklyDue, mostNamed, previousWeek, type WeeklyTop, we
 import { sharedShortNames } from "@/lib/officials/flags";
 import { currentState, needsRefresh, refreshSeverity, type TokenState } from "@/lib/social/token-state";
 import { PRODUCTION_URL } from "@/lib/site";
-import { UnknownOutcomeError } from "@/lib/social/outcome";
+import { ABANDONED_AFTER_MS, abandonedReservation, UnknownOutcomeError } from "@/lib/social/outcome";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
 import { errorDetail, errorLine } from "@/lib/log-safe";
@@ -262,6 +262,24 @@ async function post(db: Db, p: Platform, kind: PostKind, refId: number, item: { 
         .set({ postId: null })
         .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, kind), eq(socialPosts.refId, refId), eq(socialPosts.postId, `failed:${tries}`)))
         .returning({ id: socialPosts.id });
+    }
+  }
+  if (!row) {
+    // A reservation with no post id from a run that died (cancelled, killed) is "already posted"
+    // forever and nobody hears of it. It may also be a post that went out before the run died, so
+    // it is never posted again here: it becomes "unknown" (a ::warning:: now, a watchdog line for
+    // 7 days), the same as any other post whose outcome cannot be known, for a check by hand.
+    const [prev] = await db
+      .select({ postId: socialPosts.postId, createdAt: socialPosts.createdAt })
+      .from(socialPosts)
+      .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, kind), eq(socialPosts.refId, refId)));
+    if (prev && abandonedReservation(prev.postId, prev.createdAt, new Date())) {
+      const marked = await db
+        .update(socialPosts)
+        .set({ postId: "unknown" })
+        .where(and(eq(socialPosts.platform, p.name), eq(socialPosts.kind, kind), eq(socialPosts.refId, refId), isNull(socialPosts.postId), lt(socialPosts.createdAt, new Date(Date.now() - ABANDONED_AFTER_MS))))
+        .returning({ id: socialPosts.id });
+      if (marked.length) console.error(`::warning::${p.name} ${kind} #${refId}: the run that reserved it at ${prev.createdAt.toISOString()} died before storing a post id. It may or may not be on ${p.name}: check the page by hand (marked "unknown", never posted twice).`);
     }
   }
   if (!row) return console.log("    already posted, skipped");
