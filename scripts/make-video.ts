@@ -27,7 +27,7 @@ import { parseArgs } from "node:util";
 import { and, desc, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 
 import { closeDb, type DB, getDb, hasDatabase } from "@/db";
-import { articles, indicatorSnapshots, sources, videos } from "@/db/schema";
+import { appSettings, articles, indicatorSnapshots, sources, videos } from "@/db/schema";
 import { consoleUsageLogger, dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-log";
 import { GOODS, type PricesSnapshot } from "@/lib/budget/prices";
 import { tldrSentences } from "@/lib/format";
@@ -59,6 +59,20 @@ const { values } = parseArgs({
 });
 const dry = values["dry-run"];
 
+const SLOT_CLAIM_KEY = "video_slot_claim";
+
+/** The Ulaanbaatar start of `slot` today as the claim value; true when this run set it first. */
+async function claimSlot(db: DB, slot: VideoSlot): Promise<boolean> {
+  const ub = new Date(Date.now() + 8 * 3_600_000);
+  const value = new Date(Date.UTC(ub.getUTCFullYear(), ub.getUTCMonth(), ub.getUTCDate(), slot.from) - 8 * 3_600_000).toISOString();
+  const won = await db
+    .insert(appSettings)
+    .values({ key: SLOT_CLAIM_KEY, value })
+    .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() }, setWhere: sql`${appSettings.value} <> ${value}` })
+    .returning({ key: appSettings.key });
+  return won.length > 0;
+}
+
 async function main() {
   if (!hasDatabase()) throw new Error("DATABASE_URL is not set");
   // A dry run may go through a proxy that adds the key itself (local previews).
@@ -81,6 +95,10 @@ async function main() {
     const [last] = await db.select({ at: videos.createdAt }).from(videos).orderBy(desc(videos.createdAt)).limit(1);
     const slot = dueSlot(new Date(), last?.at ?? null);
     if (!slot) return console.log("🎬 --slot: not inside a video slot, or this slot already has its video.");
+    // video.yml and the pipeline both ask in the same minutes; the video row exists only after
+    // voicing and rendering, so both passed the check and voiced the same story twice. The slot
+    // is claimed in app_settings first: one run wins, the other stops here.
+    if (!dry && !(await claimSlot(db, slot))) return console.log("🎬 --slot: another run claimed this slot a moment ago.");
     prefer = slot.prefer;
   }
 

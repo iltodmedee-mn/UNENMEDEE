@@ -12,9 +12,9 @@ on:
         required: false
         default: "news"
       dry_run:
-        description: "true = print the posts, publish nothing (untick to post at once)"
+        description: "true = print the posts, publish nothing (default: post at once; social_posts still prevents doubles)"
         type: boolean
-        default: true
+        default: false
 
 concurrency:
   group: social-post

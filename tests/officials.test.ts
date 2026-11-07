@@ -108,6 +108,15 @@ describe("neutral declaration flags", () => {
     assert.match(note[0].text, /2022, 2023, 2024 ба 2025/);
     assert.deepEqual(declarationFlags(three).map((f) => [f.year, f.kind]), [[2025, "unit_suspect"]]);
     assert.deepEqual(suspectUnitYears([{ year: 2024, totalAssets: null }, { year: 2025, totalAssets: 5_000_000_000 }]), []);
+    // Not an even split: the lower two are 30× apart themselves (the old check called all four
+    // doubtful and hid the comparable 7 → 8 тэрбум pair); only the two small ones are suspect.
+    const uneven = [
+      { year: 2022, totalAssets: 10_000_000 },
+      { year: 2023, totalAssets: 300_000_000 },
+      { year: 2024, totalAssets: 7_000_000_000 },
+      { year: 2025, totalAssets: 8_000_000_000 },
+    ];
+    assert.deepEqual(suspectUnitYears(uneven), [2022, 2023]);
   });
 
   it("caps the shown percentage and keeps colours out of the numbers", () => {

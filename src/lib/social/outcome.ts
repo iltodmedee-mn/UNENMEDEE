@@ -47,7 +47,11 @@ export async function publishStep<T>(fn: () => Promise<T>): Promise<T> {
   try {
     return await fn();
   } catch (err) {
-    if (maybePublished(err)) throw new UnknownOutcomeError(`publish answer lost: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300));
+    // A 5xx / transient Graph error, or a timeout and a dropped connection INSIDE the publish call:
+    // the post may be live. The same timeout on a container step or a status read is a plain
+    // failure (nothing public exists yet) and is retried: it used to mark the post "unknown" for
+    // good, so one slow Threads status read meant the story was never posted there.
+    if (maybePublished(err) || outcomeUnknown(err)) throw new UnknownOutcomeError(`publish answer lost: ${err instanceof Error ? err.message : String(err)}`.slice(0, 300));
     throw err;
   }
 }

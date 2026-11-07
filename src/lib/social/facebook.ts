@@ -12,7 +12,7 @@ import { PRODUCTION_URL } from "@/lib/site";
 import type { ReaderImpact } from "@/lib/types";
 
 import { hashtags } from "./hashtags";
-import { maybePublished, UnknownOutcomeError, publishStep } from "./outcome";
+import { maybePublished, publishStep, UnknownOutcomeError } from "./outcome";
 import { factShareLine, impactLines, keyFacts } from "./story-lines";
 import { readJsonBody } from "@/lib/read-json";
 
@@ -165,11 +165,14 @@ export async function publishToPage(opts: { pageId: string; token: string; post:
     ? new URLSearchParams({ url: post.imageUrl, caption: post.message, access_token: opts.token })
     : new URLSearchParams({ message: post.message, link: post.link, access_token: opts.token });
   const edge = post.imageUrl ? "photos" : "feed";
-  const res = await (opts.fetchImpl ?? fetch)(`https://graph.facebook.com/${opts.version ?? GRAPH_VERSION}/${encodeURIComponent(opts.pageId)}/${edge}`, {
-    method: "POST",
-    body,
-    signal: AbortSignal.timeout(30_000),
-  });
+  // One call both creates and publishes: a timeout here is an unknown outcome (publishStep).
+  const res = await publishStep(() =>
+    (opts.fetchImpl ?? fetch)(`https://graph.facebook.com/${opts.version ?? GRAPH_VERSION}/${encodeURIComponent(opts.pageId)}/${edge}`, {
+      method: "POST",
+      body,
+      signal: AbortSignal.timeout(30_000),
+    }),
+  );
   const json = (await readJsonBody(res)) as { id?: string; post_id?: string; error?: { message?: string; code?: number } };
   if (!res.ok) {
     const err = new FacebookError(`Facebook ${res.status}: ${json.error?.message ?? "request failed"}`.slice(0, 300), res.status, json.error?.code);

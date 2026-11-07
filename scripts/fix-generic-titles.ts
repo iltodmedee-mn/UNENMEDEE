@@ -19,6 +19,7 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { looksOld } from "@/lib/scraper/dates";
 import { firstSentenceTitle, isGenericTitle, looksLikeNavigation } from "@/lib/scraper/titles";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: { "dry-run": { type: "boolean", default: false }, dates: { type: "boolean", default: false } },
@@ -103,7 +104,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::fix-generic-titles: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

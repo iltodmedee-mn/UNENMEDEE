@@ -85,15 +85,21 @@ export function toimReply(d: { title: string; items: { headline: string; slug: s
   return fit([`🗞 **${d.title.replace(/\*/g, "")}**`, ...lines, "", `👉 Бүтэн тойм: <${site}/digest>`].join("\n"));
 }
 
+/** The typed query as plain text: a masked link or formatting in it must not become the bot's own. */
+export function plainQuery(q: string): string {
+  return q.replace(/[\\`*_~|[\]()<>@#]/g, "").replace(/\s+/g, " ").trim().slice(0, 100);
+}
+
 export function haihReply(q: string, results: { title: string; slug: string; sourceName: string }[], site = PRODUCTION_URL): string {
   const more = `${site}/search?q=${encodeURIComponent(q)}`;
-  if (!q) return "Хайх үгээ бичээрэй: `/haih ug: төсөв`";
+  const shown = plainQuery(q);
+  if (!shown) return "Хайх үгээ бичээрэй: `/haih ug: төсөв`";
   if (results.length === 0) {
-    const latin = /^[\sa-z0-9.,!?'"-]+$/i.test(q) ? " Кириллээр бичээд үзээрэй 🙂" : "";
-    return `🔎 "${q}" гэсэн мэдээ олдсонгүй.${latin}\n<${more}>`;
+    const latin = /^[\sa-z0-9.,!?'"-]+$/i.test(shown) ? " Кириллээр бичээд үзээрэй 🙂" : "";
+    return `🔎 "${shown}" гэсэн мэдээ олдсонгүй.${latin}\n<${more}>`;
   }
   const lines = results.slice(0, 5).map((r, i) => `\`${i + 1}\` ${linkTo(r.title, `${site}/article/${r.slug}`)} · ${r.sourceName}`);
-  return fit([`🔎 **"${q.replace(/\*/g, "")}"**`, ...lines, "", `👉 Бүгдийг харах: <${more}>`].join("\n"));
+  return fit([`🔎 **"${shown}"**`, ...lines, "", `👉 Бүгдийг харах: <${more}>`].join("\n"));
 }
 
 export function aimagReply(place: Place | undefined, typed: string, stories: { title: string; slug: string }[], site = PRODUCTION_URL): string {

@@ -21,6 +21,7 @@ import { READER_BATCH, READER_MAX_ATTEMPTS, ReaderBatchSchema, readerMessages, r
 import { AIUnavailableError, callAIWithFallback } from "@/lib/ai/router";
 import { dbBudgetGuard, dbUsageLogger } from "@/lib/ai/usage-log";
 import { FEED_MIN_IMPORTANCE } from "@/lib/seo";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { limit: { type: "string", default: "64" }, days: { type: "string", default: "30" } } });
 
@@ -90,7 +91,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::reader-backfill: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

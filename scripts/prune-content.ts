@@ -20,6 +20,7 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { DEFAULT_RETENTION_DAYS, EXCERPT_CHARS, OLD_STORY_DAYS, runRetention, SEEN_URL_KEEP_DAYS, LOG_KEEP_MONTHS } from "@/lib/retention";
 import { unshoutTitle } from "@/lib/scraper/titles";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 const configured = Number(process.env.RETENTION_DAYS || DEFAULT_RETENTION_DAYS);
@@ -54,7 +55,7 @@ async function fixShoutingTitles(db: ReturnType<typeof getDb>) {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::prune-content: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

@@ -379,7 +379,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::health-check: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

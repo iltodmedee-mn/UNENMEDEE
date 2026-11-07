@@ -5,7 +5,7 @@
  * The Bot API puts the token in the URL path, so URLs are never logged and errors never echo them.
  */
 import { articlePost, digestPost, type ArticleForPost, type DigestForPost } from "./facebook";
-import { maybePublished, UnknownOutcomeError } from "./outcome";
+import { maybePublished, publishStep, UnknownOutcomeError } from "./outcome";
 import { readJsonBody } from "@/lib/read-json";
 
 export const TELEGRAM_API = "https://api.telegram.org";
@@ -74,12 +74,15 @@ export async function publishTelegram(opts: { token: string; chatId: string; pos
   const body = post.imageUrl
     ? { chat_id: opts.chatId, photo: post.imageUrl, caption: fitTelegram(post.text, CAPTION_MAX) }
     : { chat_id: opts.chatId, text: fitTelegram(post.text, TEXT_MAX), link_preview_options: { url: post.link } };
-  const res = await (opts.fetchImpl ?? fetch)(`${TELEGRAM_API}/bot${opts.token}/${method}`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-    signal: AbortSignal.timeout(30_000),
-  });
+  // One call both creates and publishes: a timeout here is an unknown outcome (publishStep).
+  const res = await publishStep(() =>
+    (opts.fetchImpl ?? fetch)(`${TELEGRAM_API}/bot${opts.token}/${method}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(30_000),
+    }),
+  );
   const json = (await readJsonBody(res)) as { ok?: boolean; result?: { message_id?: number }; description?: string };
   if (!res.ok || json.ok === false) {
     const why = (json.description ?? "request failed").replaceAll(opts.token, "***");

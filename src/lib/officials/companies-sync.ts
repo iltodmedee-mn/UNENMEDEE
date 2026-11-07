@@ -39,12 +39,15 @@ export async function allPages(path: (page: number) => string, maxPages: number,
 export async function checkCompany(name: string, to: string, now = new Date(), get: (p: string) => Promise<unknown> = getJson): Promise<CompanyCheck> {
   const key = orgKey(name);
   const checkedAt = now.toISOString();
-  let matches: SupplierHit[] = [];
+  // Every spelling is searched and the hits are judged together: stopping at the first query that
+  // matched let "Бодит чадал" (register A) pass as the one register while "Бодитчадал" (register B)
+  // shared the key, and another company's payments could show on an MP's profile.
+  const hits: SupplierHit[] = [];
   for (const q of searchQueries(name)) {
     const rows = await allPages((page) => `getBeltgenNiiluulegch?${qs({ page: String(page), size: "50", startDate: PAYMENTS_FROM, endDate: to, supplierType: "", ezaType: "", registerNo: "", orgName: q })}`, MAX_SEARCH_PAGES, get);
-    matches = exactMatches(parseSuppliers({ content: rows }), key);
-    if (matches.length) break;
+    hits.push(...parseSuppliers({ content: rows }));
   }
+  const matches = exactMatches(hits, key);
   if (matches.length === 0) return { status: "none", name, checkedAt };
   if (matches.length > 1) return { status: "ambiguous", name, checkedAt, registers: matches.length };
   const [m] = matches;

@@ -21,7 +21,7 @@ import { parseArgs } from "node:util";
 import { chromium } from "playwright";
 
 import { layoutPages, type LayoutOverflow } from "@/lib/layout-check";
-import { oneLine } from "@/lib/log-safe";
+import { errorDetail, oneLine } from "@/lib/log-safe";
 import { chromiumExecutablePath } from "@/lib/chromium-path";
 
 const { values } = parseArgs({
@@ -98,6 +98,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(`::error::check-layout: ${errorDetail(err)}`);
   process.exitCode = 1;
 });

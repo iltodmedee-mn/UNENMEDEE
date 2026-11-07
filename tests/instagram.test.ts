@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAPTION_MAX, instagramArticlePost, instagramDigestPost, publishInstagram } from "@/lib/social/instagram";
-import { outcomeUnknown } from "@/lib/social/outcome";
+import { outcomeUnknown, publishStep } from "@/lib/social/outcome";
 import { cut, publishThreads, threadsLength } from "@/lib/social/threads";
 
 describe("instagram posts", () => {
@@ -86,10 +86,14 @@ describe("social publishing safety", () => {
     assert.ok(!calls.some((c) => c.includes("publish")), calls.join("\n"));
   });
 
-  it("treats timeouts and dropped connections as 'may have posted'", () => {
+  it("treats timeouts and dropped connections as 'may have posted'", async () => {
     assert.equal(outcomeUnknown(new DOMException("t", "TimeoutError")), true);
     assert.equal(outcomeUnknown(Object.assign(new TypeError("fetch failed"), { cause: { code: "UND_ERR_SOCKET" } })), true);
     assert.equal(outcomeUnknown(new Error("Instagram 400: Invalid OAuth access token")), false);
+    // Inside the publish call a timeout is an unknown outcome; outside it (a container step) it is
+    // a plain failure the next run retries (one slow Threads status read used to park the story for good).
+    await assert.rejects(publishStep(() => Promise.reject(new DOMException("t", "TimeoutError"))), (e: unknown) => (e as Error).name === "UnknownOutcomeError");
+    await assert.rejects(publishStep(() => Promise.reject(new Error("Instagram 400: bad"))), (e: unknown) => (e as Error).name === "Error");
   });
 
   it("cuts Threads text at whole emoji and counts the emoji variation selector", () => {

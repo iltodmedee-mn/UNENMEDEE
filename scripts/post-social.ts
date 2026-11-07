@@ -41,7 +41,7 @@ import { biggestAmount, isWeeklyDue, mostNamed, previousWeek, type WeeklyTop, we
 import { sharedShortNames } from "@/lib/officials/flags";
 import { currentState, needsRefresh, refreshSeverity, type TokenState } from "@/lib/social/token-state";
 import { PRODUCTION_URL } from "@/lib/site";
-import { outcomeUnknown } from "@/lib/social/outcome";
+import { UnknownOutcomeError } from "@/lib/social/outcome";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
 import { errorDetail, errorLine } from "@/lib/log-safe";
@@ -269,7 +269,9 @@ async function post(db: Db, p: Platform, kind: PostKind, refId: number, item: { 
   try {
     id = await item.publish();
   } catch (err) {
-    if (outcomeUnknown(err)) {
+    // Only the publish call itself can leave the outcome unknown (publishStep / the one-call
+    // platforms throw UnknownOutcomeError); a timeout on a container step is a refusal, retried.
+    if (err instanceof UnknownOutcomeError || (err as { name?: string } | null)?.name === "UnknownOutcomeError") {
       await db.update(socialPosts).set({ postId: "unknown" }).where(eq(socialPosts.id, row.id));
       console.error(`::warning::${p.name} ${kind} #${refId}: no answer (${err instanceof Error ? err.message : err}); kept as posted, check the page by hand.`);
       return;
@@ -543,6 +545,13 @@ async function storedQuiz(db: Db): Promise<WeeklyQuiz | null> {
 async function thisWeeksQuiz(db: Db, now: Date): Promise<WeeklyQuiz | null> {
   const stored = await storedQuiz(db);
   if (stored?.week === quizWeek(now)) return stored;
+  // A manual run on Monday (--any-day) used to build the new ISO week's quiz over Sunday's, whose
+  // answers were due that evening and whose cards still had to render: the stored quiz stays until
+  // its answers window (72 h) has passed.
+  if (stored && now.getTime() - new Date(stored.createdAt).getTime() < 72 * 3_600_000) {
+    console.log(`🧠 the quiz of week ${stored.week} is still current (answers pending): not replaced.`);
+    return stored;
+  }
   const quiz = buildWeeklyQuiz(await quizCandidates(db, now), now);
   if (!quiz) return null;
   if (!dry) {

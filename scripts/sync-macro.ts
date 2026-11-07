@@ -12,6 +12,7 @@ import { parseArgs } from "node:util";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { indicatorSnapshots } from "@/db/schema";
 import { fetchMacroSnapshot } from "@/lib/mongolbank/client";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 
@@ -36,7 +37,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error(err);
+    console.error(`::error::sync-macro: ${errorDetail(err)}`);
     process.exitCode = 1;
   })
   .finally(() => closeDb());

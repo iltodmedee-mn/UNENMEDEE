@@ -51,7 +51,9 @@ export function suspectUnitYears(rows: { year: number; totalAssets: number | nul
   // An even split (two filings at one scale, two at the other): the upper median used to win, so
   // the lower pair was called the error although nobody can tell which pair is off. All of them.
   const half = totals.length / 2;
-  if (Number.isInteger(half) && totals[half] > totals[half - 1] * UNIT_GAP && totals[half - 1] * UNIT_GAP >= totals[0] && totals.at(-1)! <= totals[half] * UNIT_GAP) return valued.map((r) => r.year);
+  // Both halves must be internally comparable (within one UNIT_GAP) with a gap between them; the
+  // lower half's check was written the wrong way round and was always true.
+  if (Number.isInteger(half) && totals[half] > totals[half - 1] * UNIT_GAP && totals[half - 1] <= totals[0] * UNIT_GAP && totals.at(-1)! <= totals[half] * UNIT_GAP) return valued.map((r) => r.year);
   const median = totals[Math.floor(totals.length / 2)];
   return valued.filter((r) => r.totalAssets > median * UNIT_GAP || r.totalAssets < median / UNIT_GAP).map((r) => r.year);
 }

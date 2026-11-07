@@ -3,7 +3,7 @@
 import { type ReactNode, useState } from "react";
 
 import { formatMntShort, formatNumber } from "@/lib/format";
-import { type BudgetShare, looksLikeSalary, payrollFromInputs, payrollParts, pitSchedule, RATES_CHECKED, SI_RATE, taxReceipt, upcomingSchedules } from "@/lib/tax/receipt";
+import { type BudgetShare, looksLikeSalary, payrollFromInputs, payrollParts, pitSchedule, RATES_CHECKED, SI_RATE, siCapMonthly, taxReceipt, upcomingSchedules } from "@/lib/tax/receipt";
 
 const toNumber = (s: string) => Number(s.replace(/[^\d]/g, "")) || 0;
 const pct = (x: number) => `${(x * 100).toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
@@ -60,7 +60,8 @@ export function TaxReceiptCalculator({ shares, year, day }: { shares: BudgetShar
             hint={
               parts.total > 0 ? (
                 <>
-                  ≈ НДШ {formatNumber(parts.si)} + ХХОАТ {formatNumber(parts.pit)} = <strong className="font-semibold text-secondary">{formatNumber(parts.total)} ₮</strong> сард суутгагдана (НДШ {pct(SI_RATE)}, ХХОАТ {ratesLabel(day)} шатлалаар НДШ хассаны дараа; хөнгөлөлтгүй; хувь хэмжээг {RATES_CHECKED}-нд шалгасан).
+                  ≈ НДШ {formatNumber(parts.si)} + ХХОАТ {formatNumber(parts.pit)} = <strong className="font-semibold text-secondary">{formatNumber(parts.total)} ₮</strong> сард суутгагдана (НДШ {pct(SI_RATE)}
+                  {parts.capped ? `, сарын ${formatNumber(siCapMonthly(day))} ₮ хүртэлх цалингаас: түүнээс дээш хэсэгт НДШ суутгадаггүй (Нийгмийн даатгалын ерөнхий хуулийн 19.4, доод цалингийн 10 дахин)` : ""}; ХХОАТ {ratesLabel(day)} шатлалаар НДШ хассаны дараа; хөнгөлөлтгүй; хувь хэмжээг {RATES_CHECKED}-нд шалгасан).
                   {later.map((l) => (
                     <span key={l.from} className="block">
                       {l.from}-нээс ижил цалинд ХХОАТ ≈ <strong className="font-semibold text-secondary">{formatNumber(l.pit)} ₮</strong> / сар.

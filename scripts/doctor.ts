@@ -12,6 +12,7 @@ import { parseArgs } from "node:util";
 
 import { exampleNames } from "@/lib/env-example";
 import { NODE_MAJOR, runtimeLine } from "@/lib/runtime-info";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { clean: { type: "boolean", default: false } } });
 const root = process.cwd();
@@ -98,6 +99,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error(err);
+  console.error(`::error::doctor: ${errorDetail(err)}`);
   process.exitCode = 1;
 });

@@ -44,6 +44,11 @@ export const BACKUP_TABLES: BackupTable[] = [
   { table: schema.donations, key: schema.donations.id, serial: true },
   { table: schema.pushSubscriptions, key: schema.pushSubscriptions.id, serial: true },
   { table: schema.socialPosts, key: schema.socialPosts.id, serial: true },
+  // first_seen_at / awarded_seen_at drive the "new contracts" list; a watched page's edit time says
+  // whether a document is new: lost, the next sync would treat everything as a baseline.
+  { table: schema.tenders, key: schema.tenders.id, serial: true },
+  { table: schema.watchedPages, key: schema.watchedPages.url, serial: false },
+  { table: schema.documents, key: schema.documents.id, serial: true },
 ];
 
 const PAGE = 500;
@@ -170,6 +175,14 @@ async function importInto(db: DB, lines: AsyncIterable<string> | Iterable<string
       if (!t.serial || !counts[tableName(t)]) continue;
       const name = tableName(t);
       await db.execute(sql`select setval(pg_get_serial_sequence(${name}, ${t.key.name}), greatest((select max(${t.key}) from ${t.table}), 1))`);
+    }
+    // videos is not backed up, but social_posts (kind 'video', ref_id = videos.id) is: a fresh
+    // videos sequence would hand new videos the ids of old posted ones, and post-social would skip
+    // them as "already posted" until the ids passed the old maximum.
+    if (counts.social_posts) {
+      await db.execute(
+        sql`select setval(pg_get_serial_sequence('videos', 'id'), greatest((select coalesce(max(id), 0) from videos), (select coalesce(max(ref_id), 0) from social_posts where kind = 'video'), 1))`,
+      );
     }
   }
   return counts;
