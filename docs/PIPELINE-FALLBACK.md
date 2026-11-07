@@ -26,8 +26,8 @@ pipeline's first step) and, after an hour without one, asks GitHub to start a ru
    select vault.create_secret('github_pat_ЭНД_TOKEN', 'github_dispatch_token', 'pipeline fallback: Actions write on iltodmedee-mn/UNENMEDEE');
    ```
    Token солих үед (жилд нэг): `select vault.update_secret((select id from vault.secrets where name = 'github_dispatch_token'), 'шинэ_token');`
-   Дараа нь шинэ token-ий дуусах өдрийг бичнэ, watchdog 30 хоногийн өмнө сануулна:
-   `insert into app_settings (key, value) values ('github_dispatch_token_expires', '2028-10-29T00:00:00.000Z') on conflict (key) do update set value = excluded.value;`
+   Дараа нь шинэ token-ий дуусах өдрийг (үүсгэсэн өдөр + 1 жил; жишээ нь 2026-10-29-нд үүсгэсэн бол 2027-10-29) бичнэ, watchdog яг энэ утгаас 30 хоногийн өмнө сануулна. README-ийн «2027-10» мөр энэ огноотой таарч байх ёстой:
+   `insert into app_settings (key, value) values ('github_dispatch_token_expires', '2027-10-29T00:00:00.000Z') on conflict (key) do update set value = excluded.value;`
 
 ## Шалгах
 

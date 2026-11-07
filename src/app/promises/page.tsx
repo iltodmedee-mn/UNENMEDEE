@@ -31,7 +31,7 @@ export const metadata: Metadata = {
 async function programmeEnded(): Promise<boolean> {
   "use cache";
   cacheLife("days");
-  return new Date().toISOString().slice(0, 10) >= PROGRAMME_END;
+  return ubDateKey(Date.now()) >= PROGRAMME_END;
 }
 
 /** Today in Ulaanbaatar for the programme clock (daily cache, the page stays static). */

@@ -3,7 +3,7 @@
 import { useSyncExternalStore } from "react";
 
 import { useNow } from "@/lib/now-store";
-import { FEED_QUIET_HOURS, hoursSince } from "@/lib/stale";
+import { FEED_QUIET_HOURS, hoursSince, isUbWeekend } from "@/lib/stale";
 
 type Pulse = { activeSources: number; lastArticleAt: string | null };
 
@@ -45,9 +45,18 @@ export function LiveStatus() {
   const quiet = p.lastArticleAt ? hoursSince(p.lastArticleAt, new Date(now)) : 0;
   if (quiet > FEED_QUIET_HOURS) {
     return (
-      <span className="label-mono flex items-center gap-2 text-tertiary">
-        <span className="inline-flex size-1.5 rounded-full bg-fg-quaternary" />
-        Сүүлийн мэдээ {quiet} цагийн өмнө · {p.activeSources} эх сурвалж
+      <span className="label-mono flex items-center gap-2 whitespace-nowrap text-tertiary">
+        <span className="inline-flex size-1.5 shrink-0 rounded-full bg-fg-quaternary" />
+        <span>
+          Сүүлийн мэдээ {quiet} цагийн өмнө · {p.activeSources} эх сурвалж
+          {/* Saturday/Sunday in Ulaanbaatar: a quiet feed is expected. The strip is sm+ only; the long form needs lg. */}
+          {isUbWeekend(now) && (
+            <>
+              <span className="lg:hidden"> · амралтын өдөр</span>
+              <span className="hidden lg:inline"> · амралтын өдөр төрийн байгууллагууд мэдээ бага гаргадаг</span>
+            </>
+          )}
+        </span>
       </span>
     );
   }

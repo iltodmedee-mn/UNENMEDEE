@@ -324,7 +324,7 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
             </p>
           )}
           <div className="prose max-w-none text-secondary [overflow-wrap:anywhere]">
-            {paragraphs.slice(0, 60).map((p, i) => (
+            {paragraphs.map((p, i) => (
               <p key={i}>{p}</p>
             ))}
           </div>

@@ -1,12 +1,13 @@
 "use server";
 
-import { count, eq, gte } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { headers } from "next/headers";
 
 import { getDb, hasDatabase } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
 import { MAX_FOLLOWS } from "@/lib/officials/follow";
-import { isAllowedPushEndpoint, SubscriptionSchema, TEST_PAYLOAD } from "@/lib/push/core";
+import { ipAllowed, isAllowedPushEndpoint, parseSubscribeRequest, TEST_PAYLOAD } from "@/lib/push/core";
+import { storeSubscription } from "@/lib/push/store";
 import { clientIp } from "@/lib/rate-limit";
 import { sendToEndpoint } from "@/lib/push/server";
 
@@ -15,45 +16,16 @@ import { sendToEndpoint } from "@/lib/push/server";
  * endpoints on known browser push services are stored; nothing personal is kept.
  */
 
-// Abuse limits: a public action could otherwise fill the 500 MB free database with fake rows.
-// Mongolian mobile carriers put many readers behind one shared IP (carrier-grade NAT): 10 an hour
-// turned real readers away (Nov 2026 audit). NEW_PER_HOUR and MAX_SUBSCRIPTIONS still bound growth.
-const PER_IP_PER_HOUR = 60;
-const NEW_PER_HOUR = Number(process.env.PUSH_NEW_PER_HOUR ?? 500);
-const MAX_SUBSCRIPTIONS = Number(process.env.PUSH_MAX_SUBSCRIPTIONS ?? 50_000);
-const recentByIp = new Map<string, number[]>();
-
-function ipAllowed(ip: string, now: number): boolean {
-  const recent = (recentByIp.get(ip) ?? []).filter((t) => now - t < 3_600_000);
-  if (recent.length >= PER_IP_PER_HOUR) return false;
-  recentByIp.set(ip, [...recent, now]);
-  if (recentByIp.size > 10_000) recentByIp.clear(); // bounded memory per server instance
-  return true;
-}
+const BUSY = { ok: false, error: "Түр завгүй байна. Хэдэн минутын дараа дахин оролдоно уу." };
 
 export async function subscribePush(input: unknown): Promise<{ ok: boolean; error?: string }> {
-  const parsed = SubscriptionSchema.safeParse(input);
-  if (!parsed.success) return { ok: false, error: "Энэ хөтчийн мэдэгдлийг дэмжихгүй байна." };
+  const req = parseSubscribeRequest(input);
+  if (!req) return { ok: false, error: "Энэ хөтчийн мэдэгдлийг дэмжихгүй байна." };
   if (!hasDatabase()) return { ok: false, error: "Сервер тохируулагдаагүй байна." };
-  const busy = { ok: false, error: "Түр завгүй байна. Хэдэн минутын дараа дахин оролдоно уу." };
   const h = await headers();
-  const ip = clientIp(h);
-  if (!ipAllowed(ip, Date.now())) return busy;
-  const { endpoint, keys } = parsed.data;
-  const db = getDb();
-  const [existing] = await db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).limit(1);
-  if (!existing) {
-    const [[total], [lastHour]] = await Promise.all([
-      db.select({ n: count() }).from(pushSubscriptions),
-      db.select({ n: count() }).from(pushSubscriptions).where(gte(pushSubscriptions.createdAt, new Date(Date.now() - 3_600_000))),
-    ]);
-    if (total.n >= MAX_SUBSCRIPTIONS || lastHour.n >= NEW_PER_HOUR) return busy;
-  }
-  await db
-    .insert(pushSubscriptions)
-    .values({ endpoint, p256dh: keys.p256dh, auth: keys.auth })
-    .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { p256dh: keys.p256dh, auth: keys.auth, failures: 0 } });
-  return { ok: true };
+  if (!ipAllowed(clientIp(h), Date.now())) return BUSY;
+  // oldEndpoint is a service-worker renewal detail: the action stores the subscription alone.
+  return (await storeSubscription(req.sub, null)) ? { ok: true } : BUSY;
 }
 
 export async function unsubscribePush(endpoint: unknown): Promise<{ ok: boolean }> {

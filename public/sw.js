@@ -76,12 +76,38 @@ self.addEventListener("notificationclick", (event) => {
   );
 });
 
-// The browser rotated the subscription (expiry, key change): tell the page, which re-subscribes
-// and sends the new endpoint to the server (use-pwa.ts), so alerts do not stop silently.
+// The browser rotated the subscription (expiry, key change). It fires with no tab open, so the
+// worker re-subscribes itself (the old subscription's options carry the VAPID key; else
+// /api/push GET gives it) and posts the new one to /api/push, which also moves the follows from
+// the old endpoint. Open windows are still told, so their bell stays in step (use-pwa.ts).
+async function renewPush(event) {
+  try {
+    let options = event.oldSubscription && event.oldSubscription.options;
+    if (!options || !options.applicationServerKey) {
+      const res = await fetch("/api/push", { cache: "no-store" });
+      const { key } = await res.json();
+      if (!key) return;
+      const padded = (key + "=".repeat((4 - (key.length % 4)) % 4)).replace(/-/g, "+").replace(/_/g, "/");
+      const raw = atob(padded);
+      const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i++) bytes[i] = raw.charCodeAt(i);
+      options = { userVisibleOnly: true, applicationServerKey: bytes };
+    }
+    const sub = event.newSubscription || (await self.registration.pushManager.subscribe(options));
+    const body = JSON.parse(JSON.stringify(sub));
+    body.oldEndpoint = event.oldSubscription ? event.oldSubscription.endpoint : undefined;
+    await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  } catch {
+    // The page-side renewal (use-pwa.ts) retries on the next visit.
+  }
+}
+
 self.addEventListener("pushsubscriptionchange", (event) => {
   event.waitUntil(
-    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
-      for (const w of windows) w.postMessage({ type: "iltod-push-renew" });
-    }),
+    renewPush(event).then(() =>
+      self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((windows) => {
+        for (const w of windows) w.postMessage({ type: "iltod-push-renew" });
+      }),
+    ),
   );
 });

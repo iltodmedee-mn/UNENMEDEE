@@ -41,5 +41,8 @@ describe("information request letter", () => {
     assert.equal(addWorkingDays("2026-11-07", 1), "2026-11-09"); // Saturday → Monday
     assert.equal(addWorkingDays("2026-11-06", 15), "2026-11-27");
     assert.equal(letterDate("2026-01-05"), "2026 оны 1 дүгээр сарын 05");
+    assert.equal(letterDate("2026-02-05"), "2026 оны 2 дугаар сарын 05");
+    assert.equal(letterDate("2026-12-06"), "2026 оны 12 дугаар сарын 06");
+    assert.equal(letterDate("2026-11-06"), "2026 оны 11 дүгээр сарын 06");
   });
 });

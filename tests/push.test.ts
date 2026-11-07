@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { articlePayload, classifyPushFailure, clip, digestPayload, isAllowedPushEndpoint, isSystemicFailure, MAX_PUSH_FAILURES, newsPayload, SubscriptionSchema } from "@/lib/push/core";
+import { articlePayload, classifyPushFailure, clip, digestPayload, isAllowedPushEndpoint, ipAllowed, isSystemicFailure, MAX_PUSH_FAILURES, newsPayload, parseSubscribeRequest, PUSH_PER_IP_PER_HOUR, resetIpLimit, SubscriptionSchema } from "@/lib/push/core";
 
 describe("push subscriptions", () => {
   it("accepts only browser push services over https", () => {
@@ -23,6 +23,39 @@ describe("push subscriptions", () => {
     assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "A".repeat(87), auth: "a".repeat(22) } }).success, false);
     assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(87), auth: "a".repeat(40) } }).success, false);
     assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(86) + "!", auth: "a".repeat(22) } }).success, false);
+  });
+});
+
+describe("shared subscribe validation (action and /api/push)", () => {
+  const keys = { p256dh: "B".repeat(87), auth: "a".repeat(22) };
+  const endpoint = "https://fcm.googleapis.com/fcm/send/abc";
+
+  it("accepts a renewal with an allowed old endpoint", () => {
+    const r = parseSubscribeRequest({ endpoint, keys, oldEndpoint: "https://fcm.googleapis.com/fcm/send/old" });
+    assert.equal(r?.oldEndpoint, "https://fcm.googleapis.com/fcm/send/old");
+  });
+
+  it("drops an old endpoint that is foreign, identical or not a string, but keeps the subscription", () => {
+    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: "https://evil.example.com/x" })?.oldEndpoint, null);
+    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: endpoint })?.oldEndpoint, null);
+    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: 5 })?.oldEndpoint, null);
+    assert.equal(parseSubscribeRequest({ endpoint, keys })?.oldEndpoint, null);
+  });
+
+  it("refuses what the schema refuses", () => {
+    assert.equal(parseSubscribeRequest(null), null);
+    assert.equal(parseSubscribeRequest({ endpoint: "https://evil.example.com/x", keys }), null);
+    assert.equal(parseSubscribeRequest({ endpoint, keys: { p256dh: "A".repeat(87), auth: keys.auth } }), null);
+  });
+
+  it("limits one IP to PUSH_PER_IP_PER_HOUR an hour", () => {
+    resetIpLimit();
+    const t = 1_000_000;
+    for (let i = 0; i < PUSH_PER_IP_PER_HOUR; i++) assert.ok(ipAllowed("1.2.3.4", t + i));
+    assert.equal(ipAllowed("1.2.3.4", t + 100), false);
+    assert.ok(ipAllowed("5.6.7.8", t + 100), "another IP is unaffected");
+    assert.ok(ipAllowed("1.2.3.4", t + 3_600_001), "an hour later it is allowed again");
+    resetIpLimit();
   });
 });
 

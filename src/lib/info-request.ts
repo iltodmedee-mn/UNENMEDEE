@@ -59,10 +59,11 @@ export function missingFields(r: RequestInput): string[] {
   return out;
 }
 
-/** "2026-11-06" → "2026 оны 11 дүгээр сарын 06" */
+/** "2026-11-06" → "2026 оны 11 дүгээр сарын 06"; vowel harmony: 1, 4, 9, 11 take "дүгээр", the rest "дугаар". */
 export function letterDate(day: string): string {
   const [y, m, d] = day.split("-");
-  return `${y} оны ${Number(m)} дүгээр сарын ${d}`;
+  const ordinal = [1, 4, 9, 11].includes(Number(m)) ? "дүгээр" : "дугаар";
+  return `${y} оны ${Number(m)} ${ordinal} сарын ${d}`;
 }
 
 /** The letter text, ready to print or paste into an e-mail. */

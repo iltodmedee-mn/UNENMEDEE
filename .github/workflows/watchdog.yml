@@ -121,7 +121,7 @@ jobs:
       # opens, and a comment when a new story joins); moving RATES_CHECKED past them closes it.
       # tax-rates.md is written only when the check ran: no file = no change to the issue.
       - name: Open, update or close the tax-rates issue
-        if: ${{ !cancelled() && steps.health.outcome == 'success' && hashFiles('tax-rates.md') != '' }}
+        if: ${{ !cancelled() && hashFiles('tax-rates.md') != '' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

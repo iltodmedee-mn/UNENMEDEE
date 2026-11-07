@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { editionLabel, EDITION_DATE_AFTER_H } from "@/lib/edition";
-import { FEED_QUIET_HOURS, hoursSince, staleAfter } from "@/lib/stale";
+import { FEED_QUIET_HOURS, hoursSince, isUbWeekend, staleAfter } from "@/lib/stale";
 
 describe("stale data is visible", () => {
   const end = new Date("2026-10-25T12:40:00Z"); // 20:40 in Ulaanbaatar
@@ -25,5 +25,27 @@ describe("stale data is visible", () => {
     assert.equal(hoursSince(null, now), 0);
     assert.equal(hoursSince("2026-10-28T00:00:00Z", now), 0, "a future date is not negative");
     assert.equal(FEED_QUIET_HOURS, 6);
+  });
+});
+
+describe("weekend in Ulaanbaatar", () => {
+  const at = (iso: string) => Date.parse(iso);
+  it("uses UTC+8, not UTC", () => {
+    assert.equal(isUbWeekend(at("2026-11-06T15:59:00Z")), false, "Friday 23:59 in Ulaanbaatar");
+    assert.equal(isUbWeekend(at("2026-11-06T16:00:00Z")), true, "Saturday 00:00");
+    assert.equal(isUbWeekend(at("2026-11-08T15:59:00Z")), true, "Sunday 23:59");
+    assert.equal(isUbWeekend(at("2026-11-08T16:00:00Z")), false, "Monday 00:00");
+    assert.equal(isUbWeekend(at("2026-11-04T04:00:00Z")), false, "Wednesday");
+  });
+});
+
+describe("SOE average wage sanity", () => {
+  it("is null for tiny staff counts and implausible results", async () => {
+    const { avgMonthlyWage } = await import("@/components/officials/soe-table");
+    assert.equal(avgMonthlyWage({ wageFund: 5_000_000_000, staff: 1 }), null);
+    assert.equal(avgMonthlyWage({ wageFund: 5_000_000_000, staff: 2 }), null);
+    assert.equal(avgMonthlyWage({ wageFund: 120_000_000_000, staff: 3 }), null, "over 50 000 000 a month");
+    assert.equal(avgMonthlyWage({ wageFund: 3_600_000_000, staff: 100 }), 3_000_000);
+    assert.equal(avgMonthlyWage({ wageFund: null, staff: 10 }), null);
   });
 });

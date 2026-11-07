@@ -36,6 +36,8 @@ jobs:
           while IFS=$'\t' read -r id path state; do
             case "$state" in
               disabled_manually) echo "::warning::$path is disabled by hand ($state): left alone"; continue ;;
+              # A file removed from the default branch that still has runs: nothing to enable.
+              deleted) echo "::notice::$path was deleted ($state): skipped"; continue ;;
             esac
             if gh api -X PUT "repos/$GITHUB_REPOSITORY/actions/workflows/$id/enable" --silent; then
               echo "✓ $path ($state → active)"
@@ -45,7 +47,7 @@ jobs:
           done < workflows.tsv
           # Check the result: anything not active now (apart from a manual disable) is a problem.
           # "|| true" here read a failed API call as "nothing stuck": the check must fail loudly instead.
-          if ! gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows" --jq '.workflows[] | select(.state != "active" and .state != "disabled_manually") | "\(.path) \(.state)"' > stuck.txt; then
+          if ! gh api --paginate "repos/$GITHUB_REPOSITORY/actions/workflows" --jq '.workflows[] | select(.state != "active" and .state != "disabled_manually" and .state != "deleted") | "\(.path) \(.state)"' > stuck.txt; then
             echo "::error::could not list the workflows again to verify (API or token problem)"; failed=$((failed + 1))
           fi
           if [ -s stuck.txt ]; then

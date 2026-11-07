@@ -162,7 +162,10 @@ function Sheet({ open, onClose, title, children }: { open: boolean; onClose: () 
 export function NotifyButton() {
   const pwa = usePwa();
   const [sheet, setSheet] = useState(false);
-  if (!pwa.pushSupported && !pwa.needsInstallForPush) return null;
+  // The server HTML and the hydration render cannot know whether push works here, and mounting
+  // the button afterwards shifted the search and social icons ~38 px on every production page.
+  // So the slot is always there: where push is unsupported it stays as an invisible placeholder.
+  const available = pwa.pushSupported || pwa.needsInstallForPush;
 
   // Always open the sheet first: it says what is sent, and "Асаах" asks the browser for
   // permission. Asking on the bell itself looked dead where the browser hides its prompt.
@@ -174,10 +177,12 @@ export function NotifyButton() {
       <button
         type="button"
         onClick={onClick}
-        disabled={pwa.busy}
+        disabled={pwa.busy || !available}
         aria-label={label}
-        title={label}
-        className={cx(HEADER_ICON_BUTTON, "relative disabled:opacity-50", pwa.subscribed && "text-brand-secondary ring-brand")}
+        aria-hidden={available ? undefined : true}
+        tabIndex={available ? undefined : -1}
+        title={available ? label : undefined}
+        className={cx(HEADER_ICON_BUTTON, "relative disabled:opacity-50", !available && "invisible", pwa.subscribed && "text-brand-secondary ring-brand")}
       >
         {pwa.subscribed ? <BellRinging01 className="size-[18px]" /> : <Bell01 className="size-[18px]" />}
         {!pwa.subscribed && <span className="absolute top-1.5 right-1.5 size-2 rounded-full bg-risk ring-2 ring-bg-primary" aria-hidden />}

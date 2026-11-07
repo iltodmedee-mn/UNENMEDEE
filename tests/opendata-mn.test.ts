@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { attendanceHighlight, blacklistHighlight, fxHighlight, macroHighlight, salaryHighlight, tendersHighlight } from "@/lib/opendata-mn/highlights";
-import { formatMntShort } from "@/lib/format";
+import { formatMntShort, formatUsd } from "@/lib/format";
 
 // Column names copied from the live API (suffixes and stray spaces included).
 const fx = (code: string, rate: number, date: string) => ({ "EN (37)": code, "MN (37)": code, "Rate (37)": rate, "date (37)": `${date}T00:00:00Z` });
@@ -74,5 +74,21 @@ describe("opendata.mn highlights", () => {
     assert.equal(formatMntShort(43_955_551_446_285), "43.96 их наяд ₮");
     assert.equal(formatMntShort(2_100_132_698), "2.1 тэрбум ₮");
     assert.equal(formatMntShort(950), "950 ₮");
+  });
+
+  it("rounds before choosing the unit and prints thousands with spaces", () => {
+    assert.equal(formatMntShort(999.96e9), "1 их наяд ₮");
+    assert.equal(formatMntShort(999.96e6), "1 тэрбум ₮");
+    assert.equal(formatMntShort(999_960), "1 сая ₮");
+    assert.equal(formatMntShort(999.94e9), "999.9 тэрбум ₮");
+    assert.equal(formatMntShort(-1234.5e12), "−1 234.5 их наяд ₮");
+  });
+
+  it("never prints a real cost as zero", () => {
+    assert.equal(formatUsd(0.00004, 4), "< $0.0001");
+    assert.equal(formatUsd(0.00006, 4), "$0.0001");
+    assert.equal(formatUsd(0.000004, 4), "< $0.0001");
+    assert.equal(formatUsd(0, 4), "$0.0000");
+    assert.equal(formatUsd(0.0042), "$0.0042");
   });
 });
