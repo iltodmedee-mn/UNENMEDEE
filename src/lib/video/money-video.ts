@@ -13,6 +13,7 @@
  * everyday good. The voice says only fixed phrases and numbers as words, never the headline (it
  * is on screen), so it cannot misread a scraped text.
  */
+import { namesPerson } from "@/lib/participation/petitions";
 import { formatMntShort, formatNumber } from "@/lib/format";
 import { type PricesSnapshot, valueAt } from "@/lib/budget/prices";
 import { POPULATION, POPULATION_LABEL } from "@/lib/per-person";
@@ -158,11 +159,17 @@ function aboutCount(count: number, unitSay: string, unit: string): { say: string
  * one (Nov 2026 audit: "…төгрөгийн хахууль авсан албан тушаалтныг шүүхэд шилжүүллээ" passed the
  * older list). Shared by the money and impact videos.
  */
-export const CHARGE = /(хулгай|авлиг|хахуул|завш|мөнгө угаа|баривчл|яллагд|ял оноо|ял шийтг|шийтгүүл|хэрэгт холбогд|шалгагдаж|сэжигт|шүүмж|буруутга|үрэн таран|дэмий|луйвар|хууль бус)/i;
+export const CHARGE = /(хулгай|авлиг|хахуул|завш|мөнгө угаа|баривчл|яллагд|ял оноо|ял шийтг|шийтгүүл|хэрэгт холбогд|шалгагдаж|сэжигт|шүүмж|буруутга|үрэн таран|дэмий|луйвар|хууль бус|хууль зөрч|гэм буруу|гэмт хэрэг|эрүүгийн хэрэг|(?<!\p{L})зөрчил(?!гүй)|хариуцлага тооц|огцр|(?<!\p{L})үрсэн)/iu;
+
+/**
+ * Words harmless on their own ("татвараас чөлөөлж", "компанийг торгов") that become a charge or a
+ * dismissal once a named person stands next to them (Audit 6 C1). Checked with `namesPerson`.
+ */
+export const PERSON_CHARGE = /(торгу|торгов|чөлөөл|огцр|ял(?![\p{L}])|шийтг|хариуцлага)/iu;
 
 export function weighsOrAccuses(title: string): boolean {
   const t = ` ${title.toLowerCase().replace(/[.,!?;:«»"“”()]/g, " ")} `;
-  return /\s(ч|л)\s/.test(t) || /(ердөө|гэвч|харин|хэдий ч|зөвхөн)/.test(t) || CHARGE.test(t);
+  return /\s(ч|л)\s/.test(t) || /(ердөө|гэвч|харин|хэдий ч|зөвхөн)/.test(t) || CHARGE.test(t) || (namesPerson(title) && PERSON_CHARGE.test(t));
 }
 
 /** The spec for one story, or null when its headline names no big ₮ amount the story also holds. */

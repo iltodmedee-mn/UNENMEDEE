@@ -144,3 +144,13 @@ describe("after a parliamentary election", () => {
     assert.ok(!placeMatchesConstituency(capital, "Дорнод, Сүхбаатар, Хэнтий"));
   });
 });
+
+describe("short names spelled with a space (Audit 6 C7)", () => {
+  it("'Д. Ганмаа' is the namesake of 'Д.Ганмаа'", () => {
+    const people = [
+      { shortName: "Д.Ганмаа", isActive: true },
+      { shortName: "Д. Ганмаа", isActive: false },
+    ];
+    assert.deepEqual(attributable(people), []);
+  });
+});

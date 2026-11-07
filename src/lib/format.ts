@@ -131,10 +131,19 @@ function parseAmountNumber(raw: string, hasUnit: boolean): number {
   return Number(tail === 3 && (!hasUnit || sep === ",") ? s.replace(sep, "") : s.replace(sep, "."));
 }
 
+/** The currency mark of a tögrög amount: ₮, төгрөг ("төгрөгийн"), a standalone "төг", MNT. Not "төгсөгч". */
+export const HAS_MNT_MARKER = /₮|төгрөг|(?<!\p{L})төг(?!\p{L})|(?<!\p{L})MNT(?!\p{L})/iu;
+
 /** "12,5 тэрбум ₮" → 12 500 000 000 (best effort, null when unreadable or not in ₮). Mirrors amountToNumber in the scraper. */
 export function amountValue(amount: string): number | null {
   if (FOREIGN.test(amount)) return null;
-  const m = amount.match(/(\d[\d\s,.]*)\s*(их наяд|тэрбум|сая|мянга)?/i);
+  // Only a ₮ / төгрөг / төг amount: "3 сая хүн", "2 тэрбум кВт.ц" and "2026 он" are not money.
+  if (!HAS_MNT_MARKER.test(amount)) return null;
+  // The number that carries the unit or the mark, not a leading year ("2026 онд 5 тэрбум ₮").
+  const m =
+    amount.match(/(\d[\d\s,.]*?)\s*(их наяд|тэрбум|сая|мянга)/i) ??
+    amount.match(/(\d[\d\s,.]*?)\s*(?:₮|төгрөг|төг|MNT)/i) ??
+    amount.match(/(\d[\d\s,.]*)\s*(их наяд|тэрбум|сая|мянга)?/i);
   if (!m) return null;
   const unitWord = m[2]?.toLowerCase();
   const n = parseAmountNumber(m[1], Boolean(unitWord));

@@ -133,4 +133,11 @@ describe("declared companies in tender winner cells", () => {
     assert.deepEqual([...m.entries()], [["бодитчадал", ["Бодит чадал ХХК", "БОДИТЧАДАЛ ХХК"]]]);
     assert.equal(foundKeys(null).size, 0);
   });
+
+  it("a person with a bank in brackets, or a surname 'Сан', is a private person (Audit 6 C3)", () => {
+    const c = declaredCompanies({ lenders: "Б.Батболд (Хаан банк), Хаан банк, Д.Сан" });
+    assert.deepEqual(c.lenders.map((l) => l.name), ["Хаан банк"]);
+    assert.equal(c.hiddenPeople, 2);
+    assert.equal(isOrgName("Б.Бат ХХК"), true);
+  });
 });
