@@ -133,12 +133,16 @@ export function looksEmptyBody(text: string): boolean {
   return t.length < EMPTY_BODY_MAX_CHARS && EMPTY_BODY.test(t);
 }
 
+/** Lines we add ourselves when storing (legalinfo.ts's issuer line): never on the source page, never a headline. */
+export const OUR_PREFIX = /^Батлагдсан байгууллага:[^\n]*\n+/;
+const OUR_LINE = /^Батлагдсан байгууллага:/;
+
 /** The first sentence of the text as a headline (≤ 110 characters, cut at a word). */
 export function firstSentenceTitle(text: string, max = 110): string {
   const lines = normalizeText(text)
     .split(/\n+|(?<=[.!?])\s+/)
     .map((l) => l.replace(/\s+/g, " ").trim())
-    .filter((l) => l && !isDateLine(l));
+    .filter((l) => l && !isDateLine(l) && !OUR_LINE.test(l));
   let pick = lines.find((l) => l.length >= 20 && !isGenericTitle(l)) ?? lines[0] ?? "";
   // A listing line glued to its date and view counter: "Гарчиг 2023-06-081932 уншсан…".
   const beforeDate = pick.split(/\s+(?=20\d{2}[./-]\d{1,2}[./-]\d{1,2})/)[0];
@@ -200,6 +204,8 @@ export function unshoutTitle(title: string): string {
     if (w.length === 1 && s[at + 1] === ".") return w; // an initial: "Б."
     const lower = w.toLowerCase();
     if (s[at - 1] === "." && /\p{Lu}/u.test(s[at - 2] ?? "")) return cap(lower); // the name after "Б." ("С.К.Шойгу-тай")
+    // The second half of a hyphenated given name after an initial: "Л.Оюун-Эрдэнэ", "Б.Бат-Эрдэнэ".
+    if (s[at - 1] === "-" && !CASE_SUFFIX.test(s.slice(at - 1)) && /\p{Lu}\.\p{L}+-$/u.test(s.slice(Math.max(0, at - 40), at))) return cap(lower);
     if (w.length <= 6 && CASE_SUFFIX.test(s.slice(at + w.length))) return w;
     return PROPER.some((p) => w.startsWith(p)) ? cap(lower) : lower;
   });

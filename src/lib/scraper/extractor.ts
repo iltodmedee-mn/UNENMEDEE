@@ -3,7 +3,9 @@ import { JSDOM, VirtualConsole } from "jsdom";
 
 import { contentHash, normalizeText } from "@/lib/text";
 
-import { isFutureDate } from "./dates";
+import { isFutureDate, parseDateValue } from "./dates";
+
+export { parseDateValue };
 import { chooseTitle } from "./titles";
 import { safeDecode } from "./links";
 
@@ -128,21 +130,6 @@ export function dateFromText(text: string): Date | null {
     // Month and day first, the year after a comma: "10 сарын 20, 2026" (iaac.mn).
     first(/(?<![\d.])(\d{1,2})\s*(?:-р|дугаар|дүгээр)?\s*сарын\s*(\d{1,2})(?:-?(?:ны|ний|нд))?\s*,\s*(20\d{2})(?!\d)/g, (md) => validDate(+md[3], +md[1], +md[2]))
   );
-}
-
-/**
- * A machine-readable date (meta tag, JSON-LD, <time datetime>). A value without a zone
- * ("2026-10-23 17:41:12", "2026-10-23T17:41") is Ulaanbaatar wall-clock time (UTC+8): read as
- * UTC it would be 8 hours late and the feed would sort it under the next morning's news.
- */
-export function parseDateValue(value: string | null | undefined): Date | null {
-  if (!value) return null;
-  let v = value.trim();
-  const local = v.match(/^(\d{4}-\d{2}-\d{2})[T ](\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?)$/);
-  if (local) v = `${local[1]}T${local[2]}+08:00`;
-  const d = new Date(v);
-  if (Number.isNaN(d.getTime()) || d.getUTCFullYear() < 2000 || isFutureDate(d)) return null;
-  return d;
 }
 
 const DATE_CLASS = /date|time|ognoo|огноо|publish|post-on|posted|calendar|meta/i;

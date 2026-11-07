@@ -92,8 +92,12 @@ export function checkAllowance(provider: AIProvider, usage: UsageSnapshot, confi
 
 export interface BudgetGuard {
   check(provider: AIProvider): Promise<Allowance>;
-  /** Count a finished call (called by the router right after logging it). */
-  record(provider: AIProvider, costUsd: number): void;
+  /**
+   * Count a finished call (called by the router right after logging it). `unlogged` marks a call
+   * that never reaches ai_usage_logs (a 429 or timeout with no tokens): the database count will
+   * not contain it, so the guard keeps it until the UTC day ends instead of losing it at the next reload.
+   */
+  record(provider: AIProvider, costUsd: number, unlogged?: boolean): void;
 }
 
 /**
@@ -104,10 +108,25 @@ export function createBudgetGuard(load: () => Promise<UsageSnapshot>, config: Bu
   let snapshot: UsageSnapshot | null = null;
   let loadedAt = 0;
   let pending: Promise<UsageSnapshot> | null = null;
+  // Calls the database will never contain, for the current UTC day; added on top of every reload.
+  let extraDay = "";
+  let extra: Partial<Record<AIProvider, number>> = {};
+  const rollDay = () => {
+    const day = new Date().toISOString().slice(0, 10);
+    if (day !== extraDay) {
+      extraDay = day;
+      extra = {};
+    }
+  };
   const current = async () => {
+    rollDay();
     if (!snapshot || Date.now() - loadedAt > 60_000) {
       pending ??= load().finally(() => (pending = null));
-      snapshot = await pending;
+      const fresh = await pending;
+      const dayCalls = { ...fresh.dayCalls };
+      rollDay();
+      for (const [p, n] of Object.entries(extra) as [AIProvider, number][]) dayCalls[p] = (dayCalls[p] ?? 0) + n;
+      snapshot = { ...fresh, dayCalls };
       loadedAt = Date.now();
     }
     return snapshot;
@@ -116,7 +135,9 @@ export function createBudgetGuard(load: () => Promise<UsageSnapshot>, config: Bu
     async check(provider) {
       return checkAllowance(provider, await current(), config);
     },
-    record(provider, costUsd) {
+    record(provider, costUsd, unlogged = false) {
+      rollDay();
+      if (unlogged) extra[provider] = (extra[provider] ?? 0) + 1;
       if (!snapshot) return;
       snapshot.monthUsd += costUsd;
       snapshot.dayUsd += costUsd;

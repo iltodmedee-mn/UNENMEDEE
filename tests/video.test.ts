@@ -12,7 +12,7 @@ import { numberWords, timesPhrase } from "@/lib/video/mn-numbers";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
 import { moneyHtml } from "@/lib/video/money-html";
 import { amountWords, moneyNarration, moneyVideoSpec, roundShare, shareOptions, verifyMoneySpec, weighsOrAccuses } from "@/lib/video/money-video";
-import { dueSlot } from "@/lib/video/schedule";
+import { claimValue, CLAIM_LEASE_MS, dueSlot, mayClaim, slotStart, VIDEO_SLOTS } from "@/lib/video/schedule";
 import { narration, priceVideoSpec, quizOptions, SPOKEN, verifySpec } from "@/lib/video/price-video";
 import { sceneHtml } from "@/lib/video/scene-html";
 import { audioFilter } from "@/lib/video/render";
@@ -381,6 +381,18 @@ describe("video slots", () => {
     assert.equal(dueSlot(ub("2026-10-31T19:05:00"), ub("2026-10-31T12:17:00"))?.prefer, "impact");
     assert.equal(dueSlot(ub("2026-10-31T22:59:00"), ub("2026-10-31T19:20:00")), null);
     assert.equal(dueSlot(ub("2026-11-01T12:00:00"), null)?.prefer, "impact");
+  });
+
+  it("a slot claim is a lease: held for 20 minutes, then free again if no video came of it", () => {
+    const now = ub("2026-10-31T12:41:00");
+    const start = slotStart(now, VIDEO_SLOTS[0]);
+    assert.equal(start.toISOString(), ub("2026-10-31T12:00:00").toISOString());
+    assert.equal(mayClaim(null, start, now), true);
+    const mine = claimValue(start, now);
+    assert.equal(mayClaim(mine, start, new Date(now.getTime() + 5 * 60_000)), false, "a second run in the same minutes loses");
+    assert.equal(mayClaim(mine, start, new Date(now.getTime() + CLAIM_LEASE_MS)), true, "the run died: the lease expired");
+    assert.equal(mayClaim(mine, slotStart(ub("2026-10-31T19:30:00"), VIDEO_SLOTS[1]), ub("2026-10-31T19:30:00")), true, "another slot");
+    assert.equal(mayClaim(start.toISOString(), start, now), true, "an old plain claim of unknown age");
   });
 
   it("never makes one outside the slots, however late GitHub starts the run", () => {

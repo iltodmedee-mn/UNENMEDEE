@@ -303,14 +303,25 @@ export function spreadFree(chain: AIProvider[], turn = spreadTurn++): AIProvider
   return [...head.slice(k), ...head.slice(0, k), ...chain.slice(i)];
 }
 
-export function chainFor(tier: Tier, env: Record<string, string | undefined> = process.env): AIProvider[] {
+/** The chain written in AI_TIER1_CHAIN / AI_TIER2_CHAIN, or null when unset or without a known provider. */
+function pinnedChain(tier: Tier, env: Record<string, string | undefined>): AIProvider[] | null {
   const raw = env[tier === "tier1" ? "AI_TIER1_CHAIN" : "AI_TIER2_CHAIN"];
-  if (!raw?.trim()) return placeGemini(DEFAULT_CHAINS[tier], env);
+  if (!raw?.trim()) return null;
   const parsed = raw
     .split(",")
     .map((s) => s.trim().toLowerCase())
     .filter((s): s is AIProvider => (PROVIDERS as string[]).includes(s));
-  return parsed.length ? [...new Set(parsed)] : placeGemini(DEFAULT_CHAINS[tier], env);
+  return parsed.length ? [...new Set(parsed)] : null;
+}
+
+export function chainFor(tier: Tier, env: Record<string, string | undefined> = process.env): AIProvider[] {
+  return pinnedChain(tier, env) ?? placeGemini(DEFAULT_CHAINS[tier], env);
+}
+
+/** The chain a call walks: the default tier-1 chain rotates its free head, a written chain is used exactly as written. */
+export function chainForCall(tier: Tier, env: Record<string, string | undefined> = process.env): AIProvider[] {
+  const chain = chainFor(tier, env);
+  return tier === "tier1" && !pinnedChain(tier, env) ? spreadFree(chain) : chain;
 }
 
 export interface CallOptions<S extends z.ZodTypeAny> {
@@ -407,7 +418,7 @@ function isRetryableRateLimit(err: unknown): boolean {
 export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptions<S>): Promise<CallResult<z.output<S>>> {
   const log = opts.log ?? noopLogger;
   const budget = opts.budget ?? unlimitedGuard;
-  const chain = (opts.chain ?? (opts.tier === "tier1" ? spreadFree(chainFor(opts.tier)) : chainFor(opts.tier)))
+  const chain = (opts.chain ?? chainForCall(opts.tier))
     .map((p) => configuredProvider(p, opts.tier))
     .filter((p): p is ProviderConfig => p !== null);
   if (chain.length === 0) {
@@ -443,6 +454,7 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
       let completionTokens = 0;
       let reportedCost: number | undefined;
       let reply = "";
+      let success: { data: z.output<typeof opts.schema>; costUsd: number } | null = null;
       try {
         await throttleProvider(p.provider);
         // The repair attempt gets more room: a reply cut off mid-JSON is the most common invalid one.
@@ -461,11 +473,7 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         }
         const parsed = opts.schema.safeParse(json);
         if (!parsed.success) throw new SchemaError(parsed.error.issues.map((i) => `${i.path.join(".")}: ${i.message}`).join("; "), res.content);
-        const costUsd = reportedCost ?? estimateCostUsd(p.provider, promptTokens, completionTokens, p.model);
-        await log({ provider: p.provider, model: p.model, purpose: opts.purpose, articleId: opts.articleId, promptTokens, completionTokens, estimatedCostUsd: costUsd, success: true });
-        budget.record(p.provider, costUsd);
-        tripped.delete(p.provider);
-        return { data: parsed.data, provider: p.provider, model: p.model, costUsd };
+        success = { data: parsed.data, costUsd: reportedCost ?? estimateCostUsd(p.provider, promptTokens, completionTokens, p.model) };
       } catch (err) {
         const message = errorMessage(err);
         // One line: a JSON.parse error quotes the model's reply, which an article text can steer.
@@ -488,7 +496,7 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         } else {
           // A 429 or a timeout is still a request against the account's quota (OpenRouter: 50 a
           // day): counted in memory for the daily cap, not in ai_usage_logs (no tokens, no cost).
-          budget.record(p.provider, 0);
+          budget.record(p.provider, 0, true);
         }
         if (isBadReply(err, message)) {
           // One repair attempt on the same provider, then move on (a cut-off reply gets twice the tokens).
@@ -513,6 +521,21 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         }
         break; // network / auth / quota: next provider
       }
+      // The answer is valid and paid for: a failing usage-log insert (a database blip) must neither
+      // trip the provider nor throw the answer away.
+      const { data, costUsd } = success;
+      try {
+        await log({ provider: p.provider, model: p.model, purpose: opts.purpose, articleId: opts.articleId, promptTokens, completionTokens, estimatedCostUsd: costUsd, success: true });
+      } catch (logErr) {
+        console.warn(`[ai] ${p.provider}/${p.model} answered but the usage log failed: ${oneLine(errorMessage(logErr), 160)}`);
+      }
+      try {
+        budget.record(p.provider, costUsd);
+      } catch (recordErr) {
+        console.warn(`[ai] ${p.provider}/${p.model} budget record failed: ${oneLine(errorMessage(recordErr), 160)}`);
+      }
+      tripped.delete(p.provider);
+      return { data: data as z.output<S>, provider: p.provider, model: p.model, costUsd };
     }
   }
   throw new AIUnavailableError(`All AI providers failed for ${opts.tier}`, attempts);

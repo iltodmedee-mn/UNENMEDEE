@@ -30,7 +30,7 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { isFutureDate, MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { extractArticleSafe } from "@/lib/scraper/extract-safe";
-import { politeFetch } from "@/lib/scraper/http";
+import { API_MAX_BYTES, politeFetch, readTextLimited } from "@/lib/scraper/http";
 import { looksLikeUnitPage } from "@/lib/scraper/titles";
 import { normalizeText } from "@/lib/text";
 import { errorDetail } from "@/lib/log-safe";
@@ -155,7 +155,7 @@ async function refetchUndated(db: ReturnType<typeof getDb>, days: number) {
         console.log(`   #${r.id} HTTP ${res.status}`);
         continue;
       }
-      const date = (await extractArticleSafe(await res.text(), r.url))?.publishedAt ?? null;
+      const date = (await extractArticleSafe(await readTextLimited(res, API_MAX_BYTES), r.url))?.publishedAt ?? null;
       if (!date || isFutureDate(date)) {
         console.log(`   #${r.id} still no date`);
         continue;

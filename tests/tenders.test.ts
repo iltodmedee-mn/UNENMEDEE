@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { recentMonths } from "@/lib/procurement/fetch";
-import { amount, mergeByKey, methodLabel, namesNoWinner, parseTenders, resultDate, tenderQuery, unitSuspect } from "@/lib/procurement/tenders";
+import { amount, mergeByKey, methodLabel, NO_AWARD, namesNoWinner, parseTenders, resultDate, tenderQuery, unitSuspect } from "@/lib/procurement/tenders";
 
 // Real rows from Шилэн данс form 1831 (Nov 2026): awarded lots, an empty-code row, an undated lot,
 // "оролцогч ирээгүй", a "-" code, a 2029 typo date, a month-only date, a decimal amount, ШХА.
@@ -130,5 +130,22 @@ describe("tenders: Nov 2026 audit", () => {
     const a = parseTenders([[lot("Тест ХХК", "480000000")]], 2025, TODAY);
     const b = parseTenders([[lot("Тест ХХК", "480000000")]], 2026, TODAY);
     assert.equal(mergeByKey([...a, ...b]).length, 1);
+  });
+});
+
+describe("tenders: Audit 6", () => {
+  it("a single trailing comma with 1-2 digits is a decimal comma", () => {
+    assert.equal(amount("4 343 956,27"), 4343956);
+    assert.equal(amount("4 100 000,50"), 4100001);
+    assert.equal(amount("1,250,000"), 1250000, "thousands commas stay thousands");
+    assert.equal(amount("355543123.27"), 355543123);
+    assert.equal(amount("1068516025"), 1068516025);
+  });
+
+  it("a supplier whose name holds a status word is a winner; a status is not", () => {
+    for (const name of ["Цуцалт сервис ХХК", "Баримт бичиг ХХК", "Хүчингүй байдал ТӨХК", "«Цуцал» ХХК"]) assert.equal(NO_AWARD.test(name), false, name);
+    for (const status of ["Зарлагдаагүй", "Тендер зарлагдаагүй байна", "Зарласан байгаа", "эхлээгүй", "Хамгийн сайн үнэлэгдсэн", "Эрх бүхий оролцогч болохыг нотлох баримт бичгүүд", "оролцогч ороогүй", "0", "-"]) {
+      assert.equal(NO_AWARD.test(status), true, status);
+    }
   });
 });

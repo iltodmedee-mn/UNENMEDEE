@@ -86,3 +86,10 @@ describe("press blindspot", () => {
     assert.ok(!isPressBlindspot(base, later, 0));
   });
 });
+
+describe("press feed dates without a zone", () => {
+  it("are Ulaanbaatar time, not UTC", () => {
+    const rss = `<rss><channel><item><title>Нэг сайн гарчиг энд</title><link>https://ikon.mn/n/1</link><pubDate>2026-11-05 17:41:00</pubDate></item></channel></rss>`;
+    assert.equal(parseRssItems(rss)[0].publishedAt?.toISOString(), "2026-11-05T09:41:00.000Z");
+  });
+});

@@ -23,7 +23,7 @@ import { legalinfoDetailText } from "@/lib/scraper/adapters/legalinfo";
 import { parsePoliceArticle } from "@/lib/scraper/adapters/police";
 import { extractArticleSafe } from "@/lib/scraper/extract-safe";
 import { htmlFragmentToText } from "@/lib/scraper/extractor";
-import { API_MAX_BYTES, politeFetch, readTextLimited } from "@/lib/scraper/http";
+import { API_MAX_BYTES, politeFetch, readJsonLimited, readTextLimited } from "@/lib/scraper/http";
 import { isWordPress, sameSite, wordPressApiBase, wordPressPostId, wordPressPostsUrl } from "@/lib/scraper/links";
 import { decide, type FetchResult, MIN_FRESH_CHARS, type SourceDiff, type SourceStatus } from "@/lib/scraper/recheck";
 import { errorDetail, errorLine } from "@/lib/log-safe";
@@ -104,7 +104,7 @@ async function wordPressText(html: string, row: Row): Promise<string | null> {
   try {
     const res = await politeFetch(wordPressPostsUrl(base, `include=${id}&_fields=id,content`), { timeoutMs: 30_000 });
     if (!res.ok) return null;
-    const posts = JSON.parse(await res.text()) as unknown;
+    const posts = await readJsonLimited(res);
     const rendered = Array.isArray(posts) ? (posts[0] as { content?: { rendered?: unknown } } | undefined)?.content?.rendered : undefined;
     return typeof rendered === "string" ? htmlFragmentToText(rendered) : null;
   } catch (err) {
