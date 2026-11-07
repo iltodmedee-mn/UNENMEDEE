@@ -42,6 +42,7 @@ import { sharedShortNames } from "@/lib/officials/flags";
 import { currentState, needsRefresh, refreshSeverity, type TokenState } from "@/lib/social/token-state";
 import { PRODUCTION_URL } from "@/lib/site";
 import { countSince, mayPost, neverPosted, type PostKind, postedAt, publishOnce } from "@/lib/social/post-ledger";
+import { displayTitle, namesMnt, postable } from "@/lib/story-rules";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
 import { errorDetail, errorLine } from "@/lib/log-safe";
@@ -264,7 +265,7 @@ async function postNews(db: Db, p: Platform) {
       id: articles.id,
       slug: articles.slug,
       // Our plain headline when Tier 1 wrote one (src/lib/ai/reader-view.ts).
-      title: sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`,
+      title: displayTitle,
       tldr: articles.tldrSummary,
       sourceName: sources.name,
       entities: articles.extractedEntities,
@@ -280,11 +281,8 @@ async function postNews(db: Db, p: Platform) {
     .innerJoin(sources, eq(articles.sourceId, sources.id))
     .where(
       and(
-        eq(articles.isPublished, true),
-        isNotNull(articles.tldrSummary),
-        eq(articles.summaryFallback, false),
+        postable,
         gte(articles.publishedAt, new Date(Date.now() - 24 * 3_600_000)),
-        sql`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false) = false`,
         or(gte(articles.importanceScore, IMPORTANCE_MIN), eq(articles.riskFlag, true)),
         neverPosted(p.name, "article", articles.id),
         // One post per story: skip articles whose cluster already went out on this platform.
@@ -322,14 +320,11 @@ async function postQuiz(db: Db, p: Platform) {
     .from(articles)
     .where(
       and(
-        eq(articles.isPublished, true),
-        isNotNull(articles.tldrSummary),
-        eq(articles.summaryFallback, false),
+        postable,
         gte(articles.publishedAt, new Date(Date.now() - 72 * 3_600_000)),
-        sql`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false) = false`,
         // makeQuiz needs a ₮ amount in the headline itself.
         sql`${articles.title} ~ '[0-9]'`,
-        sql`jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0`,
+        namesMnt,
         neverPosted(p.name, "quiz", articles.id),
       ),
     )
@@ -350,7 +345,7 @@ async function loadWeekly(db: Db): Promise<WeeklyTop | null> {
     .select({
       id: articles.id,
       slug: articles.slug,
-      title: sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`,
+      title: displayTitle,
       entities: articles.extractedEntities,
       riskFlag: articles.riskFlag,
       sourceId: articles.sourceId,
@@ -423,7 +418,7 @@ async function postPromo(db: Db, p: Platform) {
 
 /** The week's stories that may hold a quiz question: published, AI-summarized, dated, a ₮ amount in the headline. */
 async function quizCandidates(db: Db, now: Date): Promise<QuizCandidate[]> {
-  const title = sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`;
+  const title = displayTitle;
   const rows = await db
     .select({
       id: articles.id,
@@ -442,14 +437,11 @@ async function quizCandidates(db: Db, now: Date): Promise<QuizCandidate[]> {
     .innerJoin(sources, eq(articles.sourceId, sources.id))
     .where(
       and(
-        eq(articles.isPublished, true),
-        isNotNull(articles.tldrSummary),
-        eq(articles.summaryFallback, false),
+        postable,
         gte(articles.publishedAt, new Date(now.getTime() - 7 * 86_400_000)),
         sql`${articles.publishedAt} <= ${now}`,
-        sql`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false) = false`,
         sql`${title} ~ '[0-9]'`,
-        sql`jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0`,
+        namesMnt,
       ),
     );
   return rows.map((r) => ({

@@ -28,6 +28,7 @@ import { and, desc, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 
 import { closeDb, type DB, getDb, hasDatabase } from "@/db";
 import { appSettings, articles, indicatorSnapshots, sources, videos } from "@/db/schema";
+import { displayTitle, postable } from "@/lib/story-rules";
 import { consoleUsageLogger, dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-log";
 import { GOODS, type PricesSnapshot } from "@/lib/budget/prices";
 import { tldrSentences } from "@/lib/format";
@@ -249,7 +250,7 @@ function impactJobFrom(spec: ImpactSpec, sourceName: string): Job {
  * what to do), not yet a video of any kind, from a news source (opendata listings excluded).
  */
 async function impactJob(db: DB): Promise<Job | null> {
-  const title = sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`;
+  const title = displayTitle;
   for (const hours of [36, 4 * 24]) {
     const rows = await db
       .select({
@@ -266,13 +267,10 @@ async function impactJob(db: DB): Promise<Job | null> {
       .innerJoin(sources, eq(sources.id, articles.sourceId))
       .where(
         and(
-          eq(articles.isPublished, true),
-          isNotNull(articles.tldrSummary),
-          eq(articles.summaryFallback, false),
+          postable,
           gte(articles.publishedAt, new Date(Date.now() - hours * 3_600_000)),
           gte(articles.importanceScore, IMPACT_MIN_IMPORTANCE),
           sql`${sources.domain} <> 'opendata.gov.mn'`,
-          sql`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false) = false`,
           sql`not exists (select 1 from ${videos} where ${videos.key} in ('impact:' || ${articles.id}, 'money:' || ${articles.id}))`,
         ),
       )

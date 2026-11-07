@@ -14,11 +14,12 @@ import "dotenv/config";
 import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
-import { and, desc, eq, gte, inArray, isNotNull, isNull, or, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
-import { appSettings, articles, digests, politicians, pushSubscriptions, sources } from "@/db/schema";
+import { appSettings, articles, digests, politicians, pushSubscriptions } from "@/db/schema";
 import { mentionAlerts } from "@/lib/officials/follow-alerts";
+import { selectPushCandidates } from "@/lib/push/news-selection";
 import { digestPayload, newsPayload, type PushPayload } from "@/lib/push/core";
 import { sendToAll, sendToEndpoint } from "@/lib/push/server";
 import { oneLine } from "@/lib/log-safe";
@@ -35,28 +36,7 @@ const LAST_DIGEST_KEY = "push_last_digest_id";
 
 async function newsPayloads(): Promise<{ payloads: PushPayload[]; ids: number[] }> {
   const db = getDb();
-  const rows = await db
-    .select({
-      id: articles.id,
-      slug: articles.slug,
-      title: sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`,
-      tldr: articles.tldrSummary,
-      sourceName: sources.name,
-      riskFlag: articles.riskFlag,
-    })
-    .from(articles)
-    .innerJoin(sources, eq(articles.sourceId, sources.id))
-    .where(
-      and(
-        eq(articles.isPublished, true),
-        isNotNull(articles.tldrSummary),
-        isNull(articles.notifiedAt),
-        gte(articles.publishedAt, new Date(Date.now() - 24 * 3_600_000)),
-        or(gte(articles.importanceScore, IMPORTANCE_MIN), eq(articles.riskFlag, true)),
-      ),
-    )
-    .orderBy(sql`${articles.importanceScore} desc nulls last`, desc(articles.riskScore))
-    .limit(50);
+  const rows = await selectPushCandidates(db, IMPORTANCE_MIN);
   const payload = newsPayload(rows);
   return { payloads: payload ? [payload] : [], ids: rows.map((r) => r.id) };
 }

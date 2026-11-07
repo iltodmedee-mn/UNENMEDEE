@@ -18,11 +18,11 @@ import { HIDDEN_YEARS_KEY, type HiddenYears, parseHiddenYears } from "@/lib/offi
 import type { SourceDiff, SourceStatus } from "@/lib/scraper/recheck";
 import { isPressBlindspot } from "@/lib/press/outlets";
 import { toPrefixQuery } from "@/lib/search";
-import { FEED_MIN_IMPORTANCE, INDEXED_DOMAINS } from "@/lib/seo";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { LOG_KEEP_MONTHS, PRUNE_STATE_KEY } from "@/lib/retention";
 import { ubMidnight } from "@/lib/ticker";
-import { AI_TOPIC_KEYS, findTopic, TOPICS } from "@/lib/topics";
+import { aiSummarized, displayTitle, effectiveTopic, feedVisible, indexable, namesMnt, published, undated, visible } from "@/lib/story-rules";
+import { findTopic, TOPICS } from "@/lib/topics";
 import type { DatasetHighlight, DigestItem, ExtractedEntities, FactVsSpin, ReaderImpact, ScrapeMeta, SourceCategory } from "@/lib/types";
 
 /**
@@ -113,13 +113,10 @@ async function safe<T>(label: string, fallback: T, fn: () => Promise<T>): Promis
  */
 export const CLUSTER_SOURCES = sql<number | null>`(select count(distinct m.source_id)::int from ${articles} m where m.cluster_id = "articles"."cluster_id" and m.is_published)`;
 
-/** The plain headline Tier 1 wrote, else the source's own (src/lib/ai/reader-view.ts). */
-const DISPLAY_TITLE = sql<string>`coalesce(${articles.readerTitle}, ${articles.title})`;
-
 const listColumns = {
   id: articles.id,
   slug: articles.slug,
-  title: DISPLAY_TITLE,
+  title: displayTitle,
   sourceTitle: articles.title,
   impact: articles.readerImpact,
   tldr: articles.tldrSummary,
@@ -137,7 +134,7 @@ const listColumns = {
   topic: articles.topic,
   importanceScore: articles.importanceScore,
   clusterSize: CLUSTER_SOURCES,
-  dateUnknown: sql<boolean>`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false)`,
+  dateUnknown: undated,
   summaryFallback: articles.summaryFallback,
   pressCount: sql<number>`(select count(*)::int from ${pressLinks} where ${pressLinks.articleId} = ${articles.id})`,
 };
@@ -196,34 +193,7 @@ function toListItem(r: ListRow): ArticleListItem {
   };
 }
 
-/** Only analyzed, published articles appear publicly. */
-const visible = and(eq(articles.isPublished, true), isNotNull(articles.tldrSummary));
 const BUDGET_DOMAINS = ["tender.gov.mn", "shilendans.gov.mn", "mof.gov.mn", "audit.mn"];
-
-/**
- * SQL mirror of topicFor() (src/lib/topics.ts): local sites and opendata keep their domain topic,
- * otherwise the AI topic wins over the domain.
- */
-const DOMAIN_TOPIC = sql`case ${sources.domain} ${sql.join(
-  TOPICS.flatMap((t) => t.domains.map((d) => sql`when ${d} then ${t.key}`)),
-  sql` `,
-)} else 'other' end`;
-const EFFECTIVE_TOPIC = sql<string>`case
-  when ${sources.category} = 'local' then 'local'
-  when ${DOMAIN_TOPIC} = 'data' then 'data'
-  when ${articles.topic} in (${sql.join(AI_TOPIC_KEYS.map((k) => sql`${k}`), sql`, `)}) then ${articles.topic}
-  else ${DOMAIN_TOPIC} end`;
-
-/*
- * Minor items (importance below FEED_MIN_IMPORTANCE, e.g. trainings, greetings, dataset listings)
- * stay off the home page and topic pages; they remain on /topic/data, /risk, clusters and the
- * archive. Unless clustered, naming a ₮ amount or a legal act they are thin pages: noindex and out
- * of the sitemaps (`INDEXABLE` = SQL mirror of isThinArticle in src/lib/seo.ts).
- */
-const INDEXABLE = sql`(coalesce(${articles.importanceScore}, 100) >= ${FEED_MIN_IMPORTANCE}
-  or ${articles.clusterId} is not null
-  or jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0
-  or ${sources.domain} in (${sql.join(INDEXED_DOMAINS.map((d) => sql`${d}`), sql`, `)}))`;
 
 function filterCondition(filter: FeedFilter): SQL | undefined {
   switch (filter) {
@@ -233,14 +203,14 @@ function filterCondition(filter: FeedFilter): SQL | undefined {
       return sql`(${sources.domain} in (${sql.join(
         BUDGET_DOMAINS.map((d) => sql`${d}`),
         sql`, `,
-      )}) or jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0)`;
+      )}) or ${namesMnt})`;
     case "ministry":
       return eq(sources.category, "ministry");
     case "local":
       return eq(sources.category, "local");
     default: {
       const topic = findTopic(filter);
-      return topic ? sql`${EFFECTIVE_TOPIC} = ${topic.key}` : undefined;
+      return topic ? sql`${effectiveTopic} = ${topic.key}` : undefined;
     }
   }
 }
@@ -258,7 +228,7 @@ export async function getFeed(filter: FeedFilter, limit = 30): Promise<ArticleLi
         and(
           visible,
           filterCondition(filter),
-          filter === "risk" || filter === "data" ? undefined : sql`coalesce(${articles.importanceScore}, 100) >= ${FEED_MIN_IMPORTANCE}`,
+          filter === "risk" || filter === "data" ? undefined : feedVisible,
           // The risk feed is score-first: without a window a months-old risk-95 story led it for good.
           filter === "risk" ? sql`${articles.publishedAt} >= now() - interval '30 days'` : undefined,
         ),
@@ -289,7 +259,7 @@ export async function getTopicNeighbours(filter: FeedFilter, excludeId: number, 
         and(
           visible,
           filterCondition(filter),
-          sql`coalesce(${articles.importanceScore}, 100) >= ${FEED_MIN_IMPORTANCE}`,
+          feedVisible,
           sql`${articles.id} <> ${excludeId}`,
           clusterId === null ? undefined : sql`${articles.clusterId} is distinct from ${clusterId}`,
         ),
@@ -702,7 +672,7 @@ export async function getSitemapSlugs(limit = 45_000): Promise<{ slug: string; l
       })
       .from(articles)
       .innerJoin(sources, eq(articles.sourceId, sources.id))
-      .where(and(visible, INDEXABLE))
+      .where(and(visible, indexable))
       .orderBy(desc(sql`coalesce(${articles.publishedAt}, ${articles.createdAt})`))
       .limit(limit),
   );
@@ -717,18 +687,18 @@ export async function getSitemapArticles(limit = 1000, indexableOnly = false): P
     const rows = await getDb()
       .select({
         slug: articles.slug,
-        title: DISPLAY_TITLE,
+        title: displayTitle,
         tldr: articles.tldrSummary,
         sourceName: sources.name,
         sourceDomain: sources.domain,
         sourceCategory: sources.category,
         publishedAt: articles.publishedAt,
-        dateUnknown: sql<boolean>`coalesce((${articles.scrapeMeta}->>'date_unknown')::boolean, false)`,
+        dateUnknown: undated,
         lastModified: sql<Date>`greatest(${articles.createdAt}, coalesce(${articles.editedAt}, ${articles.createdAt}))`.mapWith(articles.createdAt),
       })
       .from(articles)
       .innerJoin(sources, eq(articles.sourceId, sources.id))
-      .where(indexableOnly ? and(visible, INDEXABLE) : visible)
+      .where(indexableOnly ? and(visible, indexable) : visible)
       .orderBy(desc(sql`coalesce(${articles.publishedAt}, ${articles.createdAt})`))
       .limit(limit);
     return rows.map((r) => ({ ...r, tldr: r.tldr ?? "" }));
@@ -782,7 +752,7 @@ export async function getSiteStats(): Promise<SiteStats> {
           total: count(),
           // "AI-аар шүүгдсэн" counts AI summaries only: the extractive fallback (first sentences,
           // labelled "AI ажиллаагүй") is not an AI analysis; it inflated the public number by 28 %.
-          analyzed: sql<number>`count(*) filter (where ${articles.tldrSummary} is not null and not ${articles.summaryFallback})::int`,
+          analyzed: sql<number>`count(*) filter (where ${aiSummarized})::int`,
           flagged: sql<number>`count(*) filter (where ${articles.riskFlag})::int`,
         })
         .from(articles),
@@ -793,7 +763,7 @@ export async function getSiteStats(): Promise<SiteStats> {
           db
             .select({ id: articles.clusterId })
             .from(articles)
-            .where(and(isNotNull(articles.clusterId), eq(articles.isPublished, true)))
+            .where(and(isNotNull(articles.clusterId), published))
             .groupBy(articles.clusterId)
             .having(sql`count(distinct ${articles.sourceId}) >= 2`)
             .as("live_clusters"),
@@ -805,7 +775,7 @@ export async function getSiteStats(): Promise<SiteStats> {
           today: sql<number>`count(*) filter (where ${articles.createdAt} >= ${todayStart})::int`,
         })
         .from(articles)
-        .where(and(eq(articles.isPublished, true), sql`coalesce(${articles.importanceScore}, 100) >= ${FEED_MIN_IMPORTANCE}`)),
+        .where(and(published, feedVisible)),
       // Rows the retention job deleted were still read (and many analysed): the counters keep them.
       db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, PRUNE_STATE_KEY)).limit(1),
     ]);
@@ -862,7 +832,7 @@ export async function getSources(): Promise<SourceHealth[]> {
       .select({
         sourceId: articles.sourceId,
         n: count().as("n"),
-        visible: sql<number>`count(*) filter (where ${articles.isPublished} and ${articles.tldrSummary} is not null)`.as("visible"),
+        visible: sql<number>`count(*) filter (where ${visible})`.as("visible"),
       })
       .from(articles)
       .groupBy(articles.sourceId)
@@ -1054,7 +1024,7 @@ export async function getDigests(kind: "12h" | "30d", limit = 10, withStories = 
       const found = await db
         .select({ id: articles.id, tldr: articles.tldrSummary, summaryFallback: articles.summaryFallback, originalUrl: articles.originalUrl, entities: articles.extractedEntities })
         .from(articles)
-        .where(and(inArray(articles.id, ids), eq(articles.isPublished, true)));
+        .where(and(inArray(articles.id, ids), published));
       for (const a of found) {
         live.add(a.id);
         if (!withStories || !a.tldr) continue;
@@ -1100,7 +1070,7 @@ export async function getDigestById(id: number): Promise<Pick<DigestView, "id" |
     if (!d) return null;
     // As in getDigests: a story unpublished after the edition was written is not on the card.
     const ids = d.items.map((it) => it.articleId);
-    const live = ids.length ? new Set((await db.select({ id: articles.id }).from(articles).where(and(inArray(articles.id, ids), eq(articles.isPublished, true)))).map((a) => a.id)) : new Set<number>();
+    const live = ids.length ? new Set((await db.select({ id: articles.id }).from(articles).where(and(inArray(articles.id, ids), published))).map((a) => a.id)) : new Set<number>();
     return { ...d, items: d.items.filter((it) => live.has(it.articleId)) };
   });
 }
@@ -1258,7 +1228,7 @@ export async function getPolitician(id: number): Promise<PoliticianDetail | null
     const mentions = nameShared
       ? []
       : await db
-          .select({ slug: articles.slug, title: DISPLAY_TITLE, publishedAt: articles.publishedAt, sourceName: sources.name })
+          .select({ slug: articles.slug, title: displayTitle, publishedAt: articles.publishedAt, sourceName: sources.name })
           .from(articles)
           .innerJoin(sources, eq(articles.sourceId, sources.id))
           .where(and(visible, sql`jsonb_exists(coalesce(${articles.extractedEntities}->'people', '[]'::jsonb), ${politician.shortName})`))
@@ -1436,7 +1406,7 @@ export async function getWeekNumbers(): Promise<WeekNumbers | null> {
         risky: sql<number>`count(*) filter (where ${articles.riskFlag})::int`,
         legalActs: sql<number>`count(*) filter (where ${sources.domain} = 'legalinfo.mn')::int`,
         sources: sql<number>`count(distinct ${articles.sourceId})::int`,
-        withAmounts: sql<number>`count(*) filter (where jsonb_array_length(coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)) > 0)::int`,
+        withAmounts: sql<number>`count(*) filter (where ${namesMnt})::int`,
       })
       .from(articles)
       .innerJoin(sources, eq(articles.sourceId, sources.id))
