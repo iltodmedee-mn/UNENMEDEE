@@ -3,7 +3,6 @@ import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
 
 import { isFutureDate, isTimelessPage, looksOld, newestYearMentioned, publishDecision, ubYear } from "@/lib/scraper/dates";
-import { sourceError } from "@/lib/scraper/crawl";
 import { JSDOM } from "jsdom";
 
 import { cleanTitle, dateFromText, extractArticle, extractPublishedDate, jsonBlobDate, parseDateValue } from "@/lib/scraper/extractor";
@@ -262,14 +261,6 @@ describe("future dates, Ulaanbaatar year, title order, failing sources", () => {
   it("keeps the headline of a 'Site | Headline' title", () => {
     assert.equal(cleanTitle("Сангийн яам | Төсвийн тодотгол УИХ-д өргөн баригдлаа"), "Төсвийн тодотгол УИХ-д өргөн баригдлаа");
     assert.equal(cleanTitle("Төсвийн тодотгол УИХ-д өргөн баригдлаа | Сангийн яам"), "Төсвийн тодотгол УИХ-д өргөн баригдлаа");
-  });
-
-  it("calls a source failing when every article request failed", () => {
-    const base = { inserted: 0, skippedDuplicates: 0, error: null, completed: true, found: 3, articleFailures: 3, lastArticleError: "HTTP 403" };
-    assert.equal(sourceError(base), "every article request failed: HTTP 403");
-    assert.equal(sourceError({ ...base, articleFailures: 2 }), null);
-    assert.equal(sourceError({ ...base, inserted: 1 }), null);
-    assert.equal(sourceError({ ...base, found: 0, articleFailures: 0 }), "listing reached but no articles were stored");
   });
 });
 

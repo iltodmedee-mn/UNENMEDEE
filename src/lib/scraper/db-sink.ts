@@ -126,19 +126,22 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
   };
 }
 
-/** Writes per-source health after a run (drives exponential backoff for dead sites). */
-export async function recordSourceResults(db: DB, results: SourceRunResult[]): Promise<void> {
+/**
+ * Writes the verdict of each source's run (source-run.ts): failing sources count a failure (and
+ * back off), ok ones reset it, and a source that keeps its place in line is left untouched.
+ */
+export async function recordSourceResults(db: DB, results: Pick<SourceRunResult, "sourceId" | "verdict">[]): Promise<void> {
   const now = new Date();
-  for (const r of results) {
-    if (!r.completed) continue; // not reached before the time budget: keep it first in line
+  for (const { sourceId, verdict } of results) {
+    if (verdict.kind === "keepsPlace") continue;
     await db
       .update(sources)
       .set(
-        r.error
-          ? { lastScrapedAt: now, lastError: r.error.slice(0, 500), consecutiveFailures: sql`${sources.consecutiveFailures} + 1` }
+        verdict.kind === "failing"
+          ? { lastScrapedAt: now, lastError: verdict.reason.slice(0, 500), consecutiveFailures: sql`${sources.consecutiveFailures} + 1` }
           : { lastScrapedAt: now, lastError: null, consecutiveFailures: 0 },
       )
-      .where(eq(sources.id, r.sourceId));
+      .where(eq(sources.id, sourceId));
   }
 }
 

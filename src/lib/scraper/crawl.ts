@@ -9,6 +9,7 @@ import { oneLine } from "@/lib/log-safe";
 import { assertPublicHostLiteral, guardGotOptions, isPublicHost } from "./net-guard";
 import { getRobots, MAX_CRAWL_DELAY_MS, MIN_DOMAIN_DELAY_MS, type RobotsPolicy, USER_AGENT } from "./robots";
 import { isGenericTitle, looksLikeNavigation } from "./titles";
+import { SourceRun } from "./source-run";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "./types";
 import { chromiumExecutablePath } from "@/lib/chromium-path";
 
@@ -49,21 +50,19 @@ interface UserData {
   feedUrl?: string;
 }
 
-interface SourceState extends SourceRunResult {
+interface SourceState {
   source: SourceRef;
-  queuedArticles: number;
+  /** Reports events; its verdict is the only health decision (source-run.ts). */
+  run: SourceRun;
+  domain: string;
+  sourceId: number;
   triedHome: boolean;
-  /** Listing had no links in raw HTML: retry it in the browser. */
-  needsBrowserListing: boolean;
   /** Article URLs whose raw HTML had no extractable body: retry them in the browser. */
   needsBrowserArticles: string[];
   /** Section listings queued from a splash page that have not answered yet. */
   pendingSections: number;
   /** Sections are followed once per pass (a section page never fans out again). */
   sectionsTried: boolean;
-  /** Article requests that failed (403, timeout): all of them failing is a failing source. */
-  articleFailures: number;
-  lastArticleError: string | null;
 }
 
 const BODY_MIME_TYPES = ["application/json", "application/rss+xml", "application/atom+xml", "application/xml", "text/xml"];
@@ -128,16 +127,6 @@ export function httpBudgetMs(budgetMs: number, browser: boolean): number {
   return browser ? Math.round(budgetMs * (1 - BROWSER_BUDGET_SHARE)) : budgetMs;
 }
 
-/**
- * When the browser pass could not run, only a source whose listing needs JavaScript and whose
- * HTTP pass found nothing and failed nothing keeps its place in line (no health written); a
- * source with an HTTP error or with articles stored is recorded like any other, so a dead site
- * backs off instead of sitting "not reached" at the front of the queue for days.
- */
-export function keepsPlace(s: Pick<SourceState, "needsBrowserListing" | "error" | "inserted">): boolean {
-  return s.needsBrowserListing && !s.error && s.inserted === 0;
-}
-
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function homepage(source: SourceRef): string {
@@ -191,19 +180,11 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
         source: s,
         sourceId: s.id,
         domain: s.domain,
-        found: 0,
-        inserted: 0,
-        skippedDuplicates: 0,
-        error: null,
-        completed: false,
-        queuedArticles: 0,
+        run: new SourceRun(s.id, s.domain),
         triedHome: false,
-        needsBrowserListing: false,
         needsBrowserArticles: [],
         pendingSections: 0,
         sectionsTried: false,
-        articleFailures: 0,
-        lastArticleError: null,
       },
     ]),
   );
@@ -235,8 +216,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
     if (opts.since && (!item.publishedAt || item.publishedAt < opts.since)) {
       // Backfill: older than the window, or undated (it would be stored as "today" and show up
       // as fresh news). Give the slot back to a newer article.
-      state.queuedArticles -= 1;
-      state.found -= 1;
+      state.run.unqueued();
       return;
     }
     if (hasTenderSignals(item.text)) {
@@ -245,23 +225,22 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
     }
     const outcome = await sink.save(state.source, item);
     if (outcome === "inserted") {
-      state.inserted += 1;
+      state.run.stored();
       progress(`  ✓ ${state.domain}: ${oneLine(item.title, 90)}`);
     } else {
-      state.skippedDuplicates += 1;
+      state.run.duplicate();
     }
   }
 
   /** Dedupe against storage, respect the per-source limit, and hand URLs to `add`. */
   async function pickArticles(state: SourceState, urls: string[]): Promise<string[]> {
-    const room = opts.perSourceLimit - state.queuedArticles;
+    const room = opts.perSourceLimit - state.run.found;
     if (room <= 0 || urls.length === 0) return [];
     const unique = [...new Set(urls)];
     const fresh = await sink.filterNewUrls(unique);
-    state.skippedDuplicates += unique.length - fresh.size;
+    state.run.known(unique.length - fresh.size);
     const picked = [...fresh].slice(0, room);
-    state.queuedArticles += picked.length;
-    state.found += picked.length;
+    state.run.queued(picked.length);
     return picked;
   }
 
@@ -285,8 +264,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
         const why = policy.unavailable ?? `robots.txt disallows ${u.pathname}`;
         const state = states.get(r.userData.sourceId);
         if (state && r.userData.label === "ARTICLE") {
-          state.queuedArticles -= 1; // give the slot back
-          state.found -= 1;
+          state.run.unqueued(); // give the slot back
           progress(`  ⛔ ${state.domain} ${r.url}: ${why}`);
         } else {
           await onFailure(r.url, r.userData, new Error(why), add);
@@ -315,8 +293,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
           if (article && !(shell && mode === "http")) {
             await saveItem(state, { url, title: article.title, text: article.text, publishedAt: article.publishedAt });
           } else if (mode === "http") {
-            state.queuedArticles -= 1; // give the slot back; the browser pass may fill it
-            state.found -= 1;
+            state.run.unqueued(); // give the slot back; the browser pass may fill it
             // No text and no browser pass to try: a photo or video post, remembered like the API
             // sources do, so it is not fetched (8 s) again every run.
             if (!article && !browserEnabled) await sink.markNoText?.(state.source, url);
@@ -337,15 +314,15 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
         if (data.attempt === "section") {
           state.pendingSections -= 1;
           if (state.pendingSections <= 0) {
-            state.completed = true;
-            if (state.queuedArticles === 0 && state.inserted === 0 && !state.error) state.error = `listing failed: ${message}`;
+            state.run.reached();
+            if (state.run.found === 0 && state.run.inserted === 0 && !state.run.error) state.run.failed(`listing failed: ${message}`);
           }
         } else if (mode === "http" && !state.triedHome && url !== homepage(state.source)) {
           state.triedHome = true;
           await add([listingRequest(state, homepage(state.source), "home")]);
         } else {
-          state.error = `listing failed: ${message}`;
-          state.completed = true;
+          state.run.failed(`listing failed: ${message}`);
+          state.run.reached();
         }
       } else if (data.label === "WP_API" && data.feedUrl) {
         await add([{ url: data.feedUrl, userData: { label: "FEED", sourceId: state.sourceId, fallbackLinks: data.fallbackLinks } satisfies UserData }]);
@@ -354,12 +331,11 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
         await add(picked.map((u) => articleRequest(state, u)));
       } else if (data.label === "WP_API" || data.label === "FEED") {
         // Nothing else to try: say so instead of counting the run as a success.
-        state.error = `${data.label === "WP_API" ? "WordPress API" : "feed"} failed: ${message}`;
-        if (mode === "http") state.needsBrowserListing = true;
+        state.run.failed(`${data.label === "WP_API" ? "WordPress API" : "feed"} failed: ${message}`);
+        if (mode === "http") state.run.needsBrowser();
       }
       if (data.label === "ARTICLE") {
-        state.articleFailures += 1;
-        state.lastArticleError = message;
+        state.run.pageFailed(message);
       }
       progress(`  ✗ ${state.domain} ${data.label} ${url} — ${message}`);
     };
@@ -457,7 +433,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   // ---------------------------------------------------------------- handlers
   async function handleListing(mode: Mode, state: SourceState, data: UserData, pageUrl: string, html: string, add: Adder) {
     if (data.attempt === "section") state.pendingSections -= 1;
-    if (state.pendingSections <= 0) state.completed = true;
+    if (state.pendingSections <= 0) state.run.reached();
     const links = harvestArticleLinks(html, pageUrl, state.domain, opts.perSourceLimit * 4).map((l) => l.url);
     const feed = mode === "http" ? findFeedUrl(html, pageUrl) : null;
     const sameSiteFeed = feed && sameSite(new URL(feed).hostname, state.domain) ? feed : undefined;
@@ -484,12 +460,12 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
       if (sections.length) {
         state.sectionsTried = true;
         state.pendingSections += sections.length;
-        state.completed = false;
+        state.run.pending();
         await add(sections.map((u) => listingRequest(state, u, "section", mode)));
       }
     }
     if (links.length > 0) {
-      state.error = null;
+      state.run.recovered();
       const picked = await pickArticles(state, links);
       await add(picked.map((u) => articleRequest(state, u)));
       return;
@@ -497,13 +473,13 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
     if (state.pendingSections > 0) return; // a section page may still deliver the news
     if (mode === "http" && data.attempt === "primary" && !state.triedHome && pageUrl !== homepage(state.source)) {
       state.triedHome = true;
-      state.completed = false;
+      state.run.pending();
       await add([listingRequest(state, homepage(state.source), "home")]);
       return;
     }
-    if (state.queuedArticles > 0 || state.inserted > 0) return; // another listing of this source found the news
-    if (mode === "http") state.needsBrowserListing = true;
-    state.error = mode === "http" ? "no article links in HTML" : "no article links found even after JavaScript rendering";
+    if (state.run.found > 0 || state.run.inserted > 0) return; // another listing of this source found the news
+    if (mode === "http") state.run.needsBrowser();
+    state.run.failed(mode === "http" ? "no article links in HTML" : "no article links found even after JavaScript rendering");
   }
 
   async function handleWpApi(state: SourceState, data: UserData, body: string, add: Adder) {
@@ -520,7 +496,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
         return;
       }
       const picked = await pickArticles(state, data.fallbackLinks ?? []);
-      if (picked.length === 0 && !(data.fallbackLinks ?? []).length) state.needsBrowserListing = true;
+      if (picked.length === 0 && !(data.fallbackLinks ?? []).length) state.run.needsBrowser();
       await add(picked.map((u) => articleRequest(state, u)));
       return;
     }
@@ -528,14 +504,13 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
     const linkOf = (p: (typeof posts)[number]) => wordPressPostUrl(p, origin);
     const urls = posts.map(linkOf).filter((u): u is string => Boolean(u));
     const fresh = await sink.filterNewUrls(urls);
-    state.skippedDuplicates += urls.length - fresh.size;
+    state.run.known(urls.length - fresh.size);
     for (const post of posts) {
       const link = linkOf(post);
-      if (!link || !fresh.has(link) || state.queuedArticles >= opts.perSourceLimit) continue;
+      if (!link || !fresh.has(link) || state.run.found >= opts.perSourceLimit) continue;
       const text = htmlFragmentToText(post.content?.rendered ?? "");
       if (text.length < MIN_ARTICLE_CHARS) continue;
-      state.queuedArticles += 1;
-      state.found += 1;
+      state.run.queued();
       // Some installs strip date_gmt from the response (bnd.ub.gov.mn): `date` is site-local time.
       const date = post.date_gmt ? new Date(`${post.date_gmt}Z`) : parseDateValue(post.date);
       await saveItem(state, {
@@ -570,64 +545,42 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
     httpDeadline,
   );
 
-  const forBrowser = [...states.values()].filter((s) => s.needsBrowserListing || s.needsBrowserArticles.length);
+  const forBrowser = [...states.values()].filter((s) => s.run.needsBrowserListing || s.needsBrowserArticles.length);
   // Without a browser this run (--no-browser after a failed Chromium install, or a launch error
   // below) a JavaScript-only listing was not tried: it keeps its place instead of backing off as
   // "listing reached but no articles were stored".
-  const keepJsSources = () => {
-    for (const s of forBrowser) if (keepsPlace(s)) s.completed = false;
-  };
-  if (!browserEnabled) keepJsSources();
+  if (!browserEnabled) for (const s of forBrowser) s.run.browserUnavailable();
   if (browserEnabled && forBrowser.length) {
     progress(`🖥  Rendering ${forBrowser.length} JavaScript-heavy source(s) in headless Chromium…`);
     try {
       const ran = await runPass("browser", async (add) => {
         const reqs = [];
         for (const s of forBrowser) {
-          if (s.needsBrowserListing) {
-            s.completed = false;
+          if (s.run.needsBrowserListing) {
+            s.run.pending();
             s.sectionsTried = false;
             s.pendingSections = 0;
             reqs.push(listingRequest(s, s.source.urlPattern, "primary", "browser"));
           }
-          const retry = s.needsBrowserArticles.splice(0, Math.max(0, opts.perSourceLimit - s.queuedArticles));
-          s.queuedArticles += retry.length;
-          s.found += retry.length;
+          const retry = s.needsBrowserArticles.splice(0, Math.max(0, opts.perSourceLimit - s.run.found));
+          s.run.queued(retry.length);
           reqs.push(...retry.map((u) => articleRequest(s, u, "browser")));
         }
         await add(reqs);
       });
       // No time left for the browser: a JavaScript-only listing the HTTP pass could not read is
       // not a failure and keeps its place in line; everything the HTTP pass did learn is recorded.
-      if (!ran) for (const s of forBrowser) if (keepsPlace(s)) s.completed = false;
+      if (!ran) for (const s of forBrowser) s.run.browserUnavailable();
     } catch (err) {
-      for (const s of forBrowser) s.completed = true;
-      keepJsSources();
+      for (const s of forBrowser) {
+        s.run.reached();
+        s.run.browserUnavailable();
+      }
       progress(`  ✗ Browser pass unavailable: ${errorMessage(err)} (set CHROMIUM_EXECUTABLE_PATH or run \`npx playwright install chromium\`)`);
     }
   }
 
-  return [...states.values()].map((s) => ({
-    sourceId: s.sourceId,
-    domain: s.domain,
-    found: s.found,
-    inserted: s.inserted,
-    skippedDuplicates: s.skippedDuplicates,
-    completed: s.completed,
-    error: sourceError(s),
-  }));
-}
-
-/**
- * A source that produced or already had articles is healthy even if one request failed. One that
- * was reached but stored nothing and knew nothing is not, and neither is one whose every article
- * request failed (403, timeouts): back it off and say why.
- */
-export function sourceError(s: Pick<SourceState, "inserted" | "skippedDuplicates" | "error" | "completed" | "found" | "articleFailures" | "lastArticleError">): string | null {
-  if (s.inserted > 0 || s.skippedDuplicates > 0) return null;
-  if (s.error) return s.error;
-  if (s.found > 0 && s.articleFailures >= s.found) return `every article request failed: ${s.lastArticleError ?? "error"}`;
-  return s.completed && s.found === 0 ? "listing reached but no articles were stored" : null;
+  return [...states.values()].map((s) => s.run.result());
 }
 
 type CrawlRequest = { url: string; uniqueKey?: string; userData: UserData };

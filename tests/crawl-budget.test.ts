@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { BROWSER_BUDGET_SHARE, domainDelayMs, httpBudgetMs, keepsPlace } from "@/lib/scraper/crawl";
+import { BROWSER_BUDGET_SHARE, domainDelayMs, httpBudgetMs } from "@/lib/scraper/crawl";
 import { backoffMs, MAX_BACKOFF_H } from "@/lib/scraper/db-sink";
 import { MIN_DOMAIN_DELAY_MS } from "@/lib/scraper/robots";
 
@@ -17,14 +17,6 @@ describe("scraper time budget", () => {
     assert.equal(domainDelayMs({ crawlDelayMs: 2_000 }), MIN_DOMAIN_DELAY_MS);
     assert.equal(domainDelayMs({ crawlDelayMs: 15_000 }), 15_000);
     assert.equal(domainDelayMs({ crawlDelayMs: 90_000 }), 20_000);
-  });
-
-  it("after a skipped browser pass only a silent JavaScript listing keeps its place; errors and stored articles are recorded", () => {
-    assert.ok(keepsPlace({ needsBrowserListing: true, error: null, inserted: 0 }));
-    assert.ok(!keepsPlace({ needsBrowserListing: true, error: "listing failed: 404", inserted: 0 }));
-    assert.ok(!keepsPlace({ needsBrowserListing: true, error: null, inserted: 2 }));
-    // Article retries alone (the listing worked over HTTP) never hold a source back.
-    assert.ok(!keepsPlace({ needsBrowserListing: false, error: null, inserted: 0 }));
   });
 
   it("backs failing sources off 2, 4, 8 hours and never more", () => {

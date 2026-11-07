@@ -18,6 +18,7 @@ import { closeDb, getDb, hasDatabase } from "@/db";
 import { API_ADAPTERS, groupByApiHost } from "@/lib/scraper/adapters";
 import { crawlSources, type ArticleSink } from "@/lib/scraper/crawl";
 import { createDbSink, loadDueSources, recordSourceResults } from "@/lib/scraper/db-sink";
+import { SourceRun } from "@/lib/scraper/source-run";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "@/lib/scraper/types";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { contentHash } from "@/lib/text";
@@ -68,48 +69,56 @@ function createDryRunSink(): ArticleSink {
 }
 
 async function runApiSource(source: SourceRef, sink: ArticleSink, fetchItems: (limit: number) => Promise<ScrapedItem[]>, deadline: number): Promise<SourceRunResult> {
-  const result: SourceRunResult = { sourceId: source.id, domain: source.domain, found: 0, inserted: 0, skippedDuplicates: 0, error: null, completed: true };
+  const run = new SourceRun(source.id, source.domain);
   // Past the API share of the budget: not reached, so the source keeps its place in line.
-  if (Date.now() > deadline) return { ...result, completed: false };
+  if (Date.now() > deadline) return run.result();
   try {
-    const items = (await fetchItems(perSourceLimit * 3)).filter((i) => !since || (i.publishedAt !== null && i.publishedAt >= since));
+    const listed = await fetchItems(perSourceLimit * 3);
+    // Outside the backfill window there is nothing to read: counted as known, not as an empty listing.
+    const items = listed.filter((i) => !since || (i.publishedAt !== null && i.publishedAt >= since));
+    run.known(listed.length - items.length);
     const fresh = await sink.filterNewUrls(items.map((i) => i.url));
-    result.skippedDuplicates = items.length - fresh.size;
-    let detailErrors = 0;
-    let lastDetailError: unknown;
-    for (const listed of items.filter((i) => fresh.has(i.url))) {
+    run.known(items.length - fresh.size);
+    let read = 0;
+    let cutOff = false;
+    for (const item of items.filter((i) => fresh.has(i.url))) {
       // The limit counts stories read, not pages tried: photo posts and failed pages do not use it up.
-      if (result.found >= perSourceLimit) break;
+      if (read >= perSourceLimit) break;
       // Detail pages cost 8 s each on one host (www.gov.mn serves ~20 sources): stop at the deadline.
-      if (Date.now() > deadline) break;
+      if (Date.now() > deadline) {
+        cutOff = true;
+        break;
+      }
+      run.queued();
       let loaded: Awaited<ReturnType<NonNullable<ScrapedItem["loadText"]>>> | string;
       try {
-        loaded = listed.loadText ? await listed.loadText() : listed.text;
+        loaded = item.loadText ? await item.loadText() : item.text;
       } catch (err) {
-        // One slow or failed page (a 30 s portal timeout) used to end the whole source and start
-        // its backoff, after it had already stored stories.
-        detailErrors += 1;
-        lastDetailError = err;
-        console.log(`  ⚠ ${source.domain}: ${oneLine(listed.url, 120)}: ${errorLine(err, 160)}`);
+        // One slow or failed page (a 30 s portal timeout) must not end the source: the verdict
+        // fails it only when every page failed and nothing was stored.
+        run.pageFailed(errorLine(err, 200));
+        console.log(`  ⚠ ${source.domain}: ${oneLine(item.url, 120)}: ${errorLine(err, 160)}`);
         continue;
       }
       if (!loaded) {
-        await sink.markNoText?.(source, listed.url);
+        await sink.markNoText?.(source, item.url);
         continue;
       }
-      result.found += 1;
-      const item = { ...listed, ...(typeof loaded === "string" ? { text: loaded } : loaded), loadText: undefined };
-      if ((await sink.save(source, item)) === "inserted") result.inserted += 1;
-      else result.skippedDuplicates += 1;
+      read += 1;
+      const full = { ...item, ...(typeof loaded === "string" ? { text: loaded } : loaded), loadText: undefined };
+      if ((await sink.save(source, full)) === "inserted") run.stored();
+      else run.duplicate();
     }
-    // Only when every page failed and nothing was stored is the source failing (backoff applies).
-    if (detailErrors && result.found === 0 && result.inserted === 0) result.error = `every story page failed (${detailErrors}): ${errorLine(lastDetailError, 200)}`;
+    // Stopped by the time budget before a single page was tried: not reached.
+    if (cutOff && run.found === 0) run.notReached();
+    else run.reached();
   } catch (err) {
     // One line (it reaches the Actions log and `last_error`), with the cause: "fetch failed" alone
     // hid ECONNREFUSED / ETIMEDOUT / a certificate error.
-    result.error = errorLine(err);
+    run.failed(errorLine(err));
+    run.reached();
   }
-  return result;
+  return run.result();
 }
 
 async function main() {
@@ -172,10 +181,10 @@ async function main() {
   if (!dryRun) await recordSourceResults(getDb(), results);
 
   const inserted = results.reduce((n, r) => n + r.inserted, 0);
-  const failed = results.filter((r) => r.error);
+  const failed = results.filter((r) => r.verdict.kind === "failing");
   console.log(`\n📊 Summary (${Math.round((Date.now() - started) / 1000)}s): ${inserted} new article(s) from ${results.length} source(s).`);
   for (const r of results.sort((a, b) => b.inserted - a.inserted)) {
-    const status = !r.completed ? "⏸ not reached" : r.error ? `✗ ${r.error}` : "✓";
+    const status = r.verdict.kind === "keepsPlace" ? "⏸ not reached" : r.verdict.kind === "failing" ? `✗ ${r.verdict.reason}` : "✓";
     console.log(`  ${r.domain.padEnd(28)} new=${String(r.inserted).padStart(2)} dup=${String(r.skippedDuplicates).padStart(2)} ${status}`);
   }
   if (failed.length) console.log(`\n${failed.length} source(s) failed; they back off automatically. The batch itself succeeded.`);
