@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 
 import { htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
-import { politeFetch } from "../http";
+import { API_MAX_BYTES, politeFetch, readJsonLimited, readTextLimited } from "../http";
 import type { ScrapedItem } from "../types";
 
 /**
@@ -71,7 +71,7 @@ export async function fetchLegalinfo(limit: number): Promise<ScrapedItem[]> {
       headers: { "content-type": "application/x-www-form-urlencoded", "x-requested-with": "XMLHttpRequest", accept: "application/json" },
     });
     if (!res.ok) throw new Error(`legalinfo.mn list returned HTTP ${res.status}`);
-    const json = (await res.json()) as { Html?: string };
+    const json = (await readJsonLimited(res)) as { Html?: string };
     const found = parseLegalinfoList(json.Html ?? "");
     acts.push(...found);
     if (found.length < 20) break;
@@ -84,8 +84,8 @@ export async function fetchLegalinfo(limit: number): Promise<ScrapedItem[]> {
     // Detail pages are fetched only for acts not stored yet (see runApiSource).
     loadText: async () => {
       const res = await politeFetch(a.url);
-      if (!res.ok) return null;
-      const text = legalinfoDetailText(await res.text());
+      if (!res.ok) throw new Error(`HTTP ${res.status} for ${a.url}`);
+      const text = legalinfoDetailText(await readTextLimited(res, API_MAX_BYTES));
       if (text.length < MIN_ARTICLE_CHARS) return null;
       return a.issuer ? `Батлагдсан байгууллага: ${a.issuer}\n\n${text}` : text;
     },

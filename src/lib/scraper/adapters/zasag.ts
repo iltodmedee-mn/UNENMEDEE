@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 
 import { htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
-import { politeFetch } from "../http";
+import { API_MAX_BYTES, politeFetch, readTextLimited } from "../http";
 import type { ScrapedItem } from "../types";
 
 /**
@@ -40,5 +40,5 @@ export function parseZasagFeed(xml: string): ScrapedItem[] {
 export async function fetchZasag(limit: number): Promise<ScrapedItem[]> {
   const res = await politeFetch(ZASAG_FEED_URL, { headers: { accept: "application/rss+xml, application/xml" } });
   if (!res.ok) throw new Error(`mongolia.gov.mn feed returned HTTP ${res.status}`);
-  return parseZasagFeed(await res.text()).slice(0, limit);
+  return parseZasagFeed(await readTextLimited(res, API_MAX_BYTES)).slice(0, limit);
 }

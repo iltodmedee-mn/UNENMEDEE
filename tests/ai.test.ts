@@ -166,6 +166,22 @@ describe("router with a mock OpenAI-compatible server", () => {
     }
   });
 
+  it("a 429 or a timeout with no tokens still counts against the provider's daily cap", async () => {
+    script = (model) => (model === "mock-grok" ? { status: 429 } : { content: TIER2_OK });
+    const recorded: [string, number][] = [];
+    const budget = { check: async () => ({ ok: true as const }), record: (p: string, c: number) => void recorded.push([p, c]) };
+    process.env.AI_RATE_LIMIT_WAIT_MS = "5";
+    try {
+      const res = await callAIWithFallback({ tier: "tier2", purpose: "tier2", messages: [{ role: "user", content: "x" }], schema: Tier2Schema, log, budget });
+      assert.equal(res.provider, "deepseek");
+      // Two Grok attempts (one wait, one retry), each a request against its quota; DeepSeek's success costs tokens.
+      assert.deepEqual(recorded.filter(([p]) => p === "grok"), [["grok", 0], ["grok", 0]]);
+      assert.equal(recorded.filter(([p]) => p === "deepseek").length, 1);
+    } finally {
+      delete process.env.AI_RATE_LIMIT_WAIT_MS;
+    }
+  });
+
   it("falls back from Grok to DeepSeek when Grok errors", async () => {
     script = (model) => (model === "mock-grok" ? { status: 400 } : { content: TIER2_OK });
     const res = await callAIWithFallback({ tier: "tier2", purpose: "tier2", messages: [{ role: "user", content: "x" }], schema: Tier2Schema, log });

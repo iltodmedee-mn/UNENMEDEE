@@ -18,7 +18,7 @@ import { closeDb, getDb, hasDatabase } from "@/db";
 import { articles, pressItems, pressLinks } from "@/db/schema";
 import { OUTLETS, parseNewsMn, parseRssItems, type FeedItem } from "@/lib/press/feeds";
 import { matchPress, PRESS_AFTER_DAYS, type GovDoc, type PressDoc } from "@/lib/press/match";
-import { politeFetch } from "@/lib/scraper/http";
+import { API_MAX_BYTES, politeFetch, readJsonLimited, readTextLimited } from "@/lib/scraper/http";
 import { errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
@@ -31,7 +31,7 @@ const MATCH_DAYS = 7;
 async function readOutlet(o: (typeof OUTLETS)[number]): Promise<FeedItem[]> {
   const res = await politeFetch(o.feed, { timeoutMs: 30_000, headers: { accept: o.kind === "rss" ? "application/rss+xml, application/xml" : "application/json" } });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
-  return o.kind === "rss" ? parseRssItems(await res.text()) : parseNewsMn(await res.json(), new Date());
+  return o.kind === "rss" ? parseRssItems(await readTextLimited(res, API_MAX_BYTES)) : parseNewsMn(await readJsonLimited(res), new Date());
 }
 
 async function main() {

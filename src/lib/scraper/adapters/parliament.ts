@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
-import { politeFetch } from "../http";
+import { politeFetch, readJsonLimited } from "../http";
 import type { ScrapedItem } from "../types";
 
 /**
@@ -54,7 +54,7 @@ export async function fetchParliament(limit: number): Promise<ScrapedItem[]> {
     headers: { accept: "application/json" },
   });
   if (!res.ok) throw new Error(`parliament.mn API returned HTTP ${res.status}`);
-  return parseParliamentPage(await res.json())
+  return parseParliamentPage(await readJsonLimited(res))
     .map(parliamentArticleToScraped)
     .filter((x): x is ScrapedItem => x !== null);
 }

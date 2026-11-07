@@ -25,6 +25,9 @@ export interface SinkOptions {
 const SHARED_DATE_ROWS = 10;
 const SHARED_DATE_MIN_DAYS = 30;
 
+/** `seen_urls.content_hash` of a page that had no article text (never a real SHA-256). */
+export const NO_TEXT_HASH = "no-text";
+
 export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
   const maxAgeDays = Math.max(options.maxAgeDays ?? MAX_AGE_DAYS, MAX_AGE_DAYS);
   const claimed = new Set<string>();
@@ -38,6 +41,12 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
       ]);
       const known = new Set([...existing, ...deleted].map((r) => r.url));
       return new Set(urls.filter((u) => !known.has(u)));
+    },
+
+    async markNoText(source, url) {
+      // Photo and video posts (www.gov.mn, police.gov.mn) were fetched again every run, 8 s each,
+      // and used up the per-source limit before the real stories behind them were reached.
+      await db.insert(seenUrls).values({ originalUrl: url, contentHash: NO_TEXT_HASH, sourceId: source.id }).onConflictDoNothing();
     },
 
     async save(source: SourceRef, item: ScrapedItem) {

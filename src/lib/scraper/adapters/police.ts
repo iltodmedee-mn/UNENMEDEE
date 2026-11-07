@@ -1,7 +1,7 @@
 import * as cheerio from "cheerio";
 
 import { cleanTitle, htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
-import { politeFetch } from "../http";
+import { API_MAX_BYTES, politeFetch, readTextLimited } from "../http";
 import type { ScrapedItem } from "../types";
 
 /**
@@ -54,7 +54,7 @@ export function parsePoliceArticle(html: string): { title: string; text: string;
 export async function fetchPolice(limit: number): Promise<ScrapedItem[]> {
   const res = await politeFetch(POLICE_LIST_URL);
   if (!res.ok) throw new Error(`police.gov.mn list returned HTTP ${res.status}`);
-  const list = parsePoliceList(await res.text());
+  const list = parsePoliceList(await readTextLimited(res, API_MAX_BYTES));
   if (list.length === 0) throw new Error("police.gov.mn list had no articles (layout changed?)");
   return list.slice(0, limit).map((item) => ({
     url: item.url,
@@ -64,8 +64,9 @@ export async function fetchPolice(limit: number): Promise<ScrapedItem[]> {
     // Detail pages are fetched only for articles not stored yet (see runApiSource).
     loadText: async () => {
       const page = await politeFetch(item.url);
-      if (!page.ok) return null;
-      const a = parsePoliceArticle(await page.text());
+      // An HTTP error is thrown (counted, retried next run); null below means "no text" (skipped for good).
+      if (!page.ok) throw new Error(`HTTP ${page.status} for ${item.url}`);
+      const a = parsePoliceArticle(await readTextLimited(page, API_MAX_BYTES));
       if (a.text.length < MIN_ARTICLE_CHARS) return null;
       return { text: a.text, publishedAt: a.publishedAt ?? item.day };
     },

@@ -1,5 +1,5 @@
 import { htmlFragmentToText, MIN_ARTICLE_CHARS, plainTitle } from "../extractor";
-import { politeFetch } from "../http";
+import { politeFetch, readJsonLimited } from "../http";
 import type { ScrapedItem } from "../types";
 
 /**
@@ -42,5 +42,5 @@ export async function fetchNhrcm(limit: number): Promise<ScrapedItem[]> {
     headers: { "content-type": "application/json", accept: "application/json" },
   });
   if (!res.ok) throw new Error(`nhrcm.gov.mn list returned HTTP ${res.status}`);
-  return parseNhrcmList(await res.json());
+  return parseNhrcmList(await readJsonLimited(res));
 }
