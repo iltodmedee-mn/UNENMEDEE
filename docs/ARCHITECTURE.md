@@ -65,13 +65,14 @@ migrations in [`drizzle/`](../drizzle) (`IF NOT EXISTS` everywhere, so a rerun i
 | `sources` | Every monitored site: domain, category (portal / ministry / agency / local), scrape state, `consecutive_failures` for back-off |
 | `articles` | Cleaned text (never raw HTML), `content_hash` (SHA-256), AI fields (`tldr`, `facts`, `spin_detected`, `neutrality_score`, `risk_score`, `importance_score`, `topic`, `extracted_entities`), deep analysis, cluster id, prune / fallback / notification markers |
 | `clusters` | Cross-source stories: title, synthesis, article count |
-| `ai_usage_logs` | One row per LLM call: provider, model, tier, prompt/completion tokens, USD cost, success, error |
+| `ai_usage_logs` | One row per LLM call: provider, model, tier, prompt/completion tokens, USD cost, success |
 | `digests` | "Онцлох тойм" editions (12 h and 30 d) as JSON |
 | `politicians`, `asset_declarations` | MPs from parliament.mn and their yearly ХАСХОМ declarations (₮) |
 | `open_datasets` | opendata.mn metadata and small computed highlights (never raw rows) |
 | `indicator_snapshots` | One JSON document per external source (`mongolbank`, `budget_nso`, `shilendans`, `soe_finance`, …) |
 | `tenders` | Tender results each budget body files to Шилэн данс (form 1831): code, item, budget, contract, method, winner, date; amounts in an unclear unit are flagged, never rescaled (`/tenders`) |
 | `documents`, `watched_pages` | New audit.mn reports and file links added to watched WordPress report/tender pages (link, text, page only; never the file) (`/documents`) |
+| `press_items`, `press_links` | Headlines + links (no text) of the independent outlets' feeds for 45 days, and their matches to our last 7 days' stories (`/article` "Хэвлэлд"); not in backups |
 | `push_subscriptions` | Web Push endpoints and followed MPs |
 | `videos` | Generated videos (news, prices): the MP4 for a few days (served at `/reel?v=<id>` for the platforms to fetch), then only the key and the numbers it showed |
 | `social_posts` | What was posted to Facebook, Instagram, Threads, Telegram and Discord (one row per platform + kind + item, so nothing posts twice) |

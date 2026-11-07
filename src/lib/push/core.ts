@@ -58,6 +58,36 @@ export const SubscriptionSchema = z.object({
 
 export type SubscriptionInput = z.infer<typeof SubscriptionSchema>;
 
+/**
+ * What subscribePush (server action) and POST /api/push (the service worker's renewal) both accept:
+ * the subscription plus, for a renewal, the endpoint it replaces (whose follows move across).
+ * One function, so the route can never be laxer than the action.
+ */
+export function parseSubscribeRequest(input: unknown): { sub: SubscriptionInput; oldEndpoint: string | null } | null {
+  const parsed = SubscriptionSchema.safeParse(input);
+  if (!parsed.success) return null;
+  const old = typeof input === "object" && input !== null ? (input as { oldEndpoint?: unknown }).oldEndpoint : undefined;
+  const oldEndpoint = typeof old === "string" && old !== parsed.data.endpoint && isAllowedPushEndpoint(old) ? old : null;
+  return { sub: parsed.data, oldEndpoint };
+}
+
+export const PUSH_PER_IP_PER_HOUR = 60;
+const recentByIp = new Map<string, number[]>();
+
+/** Per IP and server instance; Mongolian carriers put many readers behind one IP, hence 60. */
+export function ipAllowed(ip: string, now: number): boolean {
+  const recent = (recentByIp.get(ip) ?? []).filter((t) => now - t < 3_600_000);
+  if (recent.length >= PUSH_PER_IP_PER_HOUR) return false;
+  recentByIp.set(ip, [...recent, now]);
+  if (recentByIp.size > 10_000) recentByIp.clear(); // bounded memory per server instance
+  return true;
+}
+
+/** Test helper: forget every counted request. */
+export function resetIpLimit(): void {
+  recentByIp.clear();
+}
+
 export interface PushPayload {
   title: string;
   body: string;

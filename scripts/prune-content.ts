@@ -45,7 +45,7 @@ async function main() {
 }
 
 async function fixShoutingTitles(db: ReturnType<typeof getDb>) {
-  const rows = (await db.execute(sql`select id, title from articles where title = upper(title) and title ~ '[А-ЯӨҮЁ]{3}'`)).rows as { id: number; title: string }[];
+  const rows = (await db.execute(sql`select id, title from articles where title = upper(title) and title ~ '[А-ЯӨҮЁ]{3}' and edited_at is null`)).rows as { id: number; title: string }[];
   const changes = rows.map((r) => ({ id: r.id, from: r.title, to: unshoutTitle(r.title) })).filter((c) => c.to !== c.from);
   console.log(`🔡 ${changes.length} headline(s) in capitals to store in sentence case.`);
   for (const c of changes.slice(0, 5)) console.log(`   ${c.from}\n → ${c.to}`);

@@ -6,7 +6,7 @@ import { timeAgoMn } from "@/lib/format";
 import { useLocalStorage } from "@/lib/local-store";
 import { useNow } from "@/lib/now-store";
 import { parseIds, READ_KEY } from "@/lib/read-state";
-import { FEED_QUIET_HOURS, hoursSince } from "@/lib/stale";
+import { FEED_QUIET_HOURS, hoursSince, isUbWeekend } from "@/lib/stale";
 import { nextRunLabel } from "@/lib/ticker";
 import { cx } from "@/utils/cx";
 
@@ -29,6 +29,8 @@ export function StatusTicker({ stats, lastArticleAt, todayArticles }: { stats: s
     // A quiet feed says how long it has been quiet, and makes no promise about the next check.
     const quiet = hoursSince(lastArticleAt, new Date(time)) > FEED_QUIET_HOURS;
     if (lastArticleAt) messages.push(quiet ? `Сүүлийн мэдээ ${timeAgoMn(lastArticleAt, time).toLowerCase()}` : `Шинэчилсэн: ${timeAgoMn(lastArticleAt, time).toLowerCase()}`);
+    // A quiet Saturday/Sunday is the government's weekend, not a stopped site (owner, Nov 7 2026).
+    if (quiet && isUbWeekend(time)) messages.push("Амралтын өдөр: төрийн мэдээ бага гардаг");
     if (!quiet) messages.push(`Дараагийн шалгалт: ${nextRunLabel(time)} дараа`);
     if (todayArticles > 0) messages.push(`Өнөөдөр ${todayArticles} шинэ мэдээ`);
     if (read > 0) messages.push(`Та ${read} мэдээ уншсан`);

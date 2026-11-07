@@ -73,3 +73,21 @@ describe("workflows read one configuration", () => {
     }
   });
 });
+
+describe("the final 'Fail the run when a step failed' step sees every tolerated failure", () => {
+  // It reads `toJSON(steps)`, which holds only steps with an `id`: a `continue-on-error` step
+  // without one fails silently forever (the Audit #4 bug). These id-less ones are intentional.
+  const NO_ID_OK = ["Cache Playwright Chromium"];
+  for (const file of readdirSync(DIR).filter((f) => f.endsWith(".yml"))) {
+    const text = read(file);
+    if (!text.includes("Fail the run when a step failed")) continue;
+    it(`${file}: every continue-on-error step has an id`, () => {
+      const bad = text
+        .split(/^(?=      - (?:name|uses):)/m)
+        .filter((s) => /^\s+continue-on-error:\s*true/m.test(s) && !/^\s+id:/m.test(s))
+        .map((s) => s.split("\n")[0].replace(/^\s*- (name|uses):\s*/, "").trim())
+        .filter((n) => !NO_ID_OK.includes(n));
+      assert.deepEqual(bad, [], `${file}: add an id (or allow-list the step): ${bad.join(", ")}`);
+    });
+  }
+});

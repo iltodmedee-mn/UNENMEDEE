@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-import { getArchiveDays, getPoliticianIds, getSitemapSlugs, getSourceHubDomains } from "@/lib/queries";
+import { FEED_FILTERS, getArchiveDays, getPoliticianIds, getSitemapSlugs, getSourceHubDomains } from "@/lib/queries";
 import { absoluteUrl } from "@/lib/site";
 import { PLACES } from "@/lib/places";
 import { ALL_DIRECTIONS } from "@/lib/promises";
@@ -21,7 +21,6 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl("/"), lastModified: newest, changeFrequency: "hourly", priority: 1 },
     { url: absoluteUrl("/digest"), lastModified: newest, changeFrequency: "hourly", priority: 0.9 },
     { url: absoluteUrl("/risk"), changeFrequency: "hourly", priority: 0.8 },
-    { url: absoluteUrl("/topic/risk"), changeFrequency: "hourly", priority: 0.7 },
     { url: absoluteUrl("/clusters"), changeFrequency: "hourly", priority: 0.7 },
     { url: absoluteUrl("/data"), changeFrequency: "daily", priority: 0.6 },
     { url: absoluteUrl("/officials"), changeFrequency: "weekly", priority: 0.8 },
@@ -48,7 +47,10 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: absoluteUrl("/participate"), changeFrequency: "daily", priority: 0.5 },
     { url: absoluteUrl("/method"), changeFrequency: "monthly", priority: 0.4 },
     { url: absoluteUrl("/about"), changeFrequency: "monthly", priority: 0.5 },
-    ...TOPICS.map((t) => ({ url: absoluteUrl(`/topic/${t.key}`), changeFrequency: "hourly" as const, priority: 0.8 })),
+    // Every prerendered feed page except "all" (= "/"): the topics plus risk, budget, ministry.
+    ...[...new Set(FEED_FILTERS)]
+      .filter((f) => f !== "all")
+      .map((f) => ({ url: absoluteUrl(`/topic/${f}`), changeFrequency: "hourly" as const, priority: TOPICS.some((t) => t.key === f) ? 0.8 : 0.7 })),
     ...PLACES.map((p) => ({ url: absoluteUrl(`/place/${p.slug}`), changeFrequency: "daily" as const, priority: 0.7 })),
   ];
   return [

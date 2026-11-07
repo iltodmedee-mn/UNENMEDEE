@@ -186,14 +186,17 @@ jobs:
           if npm run check > "$RUNNER_TEMP/check.log" 2>&1; then echo "check=pass" >> "$GITHUB_OUTPUT"; else echo "check=fail" >> "$GITHUB_OUTPUT"; fi
 
       # A fresh clone of main (no file Gemini touched, no hook), the patch applied, committed and
-      # pushed to a new branch, and a pull request opened.
-      - name: Open the pull request
+      # pushed to a new branch, and a pull request opened. The push is its own step: a refused
+      # push (the token may not push .github/workflows, a protected pattern) must not leave the
+      # issue without a word, so the report step below also runs when it failed.
+      - name: Push the branch
+        id: push
+        continue-on-error: true
         if: steps.cred.outputs.ok == 'true' && steps.verify.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           CHECK: ${{ steps.verify.outputs.check }}
           TITLE: ${{ github.event.issue.title }}
-          SUMMARY: ${{ steps.gemini3.outputs.summary || steps.gemini.outputs.summary }}
         run: |
           set -euo pipefail
           work="$RUNNER_TEMP/publish"
@@ -207,6 +210,19 @@ jobs:
           git apply --index "$RUNNER_TEMP/change.patch"
           git commit -q -m "Gemini: #${NUMBER} ${TITLE:0:60}" -m "Requested in #${NUMBER}; npm run check: ${CHECK}."
           git push -q origin "HEAD:$branch"
+          echo "branch=$branch" >> "$GITHUB_OUTPUT"
+
+      - name: Open the pull request
+        if: steps.cred.outputs.ok == 'true' && steps.verify.outputs.changed == 'true' && steps.push.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CHECK: ${{ steps.verify.outputs.check }}
+          TITLE: ${{ github.event.issue.title }}
+          SUMMARY: ${{ steps.gemini3.outputs.summary || steps.gemini.outputs.summary }}
+          BRANCH: ${{ steps.push.outputs.branch }}
+        run: |
+          set -euo pipefail
+          branch="$BRANCH"
           summary="$(printf '%s' "$SUMMARY" | head -c 3000)"
           if [ "$CHECK" = "pass" ]; then status="✅ \`npm run check\` давсан"; else status="❌ \`npm run check\` унасан: PR draft хэвээр. Хаагаад энэ issue дээр алдааг нь бичиж \`@gemini\` дахин дуудаарай"; fi
           stat="$(cat "$RUNNER_TEMP/stat.txt")"
@@ -226,15 +242,17 @@ jobs:
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$(printf '🤖 Gemini дууслаа: %s\n%s\n\n%s' "$link" "$status" "$summary")"
 
       - name: Report when nothing changed or the run failed
-        if: always() && steps.cred.outputs.ok == 'true' && steps.verify.outputs.changed != 'true'
+        if: always() && steps.cred.outputs.ok == 'true' && (steps.verify.outputs.changed != 'true' || steps.push.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           SUMMARY: ${{ steps.gemini3.outputs.summary || steps.gemini.outputs.summary }}
           ERROR: ${{ steps.gemini3.outputs.error || steps.gemini.outputs.error }}
           OUTCOME: ${{ steps.verify.outcome == 'success' && 'success' || 'failure' }}
+          PUSH: ${{ steps.push.outcome }}
         run: |
           text="$(printf '%s\n%s' "$SUMMARY" "$ERROR" | head -c 3000)"
-          if [ "$OUTCOME" = "success" ]; then head="🤖 Gemini код өөрчлөөгүй."; else head="🤖 Gemini ажиллаж чадсангүй (үнэгүй хязгаар дууссан эсвэл алдаа). Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi
+          if [ "$PUSH" = "failure" ]; then head="🤖 Gemini засвар бэлдсэн ч салбарыг push хийж чадсангүй (токен .github/workflows-д бичих эрхгүй эсвэл хамгаалалттай). Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          elif [ "$OUTCOME" = "success" ]; then head="🤖 Gemini код өөрчлөөгүй."; else head="🤖 Gemini ажиллаж чадсангүй (үнэгүй хязгаар дууссан эсвэл алдаа). Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$(printf '%s\n\n%s' "$head" "$text")"
 
       # The attempts are continue-on-error, so the run is turned red here when none of them worked.

@@ -7,8 +7,10 @@
 Юу хадгалагдах вэ: `app_settings` (VAPID түлхүүр, Threads/Instagram-ийн шинэчлэгдсэн токен,
 хандивын данс, нуусан жилүүд), эх сурвалжууд, бүх мэдээ, cluster, тойм, УИХ-ын гишүүд ба
 мэдүүлэг, өгөгдлийн хэсгүүд, тайлан (ledger), push захиалагчид, сошиал постын бүртгэл,
-`seen_urls`. Хадгалахгүй: `ai_usage_logs` (сар бүрийн нийт дүн ledger-т бий), `open_datasets`
-(дараагийн `data:sync` дахин бүтээнэ).
+`seen_urls`, тендер, баримт бичгийн бүртгэл (`tenders`, `watched_pages`, `documents`).
+Хадгалахгүй (`src/lib/backup.ts`): `ai_usage_logs` (сар бүрийн нийт дүн ledger-т бий),
+`open_datasets` (дараагийн `data:sync` дахин бүтээнэ), `videos` (MP4 хэдэн өдөр л хадгалагддаг),
+`press_items` ба `press_links` (дараагийн `press:sync` feed-үүдийг дахин уншина).
 
 **Аюулгүй байдал.** Нээлттэй репозиторийн artifact-ийг GitHub-д нэвтэрсэн хэн ч татаж чадна.
 Тиймээс файл зөвхөн таны **нийтийн** түлхүүрээр [age](https://age-encryption.org) аргаар
@@ -76,6 +78,16 @@ DATABASE_URL=pglite:memory npm run db:restore -- --file backup.ndjson.gz --dry-r
 Зөвхөн нэг хүснэгт сэргээх: `--table app_settings` (таслалаар хэд хэдийг). Сэргээлт мөр бүрийг
 үндсэн түлхүүрээр нь дарж бичнэ (upsert): файлд байхгүй мөрийг хөндөхгүй.
 
+**Амьд мэдээллийн сан руу сэргээхдээ болгоомжил.** Upsert зөвхөн үндсэн түлхүүрээр таарна. Хоёр дахь
+unique түлхүүртэй хүснэгтэд (`articles` slug/original_url, `sources` domain, `politicians`
+parliament_member_id, `asset_declarations` politician+year, `push_subscriptions` endpoint,
+`social_posts` platform+kind+ref, `transparency_ledger` month, `tenders` key, `documents` url)
+нөөц авснаас хойш амьд сан дээр ижил мөр өөр id-тай үүссэн бол unique зөрчил гарч, сэргээлт
+**бүхэлдээ** буцна (нэг transaction). Тиймээс бүрэн сэргээлтийг **хоосон, migrate хийсэн** шинэ санд
+хий. Амьд сан руу `--table` ашиглавал зөвхөн ийм хоёр дахь түлхүүргүй хүснэгтэд:
+`app_settings`, `indicator_snapshots`, `watched_pages`, `seen_urls`, `clusters`, `digests`,
+`donations`.
+
 **VAPID түлхүүрийг хэзээ ч шинээр бүү үүсгээрэй.** Push захиалагч бүр тэр хостой холбоотой:
 шинэ хос үүсгэвэл бүх захиалагч алга болно. Сэргээлт `app_settings`-ийг хуучнаар нь буцаана.
 
@@ -87,4 +99,10 @@ runner's `pg_dump` 16 refuses Supabase's Postgres 17) is piped through `gzip` an
 is uploaded as a 90-day artifact (public-repo artifacts are downloadable by any signed-in user).
 The owner keeps the age private key offline. Restore: `age -d`, then
 `npm run db:restore -- --file backup.ndjson.gz --dry-run`, then `--yes`. Rows are upserted by
-primary key in foreign-key order and serial sequences are moved past the restored ids.
+primary key in foreign-key order and serial sequences are moved past the restored ids. Not backed
+up: `ai_usage_logs`, `open_datasets`, `videos`, `press_items`, `press_links`. A restore into a live
+database aborts (one transaction) on any second unique key (articles slug/url, sources domain,
+politicians, push_subscriptions endpoint, social_posts, transparency_ledger month, tenders,
+documents, asset_declarations) when the same row has a different id there: restore everything
+into an empty, migrated database, or use `--table` only on `app_settings`, `indicator_snapshots`,
+`watched_pages`, `seen_urls`, `clusters`, `digests`, `donations`.

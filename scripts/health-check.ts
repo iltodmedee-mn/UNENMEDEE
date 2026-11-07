@@ -255,12 +255,12 @@ async function github(path: string, token: string): Promise<unknown> {
 async function workflows(token: string, repo: string): Promise<WorkflowSnapshot> {
   const list = (await github(`repos/${repo}/actions/workflows?per_page=100`, token)) as { workflows: { id: number; path: string; state: string }[] };
   // A manual disable is the owner's decision (keepalive leaves it alone and warns); anything else is not.
-  const notActive = list.workflows.filter((w) => w.state !== "active" && w.state !== "disabled_manually").map((w) => `${w.path} (${w.state})`);
+  const notActive = list.workflows.filter((w) => w.state !== "active" && w.state !== "disabled_manually" && w.state !== "deleted").map((w) => `${w.path} (${w.state})`);
   const failingSchedules: string[] = [];
   for (const w of list.workflows) {
     // The watchdog's own runs are red whenever it reports something urgent: counting them made it
     // report itself as failing for three more days after the real problem was fixed.
-    if (w.state === "disabled_manually" || /\/watchdog\.ya?ml$/.test(w.path)) continue;
+    if (w.state === "disabled_manually" || w.state === "deleted" || /\/watchdog\.ya?ml$/.test(w.path)) continue;
     const runs = (await github(`repos/${repo}/actions/workflows/${w.id}/runs?event=schedule&status=completed&per_page=3`, token)) as { workflow_runs: { conclusion: string | null; html_url?: string }[] };
     const last = runs.workflow_runs.map((r) => r.conclusion);
     // With the newest failed run's URL: the issue line used to name the workflow file only.

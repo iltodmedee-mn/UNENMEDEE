@@ -49,7 +49,7 @@ Useful details: the URL or file, steps to reproduce, and what an attacker could 
   owner connection string. Vercel must write: push subscriptions, followed MPs, admin edits and
   the donation setting. A read-only role would break those, so instead every write path on Vercel
   validates its input (zod, a push-service host allowlist) or calls `requireAdmin()`, and public
-  ones are rate-limited and capped (`subscribePush`: 10 per IP per hour, 500 new per hour, 50k
+  ones are rate-limited and capped (`subscribePush` and `POST /api/push`: 60 per IP per hour, 500 new per hour, 50k
   total). Row-level security with no policies blocks Supabase's public REST API on every table.
 - **Admin.** `/admin` is guarded twice (`proxy.ts` redirect and `requireAdmin()` in every page and
   server action). The password is 12+ characters and compared in constant time; each wrong guess
@@ -71,7 +71,7 @@ Useful details: the URL or file, steps to reproduce, and what an attacker could 
   dynamic.
 - **Supply chain.** Actions pinned to commit SHAs, read-only `GITHUB_TOKEN`, Dependabot with a
   7-day cooldown, dependency review and CodeQL on PRs, and a `main` ruleset (PR + green CI). Forks
-  never run the scheduled workflows (`if: github.repository == …`).
+  never run the scheduled workflows (`if: github.repository_owner == 'iltodmedee-mn'`).
 
 ## Supported versions
 

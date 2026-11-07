@@ -418,7 +418,7 @@ API түлхүүрээ шалгах: `npm run ai:process -- --sample`. Өгөг�
 | Улиралд нэг удаа | Нөөц хуулбарыг нэг удаа тайлж шалгах ([docs/BACKUP.md](docs/BACKUP.md), 3-р алхам). Dependabot-ын жижиг шинэчлэл CI ногоон бол өөрөө нэгтгэгдэнэ; том (major) шинэчлэлийг [docs/RUNBOOK.md](docs/RUNBOOK.md) §4-ийн дагуу. |
 | Жил бүр | Porkbun домэйн сунгалт. Meta Data Use Checkup. `VERCEL_TOKEN`-ийг шинэчлэх. Watchdog сануулбал `POPULATION`, `RATES_CHECKED`, `GOVERNMENTS_VERIFIED_THROUGH`, `TARIFFS_VERIFIED_THROUGH`, `PROJECTS_VERIFIED_THROUGH`-ийг шинэчлэх. |
 | Засгийн газар солигдоход | `src/lib/budget/governments.ts`-д шинэ Ерөнхий сайдыг нэмж `GOVERNMENTS_VERIFIED_THROUGH`-ийг шилжүүлэх. Түүнээс өмнө /budget шинэ онд «—» гэж үнэнээр нь харуулна. |
-| 2027-10 | audit.mn-ийн `certs/rapidssl-tls-rsa-ca-g1.pem` 2027-11-02-нд дуусна (watchdog 60 хоногийн өмнө сануулна). Pipeline-ийн нөөц GitHub токен 2027-10-29-нд дуусна ([docs/PIPELINE-FALLBACK.md](docs/PIPELINE-FALLBACK.md)). |
+| 2027-10 | audit.mn-ийн `certs/rapidssl-tls-rsa-ca-g1.pem` 2027-11-02-нд дуусна (watchdog 60 хоногийн өмнө сануулна). Pipeline-ийн нөөц GitHub токен 2027-10-29-нд дуусна: watchdog `app_settings.github_dispatch_token_expires`-д бичсэн огнооноос сануулдаг тул токен солихдоо тэр утга болон энэ мөрийг хамт шинэчил ([docs/PIPELINE-FALLBACK.md](docs/PIPELINE-FALLBACK.md)). |
 | 2028-04 | Node 24-ийн дэмжлэг дуусна: workflow-ууд болон Vercel дээр `node-version`-ийг ахиулах. |
 | 2028-06 УИХ-ын сонгууль | Юу ч хийх шаардлагагүй: шинэ гишүүд дараагийн sync-ээр орж, тойргийн нэр өөрчлөгдсөн ч аймгийн хуудсууд гишүүдээ олно. Watchdog идэвхтэй гишүүн 100-аас цөөн эсвэл гишүүнгүй аймаг гарвал хэлнэ. |
 | 2028-07 | Шинэ Засгийн газрын хөтөлбөр батлагдсаны дараа `npm run promises:import`. Тэр хүртэл /promises «өмнөх хөтөлбөр» гэж бичнэ. |
@@ -519,7 +519,7 @@ The site runs unattended: news every 30 minutes, digests and videos twice a day,
 | Quarterly | Decrypt one backup as a drill. Merge green Dependabot PRs (minor and patch merge themselves). |
 | Yearly | Renew the Porkbun domain, Meta Data Use Checkup, rotate `VERCEL_TOKEN`; update `POPULATION`, `RATES_CHECKED`, `GOVERNMENTS_VERIFIED_THROUGH`, `TARIFFS_VERIFIED_THROUGH`, `PROJECTS_VERIFIED_THROUGH` when the watchdog asks. |
 | New government | Add the Prime Minister in `governments.ts` and move `GOVERNMENTS_VERIFIED_THROUGH`; until then /budget shows "—" for unverified years. |
-| 2027-10 | `certs/rapidssl-tls-rsa-ca-g1.pem` (audit.mn) expires 2027-11-02; the pipeline-fallback GitHub token expires 2027-10-29 (`docs/PIPELINE-FALLBACK.md`). The watchdog warns ahead of both. |
+| 2027-10 | `certs/rapidssl-tls-rsa-ca-g1.pem` (audit.mn) expires 2027-11-02; the pipeline-fallback GitHub token expires 2027-10-29 (the watchdog warns from `app_settings.github_dispatch_token_expires`: update it and this line together when rotating, `docs/PIPELINE-FALLBACK.md`). The watchdog warns ahead of both. |
 | 2028-04 | Node 24 reaches end of life: bump `node-version` in the workflows and on Vercel. |
 | June 2028 election | Nothing: new MPs arrive with the next sync and place pages match redrawn constituencies; the watchdog flags fewer than 100 active MPs or a place without MPs. |
 | July 2028 | Run `npm run promises:import` once the new programme is approved; /promises says "previous programme" meanwhile. |

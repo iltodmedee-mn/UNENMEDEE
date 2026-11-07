@@ -25,9 +25,19 @@ const SORTS: { key: Sort; label: string }[] = [
   { key: "staff", label: "Ажилтан" },
 ];
 
-/** Monthly average per employee: wage fund ÷ staff ÷ 12 (all staff, executives included). */
+/** Below this many staff, or above this monthly figure, a self-reported filing is most likely a typo or a unit slip. */
+export const MIN_STAFF_FOR_AVG = 3;
+export const MAX_PLAUSIBLE_MONTHLY_WAGE = 50_000_000;
+
+/**
+ * Monthly average per employee: wage fund ÷ staff ÷ 12 (all staff, executives included). Null
+ * ("—", sorted last) when staff < 3 or the result is implausible (> 50 000 000 ₮ a month): the
+ * filings are self-reported and a typed staff count of 1 would otherwise top the ranking.
+ */
 export function avgMonthlyWage(r: Pick<SoeRow, "wageFund" | "staff">): number | null {
-  return r.wageFund && r.staff ? r.wageFund / r.staff / 12 : null;
+  if (!r.wageFund || !r.staff || r.staff < MIN_STAFF_FOR_AVG) return null;
+  const avg = r.wageFund / r.staff / 12;
+  return avg > MAX_PLAUSIBLE_MONTHLY_WAGE ? null : avg;
 }
 
 const money = (v: number | null) => (v === null ? "—" : formatMntShort(v));

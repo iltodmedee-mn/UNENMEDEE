@@ -27,7 +27,12 @@ export function timeAgoMn(date: Date | string | null | undefined, now: number = 
 }
 
 export function formatUsd(value: number, digits = 2): string {
-  if (value > 0 && value < 0.01) return `$${value.toFixed(4)}`;
+  if (value > 0 && value < 0.01) {
+    // Below the shown precision a real cost must not read as zero.
+    const places = Math.max(digits, 4);
+    const step = 10 ** -places;
+    return value < step / 2 ? `< $${step.toFixed(places)}` : `$${value.toFixed(places)}`;
+  }
   return `$${value.toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits })}`;
 }
 
@@ -97,10 +102,18 @@ export function formatPeriodMn(start: Date | string, end: Date | string): string
 export function formatMntShort(value: number): string {
   const abs = Math.abs(value);
   // A real minus sign (U+2212): the hyphen in tabular figures is digit-wide and read as "- 1.03".
-  const fmt = (n: number, unit: string) => `${value < 0 ? "−" : ""}${n.toLocaleString("en-US", { maximumFractionDigits: n < 100 ? 2 : 1 })} ${unit} ₮`;
-  if (abs >= 1e12) return fmt(abs / 1e12, "их наяд");
-  if (abs >= 1e9) return fmt(abs / 1e9, "тэрбум");
-  if (abs >= 1e6) return fmt(abs / 1e6, "сая");
+  const fmt = (n: number, unit: string) => `${value < 0 ? "−" : ""}${formatNumber(n)} ${unit} ₮`;
+  const round = (n: number) => Number(n.toFixed(n < 100 ? 2 : 1));
+  // Round BEFORE choosing the unit: 999.96 тэрбум rounds to 1000 and must read "1 их наяд".
+  const steps: [number, string][] = [[1e12, "их наяд"], [1e9, "тэрбум"], [1e6, "сая"]];
+  for (let i = 0; i < steps.length; i++) {
+    const [size, unit] = steps[i];
+    if (abs < size) continue;
+    const n = round(abs / size);
+    if (n >= 1000 && i > 0) return fmt(round(abs / steps[i - 1][0]), steps[i - 1][1]);
+    return fmt(n, unit);
+  }
+  if (abs >= 999_950) return fmt(1, "сая");
   return `${formatNumber(Math.round(value))} ₮`;
 }
 

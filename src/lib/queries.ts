@@ -259,6 +259,8 @@ export async function getFeed(filter: FeedFilter, limit = 30): Promise<ArticleLi
           visible,
           filterCondition(filter),
           filter === "risk" || filter === "data" ? undefined : sql`coalesce(${articles.importanceScore}, 100) >= ${FEED_MIN_IMPORTANCE}`,
+          // The risk feed is score-first: without a window a months-old risk-95 story led it for good.
+          filter === "risk" ? sql`${articles.publishedAt} >= now() - interval '30 days'` : undefined,
         ),
       )
       .orderBy(...(filter === "risk" ? [desc(articles.riskScore), desc(articles.publishedAt)] : [desc(articles.publishedAt), desc(articles.id)]))

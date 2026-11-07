@@ -76,8 +76,12 @@ const subscribeSub = (l: () => void) => {
         // The browser dropped or replaced the subscription while no tab was open (Chrome never
         // fires pushsubscriptionchange): the reader turned push on and still allows it, so it is
         // renewed quietly instead of the bell showing "off" and alerts stopping (Nov 2026 audit).
-        if (sub) rememberPush(true);
-        else if (pushWasOn()) void renewSubscription();
+        if (sub) {
+          rememberPush(true);
+          // A replaced subscription (Firefox/Safari swap it in place) must reach the server too:
+          // re-send what the browser holds, at most once a day.
+          void resendSubscription(sub);
+        } else if (pushWasOn()) void renewSubscription();
       }, () => {});
     // sw.js posts this on `pushsubscriptionchange`: the browser replaced the subscription, so the
     // server must learn the new endpoint or alerts stop without a word.
@@ -103,6 +107,25 @@ function rememberPush(on: boolean) {
     else localStorage.removeItem(PUSH_ON_KEY);
   } catch {
     // Private mode: only the quiet renewal is lost.
+  }
+}
+
+const RESENT_KEY = "iltod-push-sent";
+const RESEND_EVERY_MS = 24 * 3_600_000;
+
+/** Push is on and the browser holds a subscription: tell the server about it once a day. */
+async function resendSubscription(sub: PushSubscription) {
+  try {
+    if (!pushWasOn()) return;
+    const last = Number(localStorage.getItem(RESENT_KEY) ?? 0);
+    if (Date.now() - last < RESEND_EVERY_MS) return;
+    const res = await subscribePush(JSON.parse(JSON.stringify(sub)));
+    if (!res.ok) return;
+    localStorage.setItem(RESENT_KEY, String(Date.now()));
+    const follows = parseFollows(localStorage.getItem(FOLLOW_KEY));
+    if (follows.length) await setFollows(sub.endpoint, follows);
+  } catch {
+    // Offline or private mode: the next visit tries again.
   }
 }
 
