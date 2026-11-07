@@ -146,6 +146,19 @@ export async function recordSourceResults(db: DB, results: Pick<SourceRunResult,
 }
 
 /**
+ * How many active sources there are and how many of them are failing: the verdict
+ * `recordSourceResults` wrote (a failing run raises `consecutive_failures`, an ok one resets it).
+ * For the watchdog.
+ */
+export async function sourceHealth(db: DB): Promise<{ active: number; failing: number }> {
+  const [r] = await db
+    .select({ active: sql<number>`count(*)::int`, failing: sql<number>`(count(*) filter (where ${sources.consecutiveFailures} > 0))::int` })
+    .from(sources)
+    .where(eq(sources.isActive, true));
+  return { active: r?.active ?? 0, failing: r?.failing ?? 0 };
+}
+
+/**
  * Hours a source waits after n consecutive failures: 2, 4, 8, 8… A dead site costs one failed
  * listing every 8 h; a live site that timed out from the runner (Oct 28 2026: mof.gov.mn,
  * mfa.gov.mn, customs.gov.mn, ulaanbaatar.mn all at once) is back the same day. The old cap of

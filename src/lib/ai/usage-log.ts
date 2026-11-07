@@ -1,4 +1,4 @@
-import { and, eq, gte, ne, sql } from "drizzle-orm";
+import { and, eq, gte, lt, ne, sql } from "drizzle-orm";
 
 import type { DB } from "@/db";
 import { aiUsageLogs, transparencyLedger } from "@/db/schema";
@@ -71,8 +71,7 @@ export async function syncLedgerAiCost(db: DB, month: string = monthKey()): Prom
  * credit pacing (src/lib/video/elevenlabs.ts), and the text models' pay-as-you-go budget
  * (AI_MONTHLY_BUDGET_USD) must not shrink because a video was voiced.
  */
-export async function loadUsageSnapshot(db: DB): Promise<UsageSnapshot> {
-  const now = new Date();
+export async function loadUsageSnapshot(db: DB, now: Date = new Date()): Promise<UsageSnapshot> {
   const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
   const dayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
   const [[month], perProvider] = await Promise.all([
@@ -95,6 +94,26 @@ export async function loadUsageSnapshot(db: DB): Promise<UsageSnapshot> {
     if (r.provider !== "elevenlabs") dayUsd += Number(r.usd);
   }
   return { monthUsd: Number(month?.usd ?? 0), dayUsd, dayCalls };
+}
+
+/**
+ * USD spent per UTC day for the last `days` days, today included, oldest first (zero for a day with
+ * no calls). The budget guard's own day (UTC) and provider set (everything but the prepaid
+ * ElevenLabs plan), so "how often did the daily cap bite" is answered with the numbers the guard
+ * checked. For the watchdog.
+ */
+export async function dailySpendUsd(db: DB, days: number, now: Date = new Date()): Promise<number[]> {
+  const todayStart = Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());
+  const from = new Date(todayStart - (days - 1) * 86_400_000);
+  const until = new Date(todayStart + 86_400_000);
+  const day = sql<string>`to_char(${aiUsageLogs.createdAt} at time zone 'UTC', 'YYYY-MM-DD')`;
+  const rows = await db
+    .select({ day, usd: sql<string>`coalesce(sum(${aiUsageLogs.estimatedCostUsd}), 0)` })
+    .from(aiUsageLogs)
+    .where(and(gte(aiUsageLogs.createdAt, from), lt(aiUsageLogs.createdAt, until), ne(aiUsageLogs.provider, "elevenlabs")))
+    .groupBy(day);
+  const byDay = new Map(rows.map((r) => [r.day, Number(r.usd)]));
+  return Array.from({ length: days }, (_, i) => byDay.get(new Date(from.getTime() + i * 86_400_000).toISOString().slice(0, 10)) ?? 0);
 }
 
 /** Budget guard backed by the real spend in ai_usage_logs. */
