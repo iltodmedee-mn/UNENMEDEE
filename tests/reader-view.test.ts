@@ -13,6 +13,11 @@ describe("reader view grounding", () => {
   it("accepts numbers the source printed, with or without separators", () => {
     assert.ok(numbersGrounded("Тэтгэвэр ₮600,000 болно", digits));
     assert.ok(numbersGrounded("Тэтгэвэр 600000 төгрөг", digits));
+    // A scale word is compared by value: "15 тэрбум" is not grounded by "15 сая" (1000× off).
+    assert.equal(numbersGrounded("Замд 15 тэрбум ₮ зарцуулна", "Замын засварт 15 сая төгрөг зарцуулна"), false);
+    assert.equal(numbersGrounded("Замд 15 сая ₮ зарцуулна", "Замын засварт 15 сая төгрөг зарцуулна"), true);
+    assert.equal(numbersGrounded("Замд 15 сая ₮", "Замын засварт 15,000,000 төгрөг"), true);
+    assert.equal(numbersGrounded("15 замын засвар", "15 сая төгрөгөөр 15 замын засвар"), true, "a bare count still matches as written");
     assert.ok(numbersGrounded("4500 хүн", digits));
     assert.ok(numbersGrounded("2026-10-20-нд", digits));
   });

@@ -16,7 +16,12 @@ import { SOURCE_SEEDS } from "@/lib/sources";
 const DOMAIN = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
 
 function domainParam(value: string): string | null {
-  const d = decodeURIComponent(value).toLowerCase();
+  let d: string;
+  try {
+    d = decodeURIComponent(value).toLowerCase();
+  } catch {
+    return null; // a stray "%" (URIError) is not a source: 404, not 500
+  }
   return DOMAIN.test(d) ? d : null;
 }
 

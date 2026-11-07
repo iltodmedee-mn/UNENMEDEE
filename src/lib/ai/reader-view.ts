@@ -79,8 +79,10 @@ export function numbersGrounded(text: string, source: string | null): boolean {
   // Compared by value, not by digits: "1.5" and "15" share the digits "15" (Nov 2026 audit: a
   // "15 хувь" headline passed for a source saying "1.5 хувь").
   const bases = new Set(own.map((t) => t.base));
+  // A number with its own scale word is compared by value only: "15 тэрбум" is not grounded by a
+  // source that says "15 сая" (the bare-number match let a 1000× amount through, Nov 2026).
   return numberTokens(text, false).every(
-    (n) => bases.has(n.base) || own.some((t) => (n.scaled || t.scaled) && t.value >= 1000 && Math.abs(n.value - t.value) <= 0.05 * t.value),
+    (n) => (!n.scaled && bases.has(n.base)) || own.some((t) => (n.scaled || t.scaled) && t.value >= 1000 && Math.abs(n.value - t.value) <= 0.05 * t.value),
   );
 }
 

@@ -16,6 +16,10 @@ const ITEMS: { key: string; label: string; href: string; color?: string }[] = [
   { key: "my", label: "Миний", href: "/my", color: "text-utility-amber-700" },
   { key: "digest", label: "Тойм", href: "/digest", color: "text-brand-secondary" },
   { key: "risk", label: "Эрсдэл", href: "/topic/risk", color: "text-utility-red-700" },
+  // /topic/budget and /topic/ministry are feed pages too (linked from /digest's week numbers): without
+  // a chip no tab was current there.
+  { key: "budget", label: "₮ дүнтэй", href: "/topic/budget", color: "text-utility-yellow-700" },
+  { key: "ministry", label: "Яамд", href: "/topic/ministry", color: "text-utility-blue-700" },
   ...TOPICS.filter((t) => t.key !== "data").map((t) => ({ key: t.key, label: t.label, href: `/topic/${t.key}`, color: t.color })),
   { key: "data", label: "Тоо баримт", href: "/data", color: DATA.color },
 ];

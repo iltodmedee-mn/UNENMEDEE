@@ -273,11 +273,16 @@ export async function assignCluster(db: DB, id: number, log?: UsageLogger, budge
 
 /**
  * Re-synthesizing on every join would cost O(n) model calls per cluster. Only refresh
- * at growth milestones: 2, 3, 5, 8, then every 5 articles.
+ * at growth milestones: 2, 3, 5, 8, then every 5 articles. A milestone crossed in one jump
+ * counts (a cluster born with 4 members in one run, 0 → 4, used to wait until it reached 5),
+ * and a cluster of two or more without any synthesis yet is always refreshed.
  */
-export function shouldResynthesize(previousCount: number, newCount: number): boolean {
+export function shouldResynthesize(previousCount: number, newCount: number, hasSynthesis = true): boolean {
   if (newCount < 2 || newCount === previousCount) return false;
-  return [2, 3, 5, 8].includes(newCount) || (newCount > 8 && newCount % 5 === 0);
+  if (!hasSynthesis) return true;
+  const milestone = (n: number) => [2, 3, 5, 8].includes(n) || (n > 8 && n % 5 === 0);
+  for (let n = previousCount + 1; n <= newCount; n++) if (milestone(n)) return true;
+  return false;
 }
 
 /** Recounts a cluster and, at growth milestones, asks the model for a neutral cross-source synthesis. */
@@ -294,11 +299,11 @@ export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogge
     return;
   }
   const maxRisk = Math.max(...members.map((m) => m.risk));
-  const [current] = await db.select({ count: clusters.articleCount }).from(clusters).where(eq(clusters.id, clusterId));
+  const [current] = await db.select({ count: clusters.articleCount, synthesis: clusters.synthesisSummary }).from(clusters).where(eq(clusters.id, clusterId));
 
   let title: string | undefined;
   let synthesis: string | undefined;
-  if (shouldResynthesize(current?.count ?? 0, members.length)) {
+  if (shouldResynthesize(current?.count ?? 0, members.length, !!current?.synthesis)) {
     try {
       const res = await callAIWithFallback({
         // Synthesis is a summary of summaries: the cheap/free bulk tier is enough.

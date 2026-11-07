@@ -147,6 +147,9 @@ describe("date parsing fixes", () => {
   it("reads '11-р сар' as November, not January", () => {
     const y = year - 1; // last year: November and December of this year may still be in the future
     assert.equal(dateFromText(`${y} оны 11-р сар 5`)?.toISOString().slice(0, 10), `${y}-11-05`);
+    // A two-digit day is read whole (the greedy gap used to take its first digit: "15" → 5).
+    assert.equal(dateFromText(`${y} он 11-р сарын 15`)?.toISOString().slice(0, 10), `${y}-11-15`);
+    assert.equal(dateFromText(`${y} он 10-р сар 21`)?.toISOString().slice(0, 10), `${y}-10-21`);
     assert.equal(dateFromText(`${y} 12-р сар 1`)?.toISOString().slice(0, 10), `${y}-12-01`);
     assert.equal(dateFromText(`${y} 1-р сар 9`)?.toISOString().slice(0, 10), `${y}-01-09`);
   });

@@ -34,7 +34,7 @@ async function Editor({ params }: { params: PageProps<"/admin/articles/[id]">["p
         <ReanalyzeButtons id={a.id} />
       </div>
       <div className="rounded-2xl bg-primary p-6 ring-1 ring-secondary ring-inset">
-        <ArticleEditor article={{ id: a.id, title: a.title, tldr: a.tldrSummary ?? "", content: a.cleanContent, isPublished: a.isPublished }} />
+        <ArticleEditor article={{ id: a.id, title: a.title, tldr: a.tldrSummary ?? "", content: a.cleanContent, isPublished: a.isPublished, readerTitle: a.readerTitle, hasImpact: a.readerImpact !== null }} />
       </div>
     </div>
   );
