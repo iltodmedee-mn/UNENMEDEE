@@ -42,6 +42,7 @@
     "db:fix-titles": "tsx scripts/fix-generic-titles.ts",
     "db:repair-dates": "tsx scripts/repair-dates.ts",
     "health": "tsx scripts/health-check.ts",
+    "feed:check": "tsx scripts/check-feed.ts",
     "ai:reader": "tsx scripts/reader-backfill.ts",
     "press:sync": "tsx scripts/press-sync.ts",
     "doctor": "tsx scripts/doctor.ts"
