@@ -1,4 +1,5 @@
 import { ubDateKey } from "@/lib/archive";
+import { isLatinText } from "@/lib/script";
 import type { ReaderImpact } from "@/lib/types";
 
 /**
@@ -92,7 +93,7 @@ function clean(raw: unknown, max: number): string | null {
     .replace(/\s+/g, " ")
     .replace(/^["'«“„\s]+|["'»”\s]+$/g, "")
     .trim();
-  if (!s || EMPTY.test(s) || s.length > max) return null;
+  if (!s || EMPTY.test(s) || s.length > max || isLatinText(s)) return null;
   // "хөгжлийн бэрхшээлтэй иргэд" → "Хөгжлийн …"; a Latin start ("e-Mongolia") stays as written.
   return /^[а-яёөү]/.test(s) ? s[0].toUpperCase() + s.slice(1) : s;
 }

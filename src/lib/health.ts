@@ -97,7 +97,7 @@ export interface WorkflowSnapshot {
  * that reached readers before anyone noticed).
  */
 export interface IntegritySnapshot {
-  /** Published stories of the last 30 days whose AI text reads "undefined", "null" or "[object Object]". */
+  /** Published stories of the last 30 days whose AI text reads "undefined", "null" or "[object Object]", or is in Latin letters. */
   brokenAiText: number;
   /** Clusters whose published members are more than 7 days apart (two different events joined). */
   widespreadClusters: number;
@@ -212,7 +212,7 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
 
   const g = s.integrity;
   if (g) {
-    if (g.brokenAiText > 0) info(`${g.brokenAiText} нийтлэгдсэн мэдээний AI текстэд "undefined"/"null"/"[object Object]" бичигдсэн байна: AI-ийн хариуны хэлбэр (schemas.ts) өөрчлөгдсөн эсэхийг шалгаад тэдгээрийг дахин боловсруулах (maintenance.yml → reanalyse).`);
+    if (g.brokenAiText > 0) info(`${g.brokenAiText} нийтлэгдсэн мэдээний AI текстэд "undefined"/"null"/"[object Object]" эсвэл кирилл биш латин үсгээр бичигдсэн байна: AI-ийн хариуны хэлбэр (schemas.ts) өөрчлөгдсөн эсэхийг шалгаад тэдгээрийг дахин боловсруулах (maintenance.yml → reanalyse).`);
     if (g.widespreadClusters > 0) info(`${g.widespreadClusters} кластерын мэдээнүүд хооронд 7 хоногоос их зайтай: өөр өөр үйл явдлыг нэгтгэсэн байж болзошгүй (clustering.ts, /clusters-ийг шалгах).`);
     if (g.duplicateHashes > 0) info(`Ижил текстийг ${g.duplicateHashes} удаа давхар хадгалсан (content_hash давхардсан): db-sink-ийн давхардлын шалгалтыг шалгах.`);
     if (g.silentSources.length) info(`${g.silentSources.length} эх сурвалжаас сүүлийн 14 хоногт шинэ огноотой 10+ мэдээ ирсэн ч нэг нь ч нийтлэгдээгүй (${g.silentSources.slice(0, 5).join(", ")}): JavaScript хуудас эсвэл буруу шүүлтүүр байж магадгүй.`);

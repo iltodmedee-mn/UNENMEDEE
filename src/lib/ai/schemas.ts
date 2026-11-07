@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { LEAKED_KEYS, stripBullet } from "@/lib/format";
+import { isLatinText } from "@/lib/script";
 import { isAiTopic } from "@/lib/topics";
 import { RISK_FLAG_THRESHOLD } from "@/lib/types";
 
@@ -17,6 +18,8 @@ export function clip(value: string, max: number): string {
   const space = cut.search(/\s\S*$/);
   return `${(space > max * 0.6 ? cut.slice(0, space) : cut).trimEnd()}…`;
 }
+
+const CYRILLIC_ONLY = "written in Latin letters, not Mongolian Cyrillic";
 
 /** Longest single model text (a fact, a reason, a question) kept. */
 const ITEM_MAX = 300;
@@ -89,12 +92,16 @@ export const Tier1Schema = z
     risk_flag: v.risk_score >= RISK_FLAG_THRESHOLD,
   }))
   .refine((v) => v.tldr_summary.length >= 20, { message: "tldr_summary is empty" })
-  .refine((v) => !LEAKED_KEYS.test(v.tldr_summary), { message: "tldr_summary holds the rest of the JSON reply" });
+  .refine((v) => !LEAKED_KEYS.test(v.tldr_summary), { message: "tldr_summary holds the rest of the JSON reply" })
+  // Cyrillic only (script.ts): a transliterated reply fails, so the repair retry or the next provider writes it.
+  .refine((v) => !isLatinText([v.tldr_summary, ...v.facts, v.spin_detected, v.risk_reason].join(" ")), {
+    message: "the reply is written in Latin letters, not Mongolian Cyrillic",
+  });
 
 export type Tier1Result = z.output<typeof Tier1Schema>;
 
 export const Tier2Schema = z.object({
-  analysis_markdown: z.string().min(80).transform((v) => clip(v, 12_000)),
+  analysis_markdown: z.string().min(80).transform((v) => clip(v, 12_000)).refine((v) => !isLatinText(v), CYRILLIC_ONLY),
   citizen_questions: stringList(8),
 });
 
@@ -102,7 +109,7 @@ export type Tier2Result = z.output<typeof Tier2Schema>;
 
 export const ClusterSchema = z.object({
   title: z.string().min(5).max(200),
-  synthesis: z.string().min(40).transform((v) => clip(v, 1_500)),
+  synthesis: z.string().min(40).transform((v) => clip(v, 1_500)).refine((v) => !isLatinText(v), CYRILLIC_ONLY),
 });
 
 export type ClusterResult = z.output<typeof ClusterSchema>;
@@ -117,13 +124,13 @@ const plain = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "
  */
 const DigestItemSchema = z.object({
   id: z.union([z.number(), z.string().regex(/^\s*\d+\s*$/)]).transform(Number).pipe(z.number().int().positive()),
-  headline: z.unknown().transform((v) => plain(v).slice(0, 240)).pipe(z.string().min(5)),
+  headline: z.unknown().transform((v) => plain(v).slice(0, 240)).pipe(z.string().min(5)).refine((v) => !isLatinText(v), CYRILLIC_ONLY),
   why: z.unknown().transform((v) => plain(v).slice(0, 600)),
 });
 
 export const DigestSchema = z.object({
   title: z.unknown().transform((v) => plain(v).slice(0, 200)).refine((s) => s.length >= 5, "title is empty"),
-  intro: z.unknown().transform((v) => clip(plain(v), 600)).refine((s) => s.length >= 30, "intro is empty"),
+  intro: z.unknown().transform((v) => clip(plain(v), 600)).refine((s) => s.length >= 30, "intro is empty").refine((v) => !isLatinText(v), CYRILLIC_ONLY),
   items: z
     .array(z.unknown())
     .transform((list) => list.flatMap((item) => {

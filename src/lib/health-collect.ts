@@ -85,6 +85,10 @@ export async function collectCore(db: DB, now: Date, dailyUsd: number): Promise<
 }
 
 /** Data the public site must never show wrong (health.ts IntegritySnapshot). */
+/** SQL twin of `isLatinText` (script.ts) for the plain A–Z letters: more Latin than Cyrillic, 12+ of them. */
+const latinMostly = (col: SQL) => sql`(length(regexp_replace(coalesce(${col}, ''), '[^A-Za-z]', '', 'g')) >= 12
+  and length(regexp_replace(coalesce(${col}, ''), '[^A-Za-z]', '', 'g')) > length(regexp_replace(coalesce(${col}, ''), '[^А-Яа-яЁёӨөҮү]', '', 'g')))`;
+
 export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnapshot> {
   const since30d = new Date(now.getTime() - 30 * DAY_MS);
   const since14d = new Date(now.getTime() - 14 * DAY_MS);
@@ -93,7 +97,8 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
   const brokenText = sql`(${articles.tldrSummary} like '%undefined%' or ${articles.tldrSummary} like '%[object Object]%'
     or ${articles.tldrSummary} like '%''facts'':%' or ${articles.tldrSummary} like '%"facts":%'
     or ${articles.factVsSpin}::text like '%[object Object]%'
-    or ${articles.factVsSpin}->>'spin_detected' in ('undefined', 'null'))`;
+    or ${articles.factVsSpin}->>'spin_detected' in ('undefined', 'null')
+    or ${latinMostly(sql`${articles.tldrSummary}`)} or ${latinMostly(sql`${articles.readerTitle}`)})`;
   const [broken, wide, dups, silent] = await Promise.all([
     countArticles(db, and(published, gte(articles.createdAt, since30d), brokenText)),
     db.execute(sql`select count(*)::int as n from (select cluster_id from articles where cluster_id is not null and ${published}
