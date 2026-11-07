@@ -25,7 +25,11 @@ export interface FeedProblem {
   text: string;
 }
 
-/** Stories of the top of the feed one site may hold before it counts as a flood. */
+/**
+ * Undated stories of the top of the feed one site may hold before it counts as a flood (an archive
+ * read as new). Dated stories never count: gov.mn and parliament.mn post for many bodies and held 9
+ * and 5 of the top 20 on the first run (Nov 7 2026), which is normal.
+ */
 export const FLOOD_TOP = 20;
 export const FLOOD_MAX = 4;
 
@@ -60,10 +64,10 @@ export function feedProblems(items: FeedCheckItem[], now: Date): FeedProblem[] {
     if (group.length > 1) out.push({ rule: "duplicate", ids: group.map((i) => i.id), slugs: group.map((i) => i.slug), text: `${group.length} мэдээ ижил гарчигтай: ${group.map(label).join("; ")}` });
 
   const bySource = new Map<string, FeedCheckItem[]>();
-  for (const i of items.slice(0, FLOOD_TOP)) bySource.set(i.source, [...(bySource.get(i.source) ?? []), i]);
+  for (const i of items.slice(0, FLOOD_TOP)) if (i.undated) bySource.set(i.source, [...(bySource.get(i.source) ?? []), i]);
   for (const [source, group] of bySource)
     if (group.length > FLOOD_MAX)
-      out.push({ rule: "flood", ids: group.map((i) => i.id), slugs: group.map((i) => i.slug), text: `Нүүрний эхний ${FLOOD_TOP} мэдээний ${group.length} нь нэг сайтынх (${source})` });
+      out.push({ rule: "flood", ids: group.map((i) => i.id), slugs: group.map((i) => i.slug), text: `Нүүрний эхний ${FLOOD_TOP} мэдээний ${group.length} нь нэг сайтын огноогүй мэдээ (${source}): хуучин архив шинэ мэдээ мэт уншигдсан байж магадгүй` });
 
   return out;
 }

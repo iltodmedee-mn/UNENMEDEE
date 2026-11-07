@@ -55,3 +55,20 @@ export async function publishStep<T>(fn: () => Promise<T>): Promise<T> {
     throw err;
   }
 }
+
+/** Graph API throttling codes: app (4), user (17), page (32) and per-action (613) request limits. */
+const RATE_LIMIT_CODES = new Set([4, 17, 32, 613]);
+
+/**
+ * True when the platform refused because we called it too often (Nov 7 2026: "Instagram 403:
+ * Application request limit reached (code 4)"). Nothing is wrong with the post or the token: the
+ * reservation is freed and the next run tries again, so it is a warning, not a failed step.
+ */
+export function isRateLimited(err: unknown): boolean {
+  const e = err as { status?: unknown; code?: unknown; message?: unknown } | null;
+  if (!e) return false;
+  const message = typeof e.message === "string" ? e.message : "";
+  const status = typeof e.status === "number" ? e.status : Number(message.match(/^[^:]*?\b(\d{3}):/)?.[1] ?? NaN);
+  const code = typeof e.code === "number" ? e.code : Number(message.match(/\(code (-?\d+)\)/)?.[1] ?? NaN);
+  return status === 429 || RATE_LIMIT_CODES.has(code) || /request limit reached|rate limit/i.test(message);
+}

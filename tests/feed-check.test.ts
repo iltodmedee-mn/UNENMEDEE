@@ -34,7 +34,7 @@ test("broken text, a future date, a duplicate headline and a flood from one site
       item({ publishedAt: new Date(NOW.getTime() + 5 * 3_600_000) }),
       item({ title: "Ижил гарчиг" }),
       item({ title: "ижил гарчиг!" }),
-      ...Array.from({ length: 5 }, () => item({ source: "orkhon.khural.mn" })),
+      ...Array.from({ length: 5 }, () => item({ source: "orkhon.khural.mn", undated: true, title: `2026 оны тогтоол ${n}` })),
     ],
     NOW,
   );
@@ -47,4 +47,15 @@ test("the report links each story, keys the problem set and never mentions anyon
   assert.match(report.split("\n")[0], /^<!-- feed-check: latin:\d+ -->$/);
   assert.match(report, /https:\/\/iltodmedee\.mn\/article\/s-\d+/);
   assert.doesNotMatch(report, /@everyone/);
+});
+
+test("a portal posting for many bodies is not a flood: only undated stories count", () => {
+  assert.deepEqual(feedProblems(Array.from({ length: 9 }, () => item({ source: "gov.mn" })), NOW), []);
+});
+
+test("a platform request limit is a warning, not a failure", async () => {
+  const { isRateLimited } = await import("@/lib/social/outcome");
+  assert.equal(isRateLimited(new Error("Instagram 403: Application request limit reached (code 4)")), true);
+  assert.equal(isRateLimited(Object.assign(new Error("x"), { status: 429 })), true);
+  assert.equal(isRateLimited(new Error("Instagram 400: Invalid parameter (code 100)")), false);
 });
