@@ -33,6 +33,7 @@ import { storedNeutrality } from "@/lib/ai/fact-spin";
 import { putOnce } from "@/lib/claims";
 import { appSettings, articles, clusters, digests, politicians, socialPosts, sources, videos } from "@/db/schema";
 import { type ArticleForPost, articlePost, type DigestForPost, digestPost, FacebookError, publishAlbum, publishReel, publishToPage, resolveFacebookPage } from "@/lib/social/facebook";
+import { isRateLimited } from "@/lib/social/outcome";
 import { INSTAGRAM_SETTINGS_KEY, type InstagramPost, instagramArticlePost, instagramDigestPost, publishInstagram, publishInstagramCarousel, refreshInstagramToken } from "@/lib/social/instagram";
 import { publishThreads, publishThreadsCarousel, refreshToken, THREADS_SETTINGS_KEY, threadsArticlePost, threadsDigestPost } from "@/lib/social/threads";
 import { publishTelegram, telegramArticlePost, telegramDigestPost, type TelegramPost } from "@/lib/social/telegram";
@@ -577,6 +578,11 @@ async function main() {
       }
       else await postNews(db, p);
     } catch (err) {
+      // A request limit says nothing about the post or the token: the next run tries again.
+      if (isRateLimited(err)) {
+        console.log(`::warning::${p.name}: ${errorLine(err, 400)} (request limit: the next run tries again)`);
+        continue;
+      }
       const hint = err instanceof FacebookError && err.hint ? ` ${err.hint}` : "";
       console.error(`::error::${p.name}: ${errorLine(err, 400)}${hint}`);
       process.exitCode = 1;
