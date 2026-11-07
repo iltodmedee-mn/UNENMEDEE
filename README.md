@@ -403,7 +403,7 @@ API түлхүүрээ шалгах: `npm run ai:process -- --sample`. Өгөг�
 
 - **Эх сурвалж санал болгох:** [issue нээх](https://github.com/iltodmedee-mn/UNENMEDEE/issues/new/choose) → "Эх сурвалж санал болгох". Эсвэл [`src/lib/sources.ts`](src/lib/sources.ts)-д нэмээд PR илгээнэ. JSON API-тай сайтад [`src/lib/scraper/adapters/`](src/lib/scraper/adapters)-д adapter бичнэ.
 - **Алдаа мэдэгдэх:** AI хураангуй, тоо буруу байвал эх сурвалжийн холбоосыг хавсаргаад issue нээнэ үү.
-- **Код:** PR бүр `npm run check` (typecheck + lint + 670+ unit test) болон `npm run build` (нууц түлхүүргүй) давах ёстой. Алхам алхмаар заавар: [CONTRIBUTING.md](CONTRIBUTING.md). Архитектурын дүрэм [`CLAUDE.md`](CLAUDE.md)-д бий.
+- **Код:** PR бүр `npm run check` (typecheck + lint + 800+ unit test) болон `npm run build` (нууц түлхүүргүй) давах ёстой. Алхам алхмаар заавар: [CONTRIBUTING.md](CONTRIBUTING.md). Архитектурын дүрэм [`CLAUDE.md`](CLAUDE.md)-д бий.
 
 ## 07 — Эзэмшигчийн шалгах хуудас
 
@@ -530,7 +530,7 @@ The site runs unattended: news every 30 minutes, digests and videos twice a day,
 
 ```bash
 npm run demo    # the full site on real sample data (PGlite, no database server, no API keys)
-npm run check   # typecheck + lint + 670+ unit tests (no secrets needed)
+npm run check   # typecheck + lint + 800+ unit tests (no secrets needed)
 npm run build   # must pass without DATABASE_URL
 ```
 
