@@ -1,5 +1,7 @@
 import type { ScrapeMeta } from "@/lib/types";
 
+import type { Verdict } from "./source-run";
+
 /** One cleaned item ready to be stored as an article (no HTML). */
 export interface ScrapedItem {
   url: string;
@@ -28,7 +30,6 @@ export interface SourceRunResult {
   found: number;
   inserted: number;
   skippedDuplicates: number;
-  error: string | null;
-  /** False when the run stopped (time budget) before this source's listing was processed. */
-  completed: boolean;
+  /** The one verdict of the run (source-run.ts): ok, failing(reason) or keepsPlace. */
+  verdict: Verdict;
 }
