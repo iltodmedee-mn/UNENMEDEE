@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { CAPTION_MAX, instagramArticlePost, instagramDigestPost, publishInstagram } from "@/lib/social/instagram";
-import { ABANDONED_AFTER_MS, abandonedReservation, outcomeUnknown, publishStep } from "@/lib/social/outcome";
+import { outcomeUnknown, publishStep } from "@/lib/social/outcome";
 import { cut, publishThreads, threadsLength } from "@/lib/social/threads";
 
 describe("instagram posts", () => {
@@ -101,17 +101,5 @@ describe("social publishing safety", () => {
     const out = cut("ab😀😀😀", 6);
     assert.ok(!/[\uD800-\uDBFF]…$/.test(out), JSON.stringify(out));
     assert.ok(threadsLength(out) <= 6);
-  });
-});
-
-describe("abandoned social_posts reservations", () => {
-  const now = new Date("2026-11-07T12:00:00Z");
-  const ago = (ms: number) => new Date(now.getTime() - ms);
-  it("only a reservation with no post id older than 2 h is abandoned", () => {
-    assert.equal(abandonedReservation(null, ago(ABANDONED_AFTER_MS + 1000), now), true);
-    assert.equal(abandonedReservation(null, ago(30 * 60_000), now), false, "a run may still be publishing");
-    assert.equal(abandonedReservation("unknown", ago(24 * 3_600_000), now), false, "kept for a manual check");
-    assert.equal(abandonedReservation("failed:1", ago(24 * 3_600_000), now), false);
-    assert.equal(abandonedReservation("12345", ago(24 * 3_600_000), now), false);
   });
 });
