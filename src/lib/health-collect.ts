@@ -19,7 +19,7 @@ import { OUTLETS } from "@/lib/press/outlets";
 import { MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { sourceHealth } from "@/lib/scraper/db-sink";
 import { lastRealPost, unknownSince } from "@/lib/social/post-ledger";
-import { aiSummarized, dated, published } from "@/lib/story-rules";
+import { aiSummarized, dated, published, undated } from "@/lib/story-rules";
 
 const HOUR_MS = 3_600_000;
 const DAY_MS = 24 * HOUR_MS;
@@ -85,6 +85,9 @@ export async function collectCore(db: DB, now: Date, dailyUsd: number): Promise<
 }
 
 /** Data the public site must never show wrong (health.ts IntegritySnapshot). */
+/** Published undated stories one source may add in 24 h before the watchdog names it. */
+export const UNDATED_BURST = 3;
+
 /** SQL twin of `isLatinText` (script.ts) for the plain A–Z letters: more Latin than Cyrillic, 12+ of them. */
 const latinMostly = (col: SQL) => sql`(length(regexp_replace(coalesce(${col}, ''), '[^A-Za-z]', '', 'g')) >= 12
   and length(regexp_replace(coalesce(${col}, ''), '[^A-Za-z]', '', 'g')) > length(regexp_replace(coalesce(${col}, ''), '[^А-Яа-яЁёӨөҮү]', '', 'g')))`;
@@ -99,7 +102,8 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
     or ${articles.factVsSpin}::text like '%[object Object]%'
     or ${articles.factVsSpin}->>'spin_detected' in ('undefined', 'null')
     or ${latinMostly(sql`${articles.tldrSummary}`)} or ${latinMostly(sql`${articles.readerTitle}`)})`;
-  const [broken, wide, dups, silent] = await Promise.all([
+  const since24h = new Date(now.getTime() - DAY_MS);
+  const [broken, wide, dups, silent, burst] = await Promise.all([
     countArticles(db, and(published, gte(articles.createdAt, since30d), brokenText)),
     db.execute(sql`select count(*)::int as n from (select cluster_id from articles where cluster_id is not null and ${published}
       group by cluster_id having max(published_at) - min(published_at) > interval '7 days') c`),
@@ -115,9 +119,19 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
       .groupBy(sources.domain)
       .having(sql`count(*) >= 10 and count(*) filter (where ${articles.isPublished}) = 0`)
       .orderBy(sources.domain),
+    // Several undated stories from one site in a day are almost always an old archive read as new
+    // (Nov 7 2026: 14 khural.mn resolutions from 2025 led the feed as "found today").
+    db
+      .select({ domain: sources.domain })
+      .from(sources)
+      .innerJoin(articles, eq(articles.sourceId, sources.id))
+      .where(and(published, undated, gte(articles.createdAt, since24h)))
+      .groupBy(sources.domain)
+      .having(sql`count(*) >= ${UNDATED_BURST}`)
+      .orderBy(sources.domain),
   ]);
   const n = (r: unknown) => Number((r as { rows: { n: unknown }[] }).rows[0]?.n ?? 0);
-  return { brokenAiText: broken, widespreadClusters: n(wide), duplicateHashes: n(dups), silentSources: silent.map((x) => x.domain) };
+  return { brokenAiText: broken, widespreadClusters: n(wide), duplicateHashes: n(dups), silentSources: silent.map((x) => x.domain), undatedBursts: burst.map((x) => x.domain) };
 }
 
 /** Per platform: hours since a post really went out, and posts of unknown outcome in the last 7 days. */

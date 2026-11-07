@@ -197,6 +197,12 @@ describe("data integrity and phone layout rules", () => {
     assert.ok(out.some((l) => l.includes("sport.gov.mn")));
   });
 
+  it("names a site that published several undated stories in a day (old archive read as new)", () => {
+    const out = evaluateHealth({ integrity: { ...clean, undatedBursts: ["orkhon.khural.mn"] } }, CONFIG, NOW);
+    assert.equal(out.length, 1);
+    assert.match(out[0], /orkhon\.khural\.mn.*огноогүй/);
+  });
+
   it("reports a page wider than the phone screen", () => {
     const out = evaluateHealth({ layout: [{ path: "/risk", viewport: 360, width: 644, culprit: "article.group" }] }, CONFIG, NOW);
     assert.equal(out.length, 1);

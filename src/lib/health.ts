@@ -105,6 +105,8 @@ export interface IntegritySnapshot {
   duplicateHashes: number;
   /** Active sources with 10+ rows in 14 days and not one published (JavaScript shells, a misfiring rule). */
   silentSources: string[];
+  /** Sources that published 3+ undated stories in the last 24 h (an old archive read as new). */
+  undatedBursts?: string[];
 }
 
 export interface HealthSnapshot {
@@ -215,6 +217,7 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
     if (g.brokenAiText > 0) info(`${g.brokenAiText} нийтлэгдсэн мэдээний AI текстэд "undefined"/"null"/"[object Object]" эсвэл кирилл биш латин үсгээр бичигдсэн байна: AI-ийн хариуны хэлбэр (schemas.ts) өөрчлөгдсөн эсэхийг шалгаад тэдгээрийг дахин боловсруулах (maintenance.yml → reanalyse).`);
     if (g.widespreadClusters > 0) info(`${g.widespreadClusters} кластерын мэдээнүүд хооронд 7 хоногоос их зайтай: өөр өөр үйл явдлыг нэгтгэсэн байж болзошгүй (clustering.ts, /clusters-ийг шалгах).`);
     if (g.duplicateHashes > 0) info(`Ижил текстийг ${g.duplicateHashes} удаа давхар хадгалсан (content_hash давхардсан): db-sink-ийн давхардлын шалгалтыг шалгах.`);
+    if (g.undatedBursts?.length) info(`${g.undatedBursts.join(", ")}: сүүлийн 24 цагт огноогүй 3+ мэдээ нийтлэгдсэн. Ихэвчлэн хуучин архивын хуудас шинэ мэдээ мэт уншигдсан байдаг: хуудасны огноог extractor уншиж байгаа эсэхийг шалгаад maintenance.yml → refetch-dates ажиллуул.`);
     if (g.silentSources.length) info(`${g.silentSources.length} эх сурвалжаас сүүлийн 14 хоногт шинэ огноотой 10+ мэдээ ирсэн ч нэг нь ч нийтлэгдээгүй (${g.silentSources.slice(0, 5).join(", ")}): JavaScript хуудас эсвэл буруу шүүлтүүр байж магадгүй.`);
   }
 

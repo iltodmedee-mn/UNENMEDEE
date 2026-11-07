@@ -184,6 +184,14 @@ describe("date parsing fixes", () => {
     assert.equal(extractPublishedDate(d as unknown as Document, "https://judcouncil.mn/site/news_full/1", "")?.toISOString(), `${year}-03-04T06:10:00.000Z`);
   });
 
+  it("reads a calendar-icon stamp followed by more fields on the same line (khural.mn resolutions)", () => {
+    // Nov 7 2026: "Огноо: 2025-07-29 · Дугаар: 06/01 · Нээгдсэн: 218" was too long for the stamp
+    // reader, the old resolution stayed undated and 14 of them led the feed as "found today".
+    const resolution = new JSDOM(page("khural-resolution")).window.document;
+    const date = extractPublishedDate(resolution, "https://khairkhandulaan.uvurkhangai.khural.mn/t/44168", "", "Сумын 2025 оны төсөвт тодотгол хийх тухай");
+    assert.equal(date?.toISOString().slice(0, 10), "2025-07-29");
+  });
+
   it("reads a clock-icon stamp in the headline's container, even an old one (uvurkhangai.gov.mn)", () => {
     const body = `<p>${"Сургалтыг зохион байгууллаа. ".repeat(20)}</p>`;
     const page = (stamp: string) =>
