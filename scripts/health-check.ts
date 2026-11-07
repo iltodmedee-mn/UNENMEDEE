@@ -24,91 +24,23 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { budgetConfig } from "@/lib/ai/limits";
 import { GOVERNMENTS_VERIFIED_THROUGH } from "@/lib/budget/governments";
-import { type CoreSnapshot, healthProblems, healthReport, type IntegritySnapshot, type HealthConfig, type HealthSnapshot, type NetworkSnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot, type WorkflowSnapshot } from "@/lib/health";
+import { healthProblems, healthReport, SOCIAL_PLATFORMS, type HealthConfig, type HealthSnapshot, type NetworkSnapshot, type WorkflowSnapshot } from "@/lib/health";
+import { collectCore, collectIntegrity, collectSocial, collectVideosAndPress } from "@/lib/health-collect";
 import { parseLayoutReport } from "@/lib/layout-check";
 import { errorDetail, errorLine } from "@/lib/log-safe";
 import { POPULATION } from "@/lib/per-person";
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
 import { PROGRAMME_END } from "@/lib/promises/programme";
 import { PROJECTS_VERIFIED_THROUGH } from "@/lib/projects/data";
-import { MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { PRODUCTION_URL } from "@/lib/site";
 import { isTaxRateNews, taxRateIssueBody, type TaxRateNews, watchFrom } from "@/lib/tax/rate-watch";
 import { RATES_CHECKED } from "@/lib/tax/receipt";
 import { TARIFFS_VERIFIED_THROUGH } from "@/lib/budget/tariffs";
-import { OUTLETS } from "@/lib/press/outlets";
 
 type Row = Record<string, unknown>;
 const num = (v: unknown): number | null => (v === null || v === undefined ? null : Number(v));
 const rows = async (q: ReturnType<typeof sql>) => (await getDb().execute(q)).rows as Row[];
 const TIMEOUT_MS = 20_000;
-
-async function core(): Promise<CoreSnapshot> {
-  const dailyUsd = budgetConfig().dailyUsd;
-  const [r] = await rows(sql`select
-    -- Published rows only: archive/menu pages stored unpublished must not make a dead feed look alive.
-    extract(epoch from now() - (select max(created_at) from articles where is_published)) / 3600 as hours_since_article,
-    extract(epoch from now() - (select max(created_at) from articles where is_published and tldr_summary is not null and not summary_fallback)) / 3600 as hours_since_ai,
-    extract(epoch from now() - (select max(created_at) from digests)) / 3600 as hours_since_digest,
-    (select count(*) from articles where is_published and tldr_summary is null)::int as ai_backlog,
-    (select count(*) from sources where is_active)::int as active_sources,
-    (select count(*) from sources where is_active and consecutive_failures > 0)::int as failing_sources,
-    (select count(*) from push_subscriptions)::int as push_subs,
-    (select count(*) from push_subscriptions where failures >= 3)::int as push_failing,
-    extract(epoch from now() - (select max(last_success_at) from push_subscriptions)) / 3600 as hours_since_push,
-    pg_database_size(current_database()) / 1048576.0 as db_mb,
-    (select count(*) from articles where is_published and created_at > now() - interval '24 hours')::int as published_24h,
-    (select count(*) from articles where is_published and summary_fallback and created_at > now() - interval '24 hours')::int as fallback_24h,
-    (select coalesce(json_agg(generated_by), '[]'::json) from (select generated_by from digests where kind = '12h' order by created_at desc limit 4) d) as recent_digests,
-    (select count(*) from (
-      -- The budget guard's own day: UTC, without the prepaid ElevenLabs plan (loadUsageSnapshot).
-      -- An Ulaanbaatar day with the voice credits counted reported days the cap never saw.
-      select date_trunc('day', created_at at time zone 'UTC') as day from ai_usage_logs
-      where created_at > now() - interval '7 days' and provider <> 'elevenlabs' group by 1 having sum(estimated_cost_usd) >= ${dailyUsd * 0.9}
-    ) p)::int as paid_cap_days,
-    extract(epoch from now() - (select max(source_checked_at) from articles)) / 3600 as hours_since_recheck`);
-  const digests = typeof r.recent_digests === "string" ? JSON.parse(r.recent_digests) : r.recent_digests;
-  return {
-    hoursSinceArticle: num(r.hours_since_article),
-    hoursSinceAi: num(r.hours_since_ai),
-    hoursSinceDigest: num(r.hours_since_digest),
-    aiBacklog: Number(r.ai_backlog),
-    activeSources: Number(r.active_sources),
-    failingSources: Number(r.failing_sources),
-    pushSubs: Number(r.push_subs),
-    pushFailing: Number(r.push_failing),
-    hoursSincePushSuccess: num(r.hours_since_push),
-    dbMb: Number(r.db_mb),
-    published24h: Number(r.published_24h),
-    fallback24h: Number(r.fallback_24h),
-    recentDigests: (digests as string[]) ?? [],
-    paidCapDays: Number(r.paid_cap_days),
-    hoursSinceRecheck: num(r.hours_since_recheck),
-  };
-}
-
-/** Data the public site must never show wrong (src/lib/health.ts IntegritySnapshot). */
-async function integrity(): Promise<IntegritySnapshot> {
-  const [r] = await rows(sql`select
-    (select count(*) from articles where is_published and created_at > now() - interval '30 days'
-       -- like, not a regex: in this template literal "\[" loses its backslash and became a class.
-       and (tldr_summary like '%undefined%' or tldr_summary like '%[object Object]%'
-            or tldr_summary like '%''facts'':%' or tldr_summary like '%"facts":%'
-            or fact_vs_spin::text like '%[object Object]%'
-            or fact_vs_spin->>'spin_detected' in ('undefined', 'null')))::int as broken_ai,
-    (select count(*) from (select cluster_id from articles where cluster_id is not null and is_published
-       group by cluster_id having max(published_at) - min(published_at) > interval '7 days') c)::int as wide_clusters,
-    (select count(*) from (select content_hash from articles group by content_hash having count(*) > 1) d)::int as dup_hashes`);
-  // Only rows the publish rule would show: dated and inside MAX_AGE_DAYS. Sites whose link
-  // harvest finds only old archive pages (aimag khural decisions from 2023) or undated FAQ/static
-  // pages store them unpublished on purpose; counting those named 19 healthy sources (Nov 2026).
-  const silent = await rows(sql`select s.domain from sources s join articles a on a.source_id = s.id
-    where s.is_active and a.created_at > now() - interval '14 days'
-      and a.published_at > now() - interval '1 day' * ${MAX_AGE_DAYS}
-      and coalesce(a.scrape_meta->>'date_unknown', '') <> 'true'
-    group by s.domain having count(*) >= 10 and count(*) filter (where a.is_published) = 0 order by s.domain`);
-  return { brokenAiText: Number(r.broken_ai), widespreadClusters: Number(r.wide_clusters), duplicateHashes: Number(r.dup_hashes), silentSources: silent.map((x) => String(x.domain)) };
-}
 
 /**
  * Published stories since RATES_CHECKED whose headline may change the /tax rates (ХХОАТ, НДШ):
@@ -148,34 +80,6 @@ async function indicators() {
 async function opendata() {
   const [r] = await rows(sql`select extract(epoch from now() - max(synced_at)) / 3600 as h from open_datasets`);
   return num(r.h);
-}
-
-async function social() {
-  const out: Partial<Record<SocialPlatform, SocialSnapshot>> = {};
-  for (const p of SOCIAL_PLATFORMS) out[p] = { hoursSinceOk: null, unknown7d: 0 };
-  const result = await rows(sql`select platform,
-    extract(epoch from now() - max(created_at) filter (where post_id is not null and post_id <> 'unknown' and post_id not like 'failed:%')) / 3600 as h,
-    (count(*) filter (where post_id = 'unknown' and created_at > now() - interval '7 days'))::int as unknown
-    from social_posts group by platform`);
-  for (const r of result) {
-    const p = String(r.platform) as SocialPlatform;
-    if (p in out) out[p] = { hoursSinceOk: num(r.h), unknown7d: Number(r.unknown) };
-  }
-  return out;
-}
-
-async function videosAndPress() {
-  const [v] = await rows(sql`select extract(epoch from now() - max(created_at)) / 3600 as h from videos`);
-  const hoursSincePost: Partial<Record<SocialPlatform, number | null>> = {};
-  for (const r of await rows(sql`select platform, extract(epoch from now() - max(created_at)) / 3600 as h
-    from social_posts where kind = 'video' and post_id is not null and post_id <> 'unknown' and post_id not like 'failed:%' group by platform`)) {
-    hoursSincePost[String(r.platform) as SocialPlatform] = num(r.h);
-  }
-  const press: Record<string, number | null> = Object.fromEntries(OUTLETS.map((o) => [o.domain, null]));
-  for (const r of await rows(sql`select outlet, extract(epoch from now() - max(found_at)) / 3600 as h from press_items group by outlet`)) {
-    if (String(r.outlet) in press) press[String(r.outlet)] = num(r.h);
-  }
-  return { videos: { hoursSinceVideo: num(v?.h), hoursSincePost }, press };
 }
 
 async function settings() {
@@ -287,13 +191,13 @@ async function main() {
   const repo = process.env.GITHUB_REPOSITORY;
 
   const collectors = {
-    "мэдээ/AI/push": core,
-    "өгөгдлийн бүрэн бүтэн байдал": integrity,
+    "мэдээ/AI/push": () => collectCore(getDb(), new Date(), budgetConfig().dailyUsd),
+    "өгөгдлийн бүрэн бүтэн байдал": () => collectIntegrity(getDb(), new Date()),
     "УИХ-ын гишүүд": officials,
     "өгөгдлийн хэсгүүд": indicators,
     "opendata.mn": opendata,
-    "сошиал пост": social,
-    "видео, хэвлэл": videosAndPress,
+    "сошиал пост": () => collectSocial(getDb(), new Date()),
+    "видео, хэвлэл": () => collectVideosAndPress(getDb(), new Date()),
     "тохиргоо": settings,
     "сайт (сүлжээ)": skipNetwork ? null : network,
     "GitHub workflow": skipNetwork || !token || !repo ? null : () => workflows(token, repo),
@@ -323,8 +227,8 @@ async function main() {
     network: got("сайт (сүлжээ)"),
     workflows: got("GitHub workflow"),
     bundledCerts: got("гэрчилгээ"),
-    videos: got<Awaited<ReturnType<typeof videosAndPress>>>("видео, хэвлэл")?.videos,
-    press: got<Awaited<ReturnType<typeof videosAndPress>>>("видео, хэвлэл")?.press,
+    videos: got<Awaited<ReturnType<typeof collectVideosAndPress>>>("видео, хэвлэл")?.videos,
+    press: got<Awaited<ReturnType<typeof collectVideosAndPress>>>("видео, хэвлэл")?.press,
     dispatchTokenExpires: s?.dispatchTokenExpires,
     taxRateNews: got("татварын хууль"),
   };
