@@ -48,23 +48,3 @@ export function slotStart(now: Date, slot: VideoSlot): Date {
 
 /** How long a run owns a slot before another run may take it over (voicing + rendering takes minutes). */
 export const CLAIM_LEASE_MS = 20 * 60_000;
-
-/** The claim stored in app_settings: `<slot start>|<claimed at>`, both ISO. */
-export function claimValue(start: Date, now: Date): string {
-  return `${start.toISOString()}|${now.toISOString()}`;
-}
-
-/**
- * May a run take the slot that began at `start`? Yes when nobody claimed it yet, when the stored
- * claim is for another slot, or when the same slot's claim is older than the lease (the run that
- * made it failed before it stored a video). The caller has already checked that the slot has no
- * video (`dueSlot`). An old plain-ISO value (before the lease) is the same slot's claim of unknown age.
- */
-export function mayClaim(stored: string | null, start: Date, now: Date): boolean {
-  if (!stored) return true;
-  const [slotIso, claimedIso] = stored.split("|");
-  if (slotIso !== start.toISOString()) return true;
-  const claimedAt = claimedIso ? Date.parse(claimedIso) : NaN;
-  if (Number.isNaN(claimedAt)) return true;
-  return now.getTime() - claimedAt >= CLAIM_LEASE_MS;
-}

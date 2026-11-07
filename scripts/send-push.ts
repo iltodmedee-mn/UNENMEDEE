@@ -18,6 +18,7 @@ import { and, desc, eq, gte, inArray, isNotNull, isNull, sql } from "drizzle-orm
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { appSettings, articles, digests, politicians, pushSubscriptions } from "@/db/schema";
+import { advanceMarker, rewindMarker } from "@/lib/claims";
 import { mentionAlerts } from "@/lib/officials/follow-alerts";
 import { selectPushCandidates } from "@/lib/push/news-selection";
 import { digestPayload, newsPayload, type PushPayload } from "@/lib/push/core";
@@ -54,19 +55,6 @@ async function digestPayloads(): Promise<{ payloads: PushPayload[]; digestId: nu
   const [last] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, LAST_DIGEST_KEY));
   if (last && Number(last.value) >= latest.id) return { payloads: [], digestId: null };
   return { payloads: [digestPayload(latest)], digestId: latest.id, previous: last?.value ?? null };
-}
-
-/**
- * Claims a digest for this run before anything is sent: only the run whose update moves
- * push_last_digest_id forward sends it, so two workflows finishing together never push twice.
- */
-async function claimDigest(id: number): Promise<boolean> {
-  const rows = await getDb()
-    .insert(appSettings)
-    .values({ key: LAST_DIGEST_KEY, value: String(id) })
-    .onConflictDoUpdate({ target: appSettings.key, set: { value: String(id), updatedAt: new Date() }, setWhere: sql`${appSettings.value}::int < ${id}` })
-    .returning({ value: appSettings.value });
-  return rows.length > 0;
 }
 
 async function sendMentionAlerts(dryRun: boolean) {
@@ -111,7 +99,7 @@ async function main() {
   for (const p of plan.payloads) console.log(`  → ${oneLine(p.title)} | ${oneLine(p.body)} | ${p.url}`);
   if (values["dry-run"]) return;
 
-  if ("digestId" in plan && plan.digestId !== null && !(await claimDigest(plan.digestId))) {
+  if ("digestId" in plan && plan.digestId !== null && !(await advanceMarker(db, LAST_DIGEST_KEY, plan.digestId))) {
     console.log("🔕 Another run already sent this digest.");
     return;
   }
@@ -122,10 +110,7 @@ async function main() {
   if ("ids" in plan && plan.ids.length && !allFailed) await db.update(articles).set({ notifiedAt: new Date() }).where(inArray(articles.id, plan.ids));
   if ("digestId" in plan && plan.digestId !== null && allFailed) {
     // Give the claim back so the next run (12 h window) tries again.
-    await db
-      .update(appSettings)
-      .set({ value: plan.previous ?? "0", updatedAt: new Date() })
-      .where(and(eq(appSettings.key, LAST_DIGEST_KEY), eq(appSettings.value, String(plan.digestId))));
+    await rewindMarker(db, LAST_DIGEST_KEY, plan.digestId, Number(plan.previous ?? 0));
   }
   console.log(`🔔 ${mode}: ${res.sent} notification(s) sent, ${res.failed} failed, ${res.removed} dead subscription(s) removed.`);
 }
