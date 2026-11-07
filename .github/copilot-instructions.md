@@ -1,7 +1,8 @@
 # Instructions for GitHub Copilot (and any other coding agent)
 
-Read `CLAUDE.md` in full before changing anything: it is the project's single description (stack,
-rules, every subsystem and why it is built the way it is). `AGENTS.md` adds the Next.js note.
+Read `CLAUDE.md` in full before changing anything: it holds the mission, the hard rules and the
+commands, and names the `docs/agents/` file with the rules for each area. Read that file for the
+area you change. `AGENTS.md` adds the Next.js note.
 
 Non-negotiable:
 
