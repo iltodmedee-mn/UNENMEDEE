@@ -27,7 +27,8 @@ import { parseArgs } from "node:util";
 import { and, desc, eq, gte, isNotNull, lt, sql } from "drizzle-orm";
 
 import { closeDb, type DB, getDb, hasDatabase } from "@/db";
-import { appSettings, articles, indicatorSnapshots, sources, videos } from "@/db/schema";
+import { articles, indicatorSnapshots, sources, videos } from "@/db/schema";
+import { claimLease, releaseLease } from "@/lib/claims";
 import { displayTitle, postable } from "@/lib/story-rules";
 import { consoleUsageLogger, dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-log";
 import { GOODS, type PricesSnapshot } from "@/lib/budget/prices";
@@ -38,7 +39,7 @@ import { narration, priceVideoSpec, type Scene, type VideoSpec, verifySpec } fro
 import type { VideoMeta } from "@/lib/video/posts";
 import { analyseAudio, MAX_BYTES, renderVideo } from "@/lib/video/render";
 import { sceneHtml } from "@/lib/video/scene-html";
-import { claimValue, dueSlot, kindsFor, mayClaim, slotStart, type VideoSlot } from "@/lib/video/schedule";
+import { CLAIM_LEASE_MS, dueSlot, kindsFor, slotStart, type VideoSlot } from "@/lib/video/schedule";
 import { buildTimeline, plausibleTake, sentenceStarts, speechBounds, type Timeline } from "@/lib/video/timing";
 import { CreditsRefused, describeSecret, elevenLabsFromEnv, speakElevenLabs } from "@/lib/video/elevenlabs";
 import { speak } from "@/lib/video/tts";
@@ -62,42 +63,28 @@ const dry = values["dry-run"];
 
 const SLOT_CLAIM_KEY = "video_slot_claim";
 
-/** The claim this run holds (null: none, or released), so a run that stores nothing gives the slot back. */
+/** The lease token this run holds (null: none, or released), so a run that stores nothing gives the slot back. */
 let myClaim: string | null = null;
 let madeVideo = false;
 
 /**
- * Claims `slot` as a lease (`<slot start>|<claimed at>`): one run wins, and a claim whose run
- * failed before storing a video expires after CLAIM_LEASE_MS instead of blocking the slot for good.
- * The write is a compare-and-swap on the value read, so two runs cannot both win.
+ * Claims `slot` as a lease (src/lib/claims.ts): one run wins, and a claim whose run failed before
+ * storing a video expires after CLAIM_LEASE_MS instead of blocking the slot for good.
  */
 async function claimSlot(db: DB, slot: VideoSlot): Promise<boolean> {
   const now = new Date();
-  const start = slotStart(now, slot);
-  const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, SLOT_CLAIM_KEY));
-  const stored = typeof row?.value === "string" ? row.value : null;
-  if (!mayClaim(stored, start, now)) return false;
-  const value = claimValue(start, now);
-  const won = await db
-    .insert(appSettings)
-    .values({ key: SLOT_CLAIM_KEY, value })
-    .onConflictDoUpdate({
-      target: appSettings.key,
-      set: { value, updatedAt: new Date() },
-      setWhere: stored === null ? sql`false` : sql`${appSettings.value} = ${stored}`,
-    })
-    .returning({ key: appSettings.key });
-  if (won.length > 0) myClaim = value;
-  return won.length > 0;
+  const token = await claimLease(db, SLOT_CLAIM_KEY, { scope: slotStart(now, slot).toISOString(), now, leaseMs: CLAIM_LEASE_MS });
+  if (token) myClaim = token;
+  return token !== null;
 }
 
 /** A run that ends without a stored video (error, nothing to make) gives its claim back, if it is still ours. */
 async function releaseClaim(): Promise<void> {
   if (!myClaim || madeVideo) return;
-  const value = myClaim;
+  const token = myClaim;
   myClaim = null;
   try {
-    await getDb().delete(appSettings).where(and(eq(appSettings.key, SLOT_CLAIM_KEY), eq(appSettings.value, value)));
+    await releaseLease(getDb(), SLOT_CLAIM_KEY, token);
   } catch (err) {
     console.log(`::warning::could not release the slot claim: ${errorDetail(err)}`);
   }

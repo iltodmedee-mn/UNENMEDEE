@@ -30,6 +30,7 @@ import { and, desc, eq, gte, isNotNull, or, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { storedNeutrality } from "@/lib/ai/fact-spin";
+import { putOnce } from "@/lib/claims";
 import { appSettings, articles, clusters, digests, politicians, socialPosts, sources, videos } from "@/db/schema";
 import { type ArticleForPost, articlePost, type DigestForPost, digestPost, FacebookError, publishAlbum, publishReel, publishToPage, resolveFacebookPage } from "@/lib/social/facebook";
 import { INSTAGRAM_SETTINGS_KEY, type InstagramPost, instagramArticlePost, instagramDigestPost, publishInstagram, publishInstagramCarousel, refreshInstagramToken } from "@/lib/social/instagram";
@@ -467,23 +468,30 @@ async function storedQuiz(db: Db): Promise<WeeklyQuiz | null> {
  * This week's quiz: the stored one when it is already this week's (every platform and every run
  * posts the same questions, and the cards read it), else built from the last 7 days and stored.
  */
+const QUIZ_KEEP_MS = 72 * 3_600_000;
+
 async function thisWeeksQuiz(db: Db, now: Date): Promise<WeeklyQuiz | null> {
   const stored = await storedQuiz(db);
   if (stored?.week === quizWeek(now)) return stored;
   // A manual run on Monday (--any-day) used to build the new ISO week's quiz over Sunday's, whose
   // answers were due that evening and whose cards still had to render: the stored quiz stays until
   // its answers window (72 h) has passed.
-  if (stored && now.getTime() - new Date(stored.createdAt).getTime() < 72 * 3_600_000) {
+  if (stored && now.getTime() - new Date(stored.createdAt).getTime() < QUIZ_KEEP_MS) {
     console.log(`🧠 the quiz of week ${stored.week} is still current (answers pending): not replaced.`);
     return stored;
   }
-  const quiz = buildWeeklyQuiz(await quizCandidates(db, now), now);
-  if (!quiz) return null;
-  if (!dry) {
-    const value = JSON.stringify(quiz);
-    await db.insert(appSettings).values({ key: WEEKLY_QUIZ_KEY, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
-  }
-  return quiz;
+  if (dry) return buildWeeklyQuiz(await quizCandidates(db, now), now);
+  let built: WeeklyQuiz | null = null;
+  const { value } = await putOnce(
+    db,
+    WEEKLY_QUIZ_KEY,
+    async () => {
+      built = buildWeeklyQuiz(await quizCandidates(db, now), now);
+      return built ? JSON.stringify(built) : null;
+    },
+    { keepIfYoungerThanMs: QUIZ_KEEP_MS, now },
+  );
+  return built ?? parseWeeklyQuiz(value);
 }
 
 /** The answers, on a platform whose quiz post went out, from 19:00 the next day (answersDue). */
