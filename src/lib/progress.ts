@@ -407,13 +407,19 @@ export function liveStreak(p: Progress, now: number): number {
   return p.lastDay === today || p.lastDay === prevDay(today) ? p.streak : 0;
 }
 
-/** The last `n` Ulaanbaatar days, oldest first: true on a day of the current streak. */
-export function recentDays(p: Progress, now: number, n = 5): boolean[] {
-  let day = ubDay(now);
-  const out: boolean[] = [];
-  for (let i = 0; i < n; i++) {
-    out.unshift(p.lastDay !== null && day <= p.lastDay && daysBetween(day, p.lastDay) < p.streak);
-    day = prevDay(day);
-  }
-  return out;
+export type DayMark = "read" | "missed" | "today-read" | "today-open" | "future";
+
+/**
+ * Five Ulaanbaatar days around today for the streak strip (Reddit's, the owner's pick): two before,
+ * today, two after. A past day is "read" when it belongs to the streak that ended on `lastDay`.
+ */
+export function streakWindow(p: Progress, now: number): { day: string; date: number; mark: DayMark }[] {
+  const today = ubDay(now);
+  return [-2, -1, 0, 1, 2].map((offset) => {
+    const day = new Date(Date.parse(`${today}T00:00:00Z`) + offset * 86_400_000).toISOString().slice(0, 10);
+    const read = p.lastDay !== null && day <= p.lastDay && daysBetween(day, p.lastDay) < p.streak;
+    const mark: DayMark = offset > 0 ? "future" : offset === 0 ? (read ? "today-read" : "today-open") : read ? "read" : "missed";
+    return { day, date: Number(day.slice(8)), mark };
+  });
 }
+

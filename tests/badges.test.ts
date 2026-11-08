@@ -27,7 +27,8 @@ describe("the catalog", () => {
     assert.deepEqual(needs("reader"), [50, 300, 1_500, 5_000]);
     assert.deepEqual(needs("facts"), [25, 150, 600, 2_000]);
     assert.deepEqual(needs("sources"), [10, 75, 300, 1_000]);
-    assert.deepEqual(needs("streak"), [7, 30, 100, 365]);
+    const ladder = STREAK_MILESTONES.map((m) => m.days);
+    for (const days of [7, 30, 100, 365]) assert.ok(ladder.includes(days), `${days} days is a streak milestone`);
     assert.deepEqual(needs("digests"), [10, 60, 250, 730]);
     assert.deepEqual(needs("laws"), [5, 25, 100, 300]);
     assert.deepEqual(needs("tenders"), [25, 150, 500, 2_000]);
@@ -47,9 +48,18 @@ describe("the catalog", () => {
     assert.equal(award(at({ places: Object.fromEntries(aimags.map((s) => [s, 1])) }), MON).progress.badges.places.length, 3);
   });
 
-  it("the streak ladder climbs to 1 000 days, each step named", () => {
+  it("the streak ladder climbs to 1 000 days, one named badge per milestone", () => {
     assert.equal(STREAK_MILESTONES.at(-1)!.days, 1_000);
     for (let i = 1; i < STREAK_MILESTONES.length; i++) assert.ok(STREAK_MILESTONES[i].days > STREAK_MILESTONES[i - 1].days);
+    const ladder = BADGES.filter((b) => b.collection === "streak");
+    assert.deepEqual(ladder.map((b) => b.name), STREAK_MILESTONES.map((m) => m.name));
+    assert.ok(!BADGES.some((b) => b.id === "streak"), "the retired four-tier streak badge stays retired");
+  });
+
+  it("a 12-day best streak earns Оч and Гал, dated, with their tier XP", () => {
+    const a = award(at({ bestStreak: 12 }), MON);
+    assert.deepEqual(a.earned.map((e) => `${e.badge.id}:${e.tier}`), ["streak-3:b", "streak-7:b"]);
+    assert.equal(a.gained, 50);
   });
 });
 

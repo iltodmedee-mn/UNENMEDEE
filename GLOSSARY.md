@@ -39,7 +39,7 @@ A named achievement for one habit (reading, checking, following money, following
 _Avoid_: award, trophy, medal
 
 **Collection**:
-A group of badges about one habit (Эхлэл, Унших, Шалгах, Мөнгө, Төр ба иргэн, Зуршил, Нээлт, Нууц); each collection has its own badge shape.
+A group of badges about one habit (Эхлэл, Дараалсан өдөр, Унших, Шалгах, Мөнгө, Төр ба иргэн, Зуршил, Нээлт, Нууц); each collection has its own badge shape.
 _Avoid_: category, set
 
 **Streak**:
