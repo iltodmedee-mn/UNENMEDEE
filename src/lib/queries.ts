@@ -2,7 +2,7 @@ import { and, count, desc, eq, gte, inArray, isNotNull, lt, lte, sql, type SQL }
 import { cacheLife, cacheTag } from "next/cache";
 
 import { getDb, hasDatabase } from "@/db";
-import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, tenders, documents, watchedPages, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
+import { aiUsageLogs, appSettings, articles, assetDeclarations, clusters, digests, donations, feedSnapshots, indicatorSnapshots, openDatasets, politicians, pressItems, pressLinks, sources, tenders, documents, watchedPages, transparencyLedger, type AssetDeclaration, type OpenDataset, type Politician } from "@/db/schema";
 import { shiftDate, ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { type BuyerSign, buyerSigns, type BuyerStats, isNonCompetitive, nationalShares, type NationalShares } from "@/lib/procurement/signs";
@@ -18,6 +18,7 @@ import { HIDDEN_YEARS_KEY, type HiddenYears, parseHiddenYears } from "@/lib/offi
 import type { SourceDiff, SourceStatus } from "@/lib/scraper/recheck";
 import { isPressBlindspot } from "@/lib/press/outlets";
 import { toPrefixQuery } from "@/lib/search";
+import { feedKey, FIRST_PAGE, parseSnapshot, snapshotTag, toDate } from "@/lib/snapshots";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { LOG_KEEP_MONTHS, PRUNE_STATE_KEY } from "@/lib/retention";
 import { ubMidnight } from "@/lib/ticker";
@@ -218,28 +219,76 @@ function filterCondition(filter: FeedFilter): SQL | undefined {
   }
 }
 
+/** The feed query itself, uncached: `getFeed` caches it, the snapshot writer runs it once per run. */
+export async function loadFeed(filter: FeedFilter, limit = 30): Promise<ArticleListItem[]> {
+  const rows = await getDb()
+    .select(listColumns)
+    .from(articles)
+    .innerJoin(sources, eq(articles.sourceId, sources.id))
+    .where(
+      and(
+        visible,
+        filterCondition(filter),
+        filter === "risk" || filter === "data" ? undefined : feedVisible,
+        // The risk feed is score-first: without a window a months-old risk-95 story led it for good.
+        filter === "risk" ? sql`${articles.publishedAt} >= now() - interval '30 days'` : undefined,
+      ),
+    )
+    .orderBy(...(filter === "risk" ? [desc(articles.riskScore), desc(articles.publishedAt)] : [desc(articles.publishedAt), desc(articles.id)]))
+    .limit(limit);
+  return rows.map(toListItem);
+}
+
 export async function getFeed(filter: FeedFilter, limit = 30): Promise<ArticleListItem[]> {
   "use cache";
   cacheLife("news");
   cacheTag("articles", "feed");
-  return safe("getFeed", [], async () => {
-    const rows = await getDb()
-      .select(listColumns)
-      .from(articles)
-      .innerJoin(sources, eq(articles.sourceId, sources.id))
-      .where(
-        and(
-          visible,
-          filterCondition(filter),
-          filter === "risk" || filter === "data" ? undefined : feedVisible,
-          // The risk feed is score-first: without a window a months-old risk-95 story led it for good.
-          filter === "risk" ? sql`${articles.publishedAt} >= now() - interval '30 days'` : undefined,
-        ),
-      )
-      .orderBy(...(filter === "risk" ? [desc(articles.riskScore), desc(articles.publishedAt)] : [desc(articles.publishedAt), desc(articles.id)]))
-      .limit(limit);
-    return rows.map(toListItem);
+  return safe("getFeed", [], () => loadFeed(filter, limit));
+}
+
+/** What a list page shows: its first stories, the site counters and the newest digest editions. */
+export interface FeedPageData {
+  stories: ArticleListItem[];
+  stats: SiteStats;
+  edition: DigestView | null;
+  review: DigestView | null;
+}
+
+const reviveDigest = (d: DigestView | null | undefined): DigestView | null =>
+  d ? { ...d, periodStart: toDate(d.periodStart) ?? new Date(0), periodEnd: toDate(d.periodEnd) ?? new Date(0) } : null;
+
+/**
+ * A list page's snapshot (docs/adr/0001-list-pages-read-snapshots.md): one row, cached for days;
+ * the pipeline purges `snap-feed-<filter>` only when the snapshot changed. Null when there is none
+ * yet (a new topic, the first deploy) or it was written by another version.
+ */
+async function readFeedSnapshot(filter: FeedFilter): Promise<FeedPageData | null> {
+  "use cache";
+  cacheLife("days");
+  const key = feedKey(filter);
+  cacheTag(snapshotTag(key));
+  return safe("readFeedSnapshot", null, async () => {
+    const [row] = await getDb().select({ data: feedSnapshots.data }).from(feedSnapshots).where(eq(feedSnapshots.key, key)).limit(1);
+    const snap = parseSnapshot<FeedPageData>(row?.data);
+    if (!snap || !Array.isArray(snap.data.stories)) return null;
+    const d = snap.data;
+    return {
+      stories: d.stories.map((s) => ({ ...s, publishedAt: toDate(s.publishedAt) })),
+      stats: d.stats,
+      edition: reviveDigest(d.edition),
+      review: reviveDigest(d.review),
+    };
   });
+}
+
+/** The list page's content: its snapshot, or the live queries when there is no snapshot yet. */
+export async function getFeedPage(filter: FeedFilter): Promise<FeedPageData> {
+  // A failed read (the table not migrated yet on the first deploy, a database blip) is not a
+  // broken page: the live queries draw it, and the rejected read is not cached.
+  const snap = await readFeedSnapshot(filter).catch(() => null);
+  if (snap) return snap;
+  const [stories, stats, [edition], [review]] = await Promise.all([getFeed(filter, FIRST_PAGE), getSiteStats(), getDigests("12h", 1), getDigests("30d", 1)]);
+  return { stories, stats, edition: edition ?? null, review: review ?? null };
 }
 
 /**
@@ -798,58 +847,61 @@ export async function getSiteStats(): Promise<SiteStats> {
   cacheLife("hours");
   cacheTag("articles", "sources", "ai");
   const fallback: SiteStats = { activeSources: SOURCE_SEEDS.length, articles: 0, analyzed: 0, flagged: 0, clusters: 0, aiCostThisMonthUsd: 0, lastArticleAt: null, todayArticles: 0 };
-  return safe("getSiteStats", fallback, async () => {
-    const db = getDb();
-    const monthStart = new Date();
-    monthStart.setUTCDate(1);
-    monthStart.setUTCHours(0, 0, 0, 0);
-    const todayStart = new Date(ubMidnight(Date.now()));
-    const [[src], [art], [clu], [cost], [recent], [pruned]] = await Promise.all([
-      db.select({ n: count() }).from(sources).where(eq(sources.isActive, true)),
-      db
-        .select({
-          total: count(),
-          // "AI-аар шүүгдсэн" counts AI summaries only: the extractive fallback (first sentences,
-          // labelled "AI ажиллаагүй") is not an AI analysis; it inflated the public number by 28 %.
-          analyzed: sql<number>`count(*) filter (where ${aiSummarized})::int`,
-          flagged: sql<number>`count(*) filter (where ${articles.riskFlag})::int`,
-        })
-        .from(articles),
-      // Clusters that two or more sources still publish (the stored article_count goes stale).
-      db
-        .select({ n: count() })
-        .from(
-          db
-            .select({ id: articles.clusterId })
-            .from(articles)
-            .where(and(isNotNull(articles.clusterId), published))
-            .groupBy(articles.clusterId)
-            .having(sql`count(distinct ${articles.sourceId}) >= 2`)
-            .as("live_clusters"),
-        ),
-      db.select({ usd: sql<string>`coalesce(sum(${aiUsageLogs.estimatedCostUsd}), 0)` }).from(aiUsageLogs).where(gte(aiUsageLogs.createdAt, monthStart)),
-      db
-        .select({
-          last: sql<string | null>`max(${articles.createdAt})::text`,
-          today: sql<number>`count(*) filter (where ${articles.createdAt} >= ${todayStart})::int`,
-        })
-        .from(articles)
-        .where(and(published, feedVisible)),
-      // Rows the retention job deleted were still read (and many analysed): the counters keep them.
-      db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, PRUNE_STATE_KEY)).limit(1),
-    ]);
-    const deleted = deletedTotals(pruned?.value);
-    return {
-      activeSources: src.n,
-      articles: art.total + deleted.articles,
-      analyzed: art.analyzed + deleted.analyzed,
-      flagged: art.flagged,
-      clusters: clu.n,
-      aiCostThisMonthUsd: Number(cost.usd),
-      lastArticleAt: recent.last ? new Date(recent.last).toISOString() : null,
-      todayArticles: recent.today,
-    };
-  });
+  return safe("getSiteStats", fallback, loadSiteStats);
+}
+
+/** The site counters, uncached (`getSiteStats` caches them; the snapshot writer reads them once per run). */
+export async function loadSiteStats(): Promise<SiteStats> {
+  const db = getDb();
+  const monthStart = new Date();
+  monthStart.setUTCDate(1);
+  monthStart.setUTCHours(0, 0, 0, 0);
+  const todayStart = new Date(ubMidnight(Date.now()));
+  const [[src], [art], [clu], [cost], [recent], [pruned]] = await Promise.all([
+    db.select({ n: count() }).from(sources).where(eq(sources.isActive, true)),
+    db
+      .select({
+        total: count(),
+        // "AI-аар шүүгдсэн" counts AI summaries only: the extractive fallback (first sentences,
+        // labelled "AI ажиллаагүй") is not an AI analysis; it inflated the public number by 28 %.
+        analyzed: sql<number>`count(*) filter (where ${aiSummarized})::int`,
+        flagged: sql<number>`count(*) filter (where ${articles.riskFlag})::int`,
+      })
+      .from(articles),
+    // Clusters that two or more sources still publish (the stored article_count goes stale).
+    db
+      .select({ n: count() })
+      .from(
+        db
+          .select({ id: articles.clusterId })
+          .from(articles)
+          .where(and(isNotNull(articles.clusterId), published))
+          .groupBy(articles.clusterId)
+          .having(sql`count(distinct ${articles.sourceId}) >= 2`)
+          .as("live_clusters"),
+      ),
+    db.select({ usd: sql<string>`coalesce(sum(${aiUsageLogs.estimatedCostUsd}), 0)` }).from(aiUsageLogs).where(gte(aiUsageLogs.createdAt, monthStart)),
+    db
+      .select({
+        last: sql<string | null>`max(${articles.createdAt})::text`,
+        today: sql<number>`count(*) filter (where ${articles.createdAt} >= ${todayStart})::int`,
+      })
+      .from(articles)
+      .where(and(published, feedVisible)),
+    // Rows the retention job deleted were still read (and many analysed): the counters keep them.
+    db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, PRUNE_STATE_KEY)).limit(1),
+  ]);
+  const deleted = deletedTotals(pruned?.value);
+  return {
+    activeSources: src.n,
+    articles: art.total + deleted.articles,
+    analyzed: art.analyzed + deleted.analyzed,
+    flagged: art.flagged,
+    clusters: clu.n,
+    aiCostThisMonthUsd: Number(cost.usd),
+    lastArticleAt: recent.last ? new Date(recent.last).toISOString() : null,
+    todayArticles: recent.today,
+  };
 }
 
 export interface SourceHealth {
@@ -1073,45 +1125,48 @@ export async function getDigests(kind: "12h" | "30d", limit = 10, withStories = 
   "use cache";
   cacheLife("news");
   cacheTag("digests");
-  return safe("getDigests", [], async () => {
-    const db = getDb();
-    const rows = await db.select().from(digests).where(eq(digests.kind, kind)).orderBy(desc(digests.periodEnd)).limit(limit);
-    const stories = new Map<number, DigestStory>();
-    const live = new Set<number>();
-    const ids = [...new Set(rows.flatMap((d) => d.items.map((it) => it.articleId)))];
-    if (ids.length) {
-      const found = await db
-        .select({ id: articles.id, tldr: articles.tldrSummary, summaryFallback: articles.summaryFallback, originalUrl: articles.originalUrl, entities: articles.extractedEntities })
-        .from(articles)
-        .where(and(inArray(articles.id, ids), published));
-      for (const a of found) {
-        live.add(a.id);
-        if (!withStories || !a.tldr) continue;
-        stories.set(a.id, { tldr: a.tldr, summaryFallback: a.summaryFallback, originalUrl: a.originalUrl, amounts: a.entities?.amounts_mnt ?? [] });
-      }
+  return safe("getDigests", [], () => loadDigests(kind, limit, withStories));
+}
+
+/** Digest editions, uncached (`getDigests` caches them; the snapshot writer reads the newest once per run). */
+export async function loadDigests(kind: "12h" | "30d", limit = 10, withStories = false): Promise<DigestView[]> {
+  const db = getDb();
+  const rows = await db.select().from(digests).where(eq(digests.kind, kind)).orderBy(desc(digests.periodEnd)).limit(limit);
+  const stories = new Map<number, DigestStory>();
+  const live = new Set<number>();
+  const ids = [...new Set(rows.flatMap((d) => d.items.map((it) => it.articleId)))];
+  if (ids.length) {
+    const found = await db
+      .select({ id: articles.id, tldr: articles.tldrSummary, summaryFallback: articles.summaryFallback, originalUrl: articles.originalUrl, entities: articles.extractedEntities })
+      .from(articles)
+      .where(and(inArray(articles.id, ids), published));
+    for (const a of found) {
+      live.add(a.id);
+      if (!withStories || !a.tldr) continue;
+      stories.set(a.id, { tldr: a.tldr, summaryFallback: a.summaryFallback, originalUrl: a.originalUrl, amounts: a.entities?.amounts_mnt ?? [] });
     }
-    return rows.flatMap((d) => {
-      const items = d.items.filter((it) => live.has(it.articleId));
-      // An edition whose every story was withdrawn is gone too (it read "✓ уншиж дууслаа" over 0/0).
-      if (items.length === 0) return [];
-      return [{
-      id: d.id,
-      kind: d.kind,
-      periodStart: d.periodStart,
-      periodEnd: d.periodEnd,
-      title: d.title,
-      intro: d.intro,
-      // Withdrawn stories stay withdrawn: an article unpublished after the edition was written
-      // (Nov 2026: 72 empty gov.mn image posts) left its line in /digest, linking to a 404 page.
-      items: items.map((it) => {
-        const story = stories.get(it.articleId);
-        return story ? { ...it, story } : it;
-      }),
-      candidateCount: d.candidateCount,
-      generatedBy: d.generatedBy,
-      costUsd: Number(d.costUsd),
-      }];
-    });
+  }
+  return rows.flatMap((d) => {
+    const items = d.items.filter((it) => live.has(it.articleId));
+    // An edition whose every story was withdrawn is gone too (it read "✓ уншиж дууслаа" over 0/0).
+    if (items.length === 0) return [];
+    return [{
+    id: d.id,
+    kind: d.kind,
+    periodStart: d.periodStart,
+    periodEnd: d.periodEnd,
+    title: d.title,
+    intro: d.intro,
+    // Withdrawn stories stay withdrawn: an article unpublished after the edition was written
+    // (Nov 2026: 72 empty gov.mn image posts) left its line in /digest, linking to a 404 page.
+    items: items.map((it) => {
+      const story = stories.get(it.articleId);
+      return story ? { ...it, story } : it;
+    }),
+    candidateCount: d.candidateCount,
+    generatedBy: d.generatedBy,
+    costUsd: Number(d.costUsd),
+    }];
   });
 }
 

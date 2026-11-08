@@ -146,6 +146,6 @@ jobs:
           esac
           # Stored rows changed: refresh every page that shows them (article pages included).
           case "$IN_TASK" in
-            reanalyse|recluster) npm run cache:purge -- --all ;;
-            refetch-dates) if [ "$IN_DRY" != "true" ]; then npm run cache:purge -- --all; fi ;;
+            reanalyse|recluster) npm run snapshots:write && npm run cache:purge -- --all ;;
+            refetch-dates) if [ "$IN_DRY" != "true" ]; then npm run snapshots:write && npm run cache:purge -- --all; fi ;;
           esac

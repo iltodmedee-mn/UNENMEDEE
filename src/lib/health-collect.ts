@@ -12,7 +12,7 @@
 import { and, desc, eq, gt, gte, isNull, sql, type SQL } from "drizzle-orm";
 
 import type { DB } from "@/db";
-import { appSettings, articles, digests, pressItems, pushSubscriptions, siteErrors, sources, videos } from "@/db/schema";
+import { appSettings, articles, digests, feedSnapshots, pressItems, pushSubscriptions, siteErrors, sources, videos } from "@/db/schema";
 import { dailySpendUsd } from "@/lib/ai/usage-log";
 import { type CoreSnapshot, type IntegritySnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot } from "@/lib/health";
 import { OUTLETS } from "@/lib/press/outlets";
@@ -149,6 +149,8 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
   const [extractionRow] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, EXTRACTION_KEY));
   const extraction = parseExtractionReport(extractionRow?.value);
   const extractionFresh = extraction && now.getTime() - Date.parse(extraction.at) < 15 * DAY_MS;
+  // List pages read snapshots (docs/adr/0001-list-pages-read-snapshots.md): the newest write time.
+  const [snap] = await db.select({ at: sql<string | null>`max(${feedSnapshots.builtAt})::text` }).from(feedSnapshots);
   return {
     brokenAiText: broken,
     widespreadClusters: n(wide),
@@ -157,6 +159,7 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
     undatedBursts: burst.map((x) => x.domain),
     siteErrors: errors,
     fallbackDispatchStatus: dispatch,
+    hoursSinceSnapshot: snap?.at ? hoursSince(snap.at, now) : null,
     unreadableSources: extractionFresh ? extraction.broken.map((b) => `${b.domain} (${b.empty}/${b.read})`) : [],
   };
 }

@@ -4,7 +4,8 @@ import Link from "next/link";
 
 import { editionLabel } from "@/lib/edition";
 import { formatUsd } from "@/lib/format";
-import { type ArticleListItem, type DigestView, type FeedFilter, getDigests, getFeed, getSiteStats, type SiteStats } from "@/lib/queries";
+import { type ArticleListItem, type DigestView, type FeedFilter, getFeedPage, type SiteStats } from "@/lib/queries";
+import { FIRST_PAGE } from "@/lib/snapshots";
 import { type TopicSeo, topicSeo } from "@/lib/topic-seo";
 import { findTopic, type Topic } from "@/lib/topics";
 import { cx } from "@/utils/cx";
@@ -20,9 +21,6 @@ import { StatusTicker } from "./status-ticker";
 import { StoryList } from "./story-list";
 import { TopicBar } from "./topic-bar";
 import { TopicMark } from "./topic-icon";
-
-/** Stories rendered with the page; the rest load on demand. */
-const FIRST_PAGE = 20;
 
 const WEEKDAYS = ["Ням", "Даваа", "Мягмар", "Лхагва", "Пүрэв", "Баасан", "Бямба"];
 
@@ -126,14 +124,15 @@ async function Masthead({ stats, digest, seo, topic }: { stats: SiteStats; diges
 export async function HomeFeed({ filter }: { filter: FeedFilter }) {
   // 20 on the page, the rest behind "Цааш үзэх" (/api/feed/<filter>): 40 rows made the phone
   // hydrate 1,000+ DOM nodes and Lighthouse mobile measured 2 s of Total Blocking Time.
-  const [feed, stats, [edition], [review]] = await Promise.all([getFeed(filter, FIRST_PAGE), getSiteStats(), getDigests("12h", 1), getDigests("30d", 1)]);
+  // One snapshot row (docs/adr/0001-list-pages-read-snapshots.md), or the live queries without one.
+  const { stories: feed, stats, edition, review } = await getFeedPage(filter);
   const stories = onePerStory(feed);
   const topic = findTopic(filter);
   const seo = filter === "all" ? undefined : topicSeo(filter);
   return (
     // Narrow reading column like Kagi News; extra bottom space for the phone topic bar.
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-4 pb-20 md:pb-0">
-      <Masthead stats={stats} digest={edition ?? review} seo={seo} topic={topic} />
+      <Masthead stats={stats} digest={edition ?? review ?? undefined} seo={seo} topic={topic} />
       {seo && (
         <div className="flex flex-col gap-1 text-sm text-secondary">
           <p>{seo.intro}</p>

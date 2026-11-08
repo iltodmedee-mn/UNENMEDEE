@@ -21,11 +21,19 @@ import { HIDDEN_YEARS_KEY, hiddenYearsFromText } from "@/lib/officials/hidden";
 import { extractArticleSafe } from "@/lib/scraper/extract-safe";
 import { readTextLimited } from "@/lib/scraper/http";
 import { fetchPublicUrl } from "@/lib/scraper/public-url";
+import { writeSnapshots } from "@/lib/snapshot-writer";
 import { contentHash, normalizeText, slugify, truncate } from "@/lib/text";
 
 const MAX_STORED_CHARS = 15_000;
 
-function refreshPublic(slug?: string) {
+async function refreshPublic(slug?: string) {
+  // The list pages read snapshots (docs/adr/0001-list-pages-read-snapshots.md): rebuild them now,
+  // or a story taken down here stays on the home page until the next pipeline run.
+  try {
+    for (const tag of await writeSnapshots()) updateTag(tag);
+  } catch (err) {
+    console.error("[admin] snapshots not rebuilt:", err instanceof Error ? err.message : err);
+  }
   updateTag("articles");
   updateTag("clusters");
   updateTag("ai");
@@ -44,7 +52,7 @@ export async function togglePublish(formData: FormData) {
   const [row] = await db.select({ isPublished: articles.isPublished, slug: articles.slug }).from(articles).where(eq(articles.id, id));
   if (!row) return;
   await db.update(articles).set({ isPublished: !row.isPublished }).where(eq(articles.id, id));
-  refreshPublic(row.slug);
+  await refreshPublic(row.slug);
 }
 
 export interface ActionResult {
@@ -76,7 +84,7 @@ export async function reanalyze(_prev: ActionResult | null, formData: FormData):
     const res = await processArticle(db, id, { log: dbUsageLogger(db), budget: dbBudgetGuard(db), forceDeep: deep, purpose: "admin" });
     await syncLedgerAiCost(db);
     const [row] = await db.select({ slug: articles.slug }).from(articles).where(eq(articles.id, id));
-    refreshPublic(row?.slug);
+    await refreshPublic(row?.slug);
     const deepNote = res.tier2 ? ` · Гүнзгий: ${res.tier2Provider}` : res.tier2Error ? ` · Гүнзгий шинжилгээ хийгдсэнгүй (${res.tier2Error.slice(0, 120)})` : "";
     return { ok: true, message: `Эрсдэл ${res.tier1.risk_score}/100 · ${res.tier1Provider}${deepNote} · $${res.costUsd.toFixed(5)}` };
   } catch (err) {
@@ -123,7 +131,7 @@ export async function saveArticle(_prev: ActionResult | null, formData: FormData
       ...(newContent !== current.cleanContent ? { editedAt: new Date() } : {}),
     })
     .where(eq(articles.id, id));
-  refreshPublic(current.slug);
+  await refreshPublic(current.slug);
   return { ok: true, message: dropReaderTitle ? "Хадгаллаа. AI-ийн энгийн гарчгийг хасав: уншигчид таны гарчгийг харна." : "Хадгаллаа." };
 }
 
@@ -388,6 +396,6 @@ export async function publishFiltered(payload: z.input<typeof PublishPayload>): 
     .onConflictDoNothing()
     .returning({ id: articles.id });
   if (!inserted.length) return { ok: false, message: "Энэ URL/текст аль хэдийн нийтлэгдсэн байна." };
-  refreshPublic(slug);
+  await refreshPublic(slug);
   return { ok: true, message: "Нийтэллээ.", slug };
 }
