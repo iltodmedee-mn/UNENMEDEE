@@ -7,7 +7,7 @@ import { Bar, Ring } from "@/components/progress/dial-row";
 import { StreakStrip } from "@/components/progress/streak-strip";
 import { allBadges, type BadgeState, COLLECTIONS, isSecret, TIER_NAMES, type TierKey, tierCount, tierOf } from "@/lib/badges";
 import { formatNumber } from "@/lib/format";
-import { LEVELS, levelOf, liveStreak, parseProgress, streakWindow } from "@/lib/progress";
+import { LEVELS, levelOf, liveStreak, parseProgress, type Progress, streakWindow } from "@/lib/progress";
 import { checkBadges, markSeen, progressRaw, subscribeProgress } from "@/lib/progress-store";
 
 const TIER_CHIP: Record<TierKey, { background: string; color: string }> = {
@@ -18,6 +18,8 @@ const TIER_CHIP: Record<TierKey, { background: string; color: string }> = {
 };
 
 const noop = () => () => {};
+/** A bar under a tile only while a counted tier is under way (Reddit shows progress, not empty bars). */
+const inProgress = (s: BadgeState) => Boolean(s.next && s.next.need > 1 && s.next.have > 0 && !isSecret(s.badge));
 const dotDate = (day: string) => day.replaceAll("-", ".");
 
 function TierChip({ tier }: { tier: TierKey }) {
@@ -28,66 +30,87 @@ function TierChip({ tier }: { tier: TierKey }) {
   );
 }
 
-function BadgeCard({ state }: { state: BadgeState }) {
-  const { badge, earned, dates, next, fraction } = state;
+/** The tile's one line under the name: the day earned, the count so far, or what it takes. */
+function subline({ badge, earned, dates, next }: BadgeState, inProgress: boolean): string {
+  if (earned > 0) return dotDate(dates[earned - 1]);
+  if (isSecret(badge)) return "Нууц";
+  if (!next || next.need <= 1) return "\u00a0";
+  return inProgress ? `${formatNumber(next.have)} / ${formatNumber(next.need)} ${badge.unit}` : `${formatNumber(next.need)} ${badge.unit}`;
+}
+
+/**
+ * One badge in a grid, the same shape for every badge (Reddit's grid, the owner: "symmetrical"):
+ * the art, the name in a two-line box, one short line, and a bar slot that is always there, so
+ * every tile in a row lines up. A tap opens its details under the grid.
+ */
+function BadgeTile({ state, showBar, selected, onSelect }: { state: BadgeState; showBar: boolean; selected: boolean; onSelect: () => void }) {
+  const { badge, earned, next, fraction } = state;
   const hidden = isSecret(badge) && earned === 0;
   const tier = earned > 0 ? tierOf(badge, earned - 1) : null;
-  const four = badge.steps.length === 4;
   return (
-    <li className="flex flex-col items-center gap-1 text-center">
-      <BadgeArt badge={badge} tier={tier} size={76} className={tier ? undefined : "text-fg-quaternary"} />
-      <b className="text-sm leading-tight text-primary">{hidden ? "???" : badge.name}</b>
-      {tier && (
-        <span className="flex flex-wrap items-center justify-center gap-1">
-          {four && <TierChip tier={tier} />}
-          <span className="num-mono text-[0.6875rem] text-tertiary">{dotDate(dates[earned - 1])}</span>
-        </span>
-      )}
-      {hidden ? (
-        <span className="text-xs text-tertiary">Нууц badge</span>
-      ) : isSecret(badge) ? (
-        <span className="px-2 text-xs leading-snug text-tertiary">{badge.how}</span>
-      ) : (
-        next && (
-          <span className="flex w-full flex-col px-2">
-            <span className="text-xs leading-snug text-tertiary">{earned === 0 || next.how !== badge.how ? next.how : `Дараагийнх: ${TIER_NAMES[next.tier]}`}</span>
-            {next.need > 1 && (
-              <>
-                <Bar fraction={fraction} color={earned > 0 ? tierColor(next.tier) : "var(--color-fg-quaternary)"} />
-                <span className="num-mono text-[0.6875rem] text-tertiary">
-                  {formatNumber(next.have)} / {formatNumber(next.need)} {badge.unit}
-                </span>
-              </>
-            )}
-          </span>
-        )
-      )}
-      {four && (
-        <span aria-label={`${earned} / 4 шат`} className="flex gap-1">
-          {(["b", "s", "g", "p"] as TierKey[]).map((t, i) => (
-            <span key={t} className="size-1.5 rounded-full" style={i < earned ? { background: tierColor(t) } : { boxShadow: "inset 0 0 0 1px var(--color-fg-quaternary)" }} />
-          ))}
-        </span>
-      )}
+    <li>
+      <button
+        type="button"
+        onClick={onSelect}
+        aria-expanded={selected}
+        className={`flex w-full flex-col items-center gap-1.5 rounded-2xl px-1 py-2 text-center transition-colors focus-visible:outline-2 focus-visible:outline-brand ${selected ? "bg-secondary" : "hover:bg-primary_hover"}`}
+      >
+        <BadgeArt badge={badge} tier={tier} size={84} className={tier ? undefined : "text-fg-quaternary"} />
+        <b className="line-clamp-2 min-h-[2.5em] text-sm leading-tight text-primary">{hidden ? "???" : badge.name}</b>
+        <span className="num-mono text-[0.6875rem] leading-none text-tertiary">{subline(state, showBar)}</span>
+        <span className="block h-1.5 w-4/5">{showBar && next && <Bar fraction={fraction} color={tierColor(next.tier)} />}</span>
+      </button>
     </li>
   );
 }
 
-/** A streak milestone: its name, then the day it was reached, its day count, or (the next one) a bar. */
-function StreakBadge({ state, isNext }: { state: BadgeState; isNext: boolean }) {
-  const { badge, earned, dates, next, fraction } = state;
-  const need = badge.steps[0].need;
+/** What a tapped badge asks, and each of its tiers with the day reached or the count so far. */
+function BadgeDetail({ state, progress, onClose }: { state: BadgeState; progress: Progress; onClose: () => void }) {
+  const { badge, earned, dates } = state;
+  const hidden = isSecret(badge) && earned === 0;
+  const four = badge.steps.length === 4;
+  const value = (i: number) => Math.min((badge.steps[i].of ?? badge.value)(progress), badge.steps[i].need);
   return (
-    <li className="flex flex-col items-center gap-1 text-center">
-      <BadgeArt badge={badge} tier={earned > 0 ? tierOf(badge, 0) : null} size={84} className={earned > 0 ? undefined : "text-fg-quaternary"} />
-      <b className="text-sm leading-tight text-primary">{badge.name}</b>
-      <span className="num-mono text-[0.6875rem] text-tertiary">{earned > 0 ? dotDate(dates[0]) : isNext && next ? `${next.have} / ${need} өдөр` : `${need} өдөр`}</span>
-      {isNext && (
-        <span className="block w-4/5">
-          <Bar fraction={fraction} color={tierColor(tierOf(badge, 0))} />
-        </span>
-      )}
-    </li>
+    <div className="fade-enter flex gap-4 rounded-2xl bg-secondary p-4">
+      <BadgeArt badge={badge} tier={earned > 0 ? tierOf(badge, earned - 1) : null} size={72} className={earned > 0 ? "shrink-0" : "shrink-0 text-fg-quaternary"} />
+      <div className="min-w-0 flex-1">
+        <div className="flex items-start justify-between gap-2">
+          <p className="font-semibold text-primary">{hidden ? "Нууц badge" : badge.name}</p>
+          <button type="button" onClick={onClose} aria-label="Хаах" className="-mt-1 -mr-1 rounded-lg p-1 text-fg-quaternary hover:bg-primary_hover">
+            ✕
+          </button>
+        </div>
+        <p className="text-sm text-secondary">{hidden ? "Нөхцөл нь авсны дараа харагдана." : badge.how}</p>
+        {!hidden && (
+          <ul className="mt-2 flex flex-col gap-1">
+            {badge.steps.map((step, i) => (
+              <li key={i} className="flex items-center gap-2 text-xs text-tertiary">
+                {four && <TierChip tier={tierOf(badge, i)} />}
+                <span className="num-mono">
+                  {formatNumber(step.need)} {badge.unit}
+                </span>
+                <span className="num-mono ml-auto">{i < earned ? `✓ ${dotDate(dates[i])}` : `${formatNumber(value(i))} / ${formatNumber(step.need)}`}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+/** A grid of badge tiles with the tapped one's details under it. */
+function BadgeGrid({ list, progress, barFor, selected, onSelect }: { list: BadgeState[]; progress: Progress; barFor: (s: BadgeState) => boolean; selected: string | null; onSelect: (id: string | null) => void }) {
+  const open = list.find((s) => s.badge.id === selected) ?? null;
+  return (
+    <>
+      <ul className="grid grid-cols-3 gap-x-1 gap-y-3">
+        {list.map((s) => (
+          <BadgeTile key={s.badge.id} state={s} showBar={barFor(s)} selected={s.badge.id === selected} onSelect={() => onSelect(s.badge.id === selected ? null : s.badge.id)} />
+        ))}
+      </ul>
+      {open && <BadgeDetail state={open} progress={progress} onClose={() => onSelect(null)} />}
+    </>
   );
 }
 
@@ -105,6 +128,7 @@ export function Achievements() {
   const raw = useSyncExternalStore(subscribeProgress, progressRaw, () => null);
   const progress = useMemo(() => parseProgress(raw), [raw]);
   const [now, setNow] = useState<number | null>(null);
+  const [selected, setSelected] = useState<string | null>(null);
 
   useEffect(() => {
     markSeen();
@@ -161,11 +185,7 @@ export function Achievements() {
           </div>
           <StreakStrip days={streakWindow(progress, now)} />
         </div>
-        <ul className="grid grid-cols-3 gap-x-2 gap-y-6">
-          {ladder.map((s) => (
-            <StreakBadge key={s.badge.id} state={s} isNext={s === nextStep} />
-          ))}
-        </ul>
+        <BadgeGrid list={ladder} progress={progress} barFor={(s) => s === nextStep} selected={selected} onSelect={setSelected} />
       </section>
 
       {close.length > 0 && (
@@ -202,11 +222,7 @@ export function Achievements() {
                 {got} / {list.length}
               </span>
             </div>
-            <ul className="grid grid-cols-3 gap-x-2 gap-y-6">
-              {list.map((s) => (
-                <BadgeCard key={s.badge.id} state={s} />
-              ))}
-            </ul>
+            <BadgeGrid list={list} progress={progress} barFor={inProgress} selected={selected} onSelect={setSelected} />
           </section>
         );
       })}
