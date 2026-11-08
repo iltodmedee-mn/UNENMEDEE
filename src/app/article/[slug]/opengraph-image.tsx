@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { formatDateMn, largestAmount } from "@/lib/format";
 import { OG_SIZE, ogImage } from "@/lib/og";
 import { formatShare, perPersonShare } from "@/lib/per-person";
-import { getArticleBySlug } from "@/lib/queries";
+import { getArticleCard } from "@/lib/queries";
 import { topicFor } from "@/lib/topics";
 
 export const alt = "ИЛ ТОД МЭДЭЭ";
@@ -11,7 +11,7 @@ export const size = OG_SIZE;
 export const contentType = "image/png";
 
 export default async function Image({ params }: { params: Promise<{ slug: string }> }) {
-  const article = await getArticleBySlug((await params).slug);
+  const article = await getArticleCard((await params).slug);
   // An unknown slug is a 404, not a fresh render: made-up slugs must not cost a render each.
   if (!article) notFound();
   const topic = topicFor(article.sourceDomain, article.sourceCategory, article.topic);
@@ -22,7 +22,7 @@ export default async function Image({ params }: { params: Promise<{ slug: string
     eyebrow: article.riskFlag ? `${label} · Өндөр эрсдэл · ${article.riskScore}` : label,
     title: article.title,
     // Undated stories: publishedAt is when we found them, never shown as a publication date.
-    footer: article.scrapeMeta?.date_unknown ? "Огноо тодорхойгүй" : article.publishedAt ? formatDateMn(article.publishedAt) : article.sourceName,
+    footer: article.dateUnknown ? "Огноо тодорхойгүй" : article.publishedAt ? formatDateMn(article.publishedAt) : article.sourceName,
     amount: largestAmount(article.amounts),
     share: share === null ? null : formatShare(share),
     tone: article.riskFlag ? "dark" : "light",

@@ -543,12 +543,13 @@ function modelUsed(purposes: string[]) {
 }
 
 /**
- * A story this old no longer changes on its own: AI retries stop after 3 days, press links and
- * clusters look 7 days back. Its page (and the neighbour list on it) is then cached for a day
- * instead of an hour: thousands of old article pages revalidating hourly on crawler visits made
- * 419 K ISR writes in Nov 2026, over twice Vercel Hobby's 200 K.
+ * After this a story's page (and the neighbour list on it) is cached for a day instead of an hour.
+ * The AI summary, the first cluster and the press links all arrive within hours; a later cluster
+ * join or AI retry shows within a day. Was 8 days: ~1 200 recent pages re-rendering hourly on
+ * crawler visits made 457 K ISR writes and 4 h 14 m of CPU in 30 days, and Vercel paused the
+ * Hobby project on Nov 8 2026.
  */
-const SETTLED_AFTER_DAYS = 8;
+const SETTLED_AFTER_DAYS = 2;
 
 function isSettled(at: Date | null | undefined, now: Date): boolean {
   return !!at && now.getTime() - new Date(at).getTime() > SETTLED_AFTER_DAYS * 86_400_000;
@@ -638,6 +639,37 @@ export async function getArticleBySlug(slug: string): Promise<ArticleDetail | nu
   if (article?.settled) cacheLife("days");
   else cacheLife("hours");
   return article;
+}
+
+/**
+ * What a story's share image (article/[slug]/opengraph-image.tsx) draws. Cached for days on its
+ * own: the PNG is the most expensive render on the site and used to follow the page's hourly life.
+ * An edit purges it with the page (`article-<slug>`).
+ */
+export async function getArticleCard(slug: string) {
+  "use cache";
+  cacheLife("days");
+  cacheTag("articles", `article-${slug}`);
+  return safe("getArticleCard", null, async () => {
+    const [r] = await getDb()
+      .select({
+        title: displayTitle,
+        sourceName: sources.name,
+        sourceDomain: sources.domain,
+        sourceCategory: sources.category,
+        topic: articles.topic,
+        riskFlag: articles.riskFlag,
+        riskScore: articles.riskScore,
+        publishedAt: articles.publishedAt,
+        dateUnknown: undated,
+        amounts: sql<string[]>`coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb)`,
+      })
+      .from(articles)
+      .innerJoin(sources, eq(articles.sourceId, sources.id))
+      .where(and(visible, eq(articles.slug, slug)))
+      .limit(1);
+    return r ?? null;
+  });
 }
 
 /** Slugs to prerender at build time (most recent). */
