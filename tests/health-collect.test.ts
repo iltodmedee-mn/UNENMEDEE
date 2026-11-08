@@ -112,6 +112,25 @@ describe("watchdog collectors (PGlite)", () => {
     assert.deepEqual(i.undatedBursts, []);
   });
 
+  it("integrity: site errors (counted per route), the weekly extraction check, no pg_net here", async () => {
+    const { recordSiteError } = await import("@/lib/site-errors");
+    for (let i = 0; i < 3; i++) await recordSiteError(db, { method: "GET", path: "/article/x?utm=1", routePath: "/article/[slug]", err: new Error("boom") });
+    await recordSiteError(db, { method: "GET", path: "/tax?a=b", err: new TypeError("bad") });
+    await db.execute(sql`insert into app_settings (key, value) values ('extraction_check', ${JSON.stringify({ at: ago(24).toISOString(), broken: [{ domain: "mof.gov.mn", read: 5, empty: 5 }] })})`);
+    const i = await collectIntegrity(db, NOW);
+    assert.deepEqual(
+      i.siteErrors?.map((e) => [e.route, e.count]),
+      [["GET /article/[slug]", 3], ["GET /tax", 1]],
+    );
+    assert.match(i.siteErrors?.[0].message ?? "", /boom/);
+    assert.deepEqual(i.unreadableSources, ["mof.gov.mn (5/5)"]);
+    assert.equal(i.fallbackDispatchStatus, null, "no net schema: unknown, never a failure");
+    const stale = await collectIntegrity(db, new Date(NOW.getTime() + 20 * 86_400_000));
+    assert.deepEqual(stale.unreadableSources, [], "a report older than 15 days is not repeated");
+    await db.execute(sql`delete from site_errors`);
+    await db.execute(sql`delete from app_settings where key = 'extraction_check'`);
+  });
+
   it("social: only a real post id counts, unknown is counted for 7 days", async () => {
     const s = await collectSocial(db, NOW);
     assert.equal(s.facebook?.hoursSinceOk, 3);

@@ -144,3 +144,8 @@ jobs:
               NODE_EXTRA_CA_CERTS=certs/rapidssl-tls-rsa-ca-g1.pem npm run docs:watch ;;
             *) echo "::error::unknown task"; exit 1 ;;
           esac
+          # Stored rows changed: refresh every page that shows them (article pages included).
+          case "$IN_TASK" in
+            reanalyse|recluster) npm run cache:purge -- --all ;;
+            refetch-dates) if [ "$IN_DRY" != "true" ]; then npm run cache:purge -- --all; fi ;;
+          esac

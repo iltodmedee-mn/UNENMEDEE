@@ -9,6 +9,10 @@
  *
  * Skipped: opendata.gov.mn (datasets), parliament.mn (JSON API), zasag.mn (RSS), and articles an
  * editor changed in /admin. Nothing but cleaned sentences is stored (never HTML).
+ *
+ * Also the weekly extraction check: per site, how many pages answered and how many of them gave
+ * the current extractor almost no text. Sites where most did are stored under app_settings
+ * "extraction_check" and the watchdog names them (a changed layout, before stories stop coming).
  */
 import "dotenv/config";
 import "@/lib/runtime-banner";
@@ -17,7 +21,7 @@ import { parseArgs } from "node:util";
 import { and, asc, eq, gte, isNull, notInArray, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
-import { articles, sources } from "@/db/schema";
+import { appSettings, articles, sources } from "@/db/schema";
 import { isGovMnNotFound, parseGovMnArticle } from "@/lib/scraper/adapters/govmn";
 import { legalinfoDetailText } from "@/lib/scraper/adapters/legalinfo";
 import { parsePoliceArticle } from "@/lib/scraper/adapters/police";
@@ -25,7 +29,7 @@ import { extractArticleSafe } from "@/lib/scraper/extract-safe";
 import { htmlFragmentToText } from "@/lib/scraper/extractor";
 import { API_MAX_BYTES, politeFetch, readJsonLimited, readTextLimited } from "@/lib/scraper/http";
 import { isWordPress, sameSite, wordPressApiBase, wordPressPostId, wordPressPostsUrl } from "@/lib/scraper/links";
-import { decide, type FetchResult, MIN_FRESH_CHARS, type SourceDiff, type SourceStatus } from "@/lib/scraper/recheck";
+import { decide, EXTRACTION_KEY, extractionBroken, type ExtractionTally, type FetchResult, MIN_FRESH_CHARS, type SourceDiff, type SourceStatus } from "@/lib/scraper/recheck";
 import { errorDetail, errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
@@ -158,6 +162,7 @@ async function main() {
   const counts: Record<SourceStatus | "skip" | "new", number> = { ok: 0, changed: 0, gone: 0, skip: 0, new: 0 };
   const skipped: Record<string, number> = {};
   const samples: string[] = [];
+  const extraction = new Map<string, ExtractionTally>();
   const queues = [...byHost.values()];
 
   async function worker() {
@@ -180,6 +185,12 @@ async function main() {
             break;
           }
         } else hostErrors = 0;
+        if (result.kind === "text") {
+          const t = extraction.get(row.domain) ?? { read: 0, empty: 0 };
+          t.read++;
+          if (result.text.length < MIN_FRESH_CHARS) t.empty++;
+          extraction.set(row.domain, t);
+        }
         const now = new Date();
         const d = decide({ status: row.status as SourceStatus | null, missingCount: row.missingCount, checkedAt: row.checkedAt }, row.text, result, now);
         counts[d.status ?? "skip"]++;
@@ -215,6 +226,14 @@ async function main() {
   console.log(`✓ ok ${counts.ok} · changed ${counts.changed} · gone ${counts.gone} · skipped ${counts.skip} · newly flagged ${counts.new}`);
   console.log(`   skipped: ${Object.entries(skipped).map(([k, v]) => `${k} ${v}`).join(" · ") || "none"}`);
   for (const s of samples) console.log(`   ${s}`);
+
+  const broken = extractionBroken(extraction);
+  for (const b of broken) console.log(`::warning::${b.domain}: ${b.empty} of ${b.read} page(s) gave no text to the extractor (layout changed?)`);
+  console.log(`🧪 extraction: ${extraction.size} site(s) judged, ${broken.length} not readable`);
+  if (!dry) {
+    const value = JSON.stringify({ at: new Date().toISOString(), broken });
+    await db.insert(appSettings).values({ key: EXTRACTION_KEY, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+  }
 }
 
 main()

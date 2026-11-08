@@ -11,7 +11,7 @@ export function exampleNames(text: string): Set<string> {
 }
 
 /** Names set by the platform or the workflows, not by a person in `.env`. */
-export const PLATFORM_NAMES = /^(VERCEL|VERCEL_(ENV|URL|PROJECT_PRODUCTION_URL|GIT_[A-Z_]+)|GITHUB_[A-Z_]+|NODE_ENV|NEXT_PHASE|CI|NODE_TEST_CONTEXT|RUNTIME_BANNER|npm_[a-z_]+)$/;
+export const PLATFORM_NAMES = /^(VERCEL|VERCEL_(ENV|URL|PROJECT_PRODUCTION_URL|GIT_[A-Z_]+)|GITHUB_[A-Z_]+|NODE_ENV|NEXT_PHASE|NEXT_RUNTIME|CI|NODE_TEST_CONTEXT|RUNTIME_BANNER|npm_[a-z_]+)$/;
 
 /** Every environment name a source file reads: process.env.X, env.X, env["X"], num(env, "X"), envNumber(env, "X"). */
 export function envNamesIn(source: string): Set<string> {
