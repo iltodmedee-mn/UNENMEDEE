@@ -148,3 +148,15 @@ describe("watchdog collectors (PGlite)", () => {
     assert.ok(Object.values(v.press).every((h) => h === null));
   });
 });
+
+describe("egressMbPerDay", () => {
+  it("scales the row delta to a day, and skips resets and short gaps", async () => {
+    const { egressMbPerDay, EGRESS_BYTES_PER_ROW } = await import("@/lib/health-collect");
+    const at = (h: number) => new Date(Date.UTC(2026, 10, 8) + h * 3_600_000).toISOString();
+    assert.equal(egressMbPerDay({ at: at(0), rows: 0 }, { at: at(24), rows: 200_000 }), Math.round((200_000 * EGRESS_BYTES_PER_ROW) / 1e6));
+    assert.equal(egressMbPerDay({ at: at(0), rows: 0 }, { at: at(12), rows: 100_000 }), Math.round((200_000 * EGRESS_BYTES_PER_ROW) / 1e6));
+    assert.equal(egressMbPerDay(null, { at: at(24), rows: 1 }), null);
+    assert.equal(egressMbPerDay({ at: at(0), rows: 500 }, { at: at(24), rows: 10 }), null, "stats reset");
+    assert.equal(egressMbPerDay({ at: at(0), rows: 0 }, { at: at(2), rows: 10 }), null, "too short to say");
+  });
+});

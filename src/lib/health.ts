@@ -9,6 +9,9 @@
 
 import type { LayoutOverflow } from "./layout-check";
 
+/** Supabase's free 5 GB a month is ~165 MB a day; the watchdog warns a little below it (health-collect `collectEgress`). */
+export const EGRESS_MB_PER_DAY_WARN = 150;
+
 export const DB_LIMIT_MB = 500;
 
 /** Snapshots `budget:sync` / `macro:sync` must keep fresh, with how old each may get (hours). */
@@ -111,6 +114,8 @@ export interface IntegritySnapshot {
   siteErrors?: { route: string; message: string; count: number }[];
   /** HTTP status of the pipeline fallback's last GitHub dispatch in 24 h (null = none sent). */
   fallbackDispatchStatus?: number | null;
+  /** Estimated Supabase egress in MB per day since the previous watchdog run (null: unknown). */
+  egressMbPerDay?: number | null;
   /** Hours since the list-page snapshots were last written (null: none yet). */
   hoursSinceSnapshot?: number | null;
   /** Sites whose pages answer but give the extractor no text (weekly check, "domain (empty/read)"). */
@@ -226,6 +231,7 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
     if (g.widespreadClusters > 0) info(`${g.widespreadClusters} кластерын мэдээнүүд хооронд 7 хоногоос их зайтай: өөр өөр үйл явдлыг нэгтгэсэн байж болзошгүй (clustering.ts, /clusters-ийг шалгах).`);
     if (g.duplicateHashes > 0) info(`Ижил текстийг ${g.duplicateHashes} удаа давхар хадгалсан (content_hash давхардсан): db-sink-ийн давхардлын шалгалтыг шалгах.`);
     if (g.siteErrors?.length) info(`Сайт сүүлийн 24 цагт серверийн алдаа гаргасан: ${g.siteErrors.map((e) => `${e.route} (${e.route.startsWith("CLIENT ") ? `≈${e.count * 10} уншигч` : `${e.count}×`}): ${e.message.replace(/@/g, "＠").replace(/`/g, "'")}`).join("; ")}. «CLIENT» гэсэн нь уншигчийн утас/хөтөч дээрх JavaScript алдаа; бусдыг Vercel-ийн лог дээр «[request-error]» гэж хайж дэлгэрэнгүйг харна.`);
+    if (g.egressMbPerDay != null && g.egressMbPerDay > EGRESS_MB_PER_DAY_WARN) info(`Supabase egress өдөрт ≈${g.egressMbPerDay} MB (тооцоолол): үнэгүй 5 GB-д багтахын тулд өдөрт ${EGRESS_MB_PER_DAY_WARN} MB-аас бага байх ёстой. Хэтэрвэл Supabase төслийг хязгаарлана; extensions.pg_stat_statements-ээс хамгийн их мөр буцаасан query-г олж засна (docs/agents/stack.md, Supabase egress).`);
     if (g.hoursSinceSnapshot != null && g.hoursSinceSnapshot > 2) info(`Нүүр болон сэдвийн хуудсуудын snapshot ${Math.round(g.hoursSinceSnapshot)} цаг шинэчлэгдээгүй: хуудсууд хуучин мэдээг харуулсаар байна. Pipeline-ийн «snapshots:write» алхмын логийг шалгана.`);
     if (g.unreadableSources?.length) info(`Долоо хоногийн шалгалт: эдгээр сайтын хуудас нээгдэж байгаа ч текст уншигдахгүй байна (хоосон/уншсан): ${g.unreadableSources.join(", ")}. Сайтын бүтэц өөрчлөгдсөн байж магадгүй тул тэндээс шинэ мэдээ ирэхгүй болно; адаптерыг шалгана.`);
     if (g.fallbackDispatchStatus && g.fallbackDispatchStatus >= 300) info(`Pipeline-ийн нөөц хуваарь GitHub-аас ${g.fallbackDispatchStatus} хариу авсан: токен эсвэл хаяг буруу тул GitHub run-ыг алгасвал pipeline эхлэхгүй. docs/PIPELINE-FALLBACK.md-ийн дагуу токеныг шинэчил.`);

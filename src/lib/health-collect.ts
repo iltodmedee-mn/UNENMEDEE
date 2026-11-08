@@ -185,3 +185,46 @@ export async function collectVideosAndPress(db: DB, now: Date) {
   for (const r of found) if (r.outlet in press) press[r.outlet] = hoursSince(r.at, now);
   return { videos: { hoursSinceVideo: hoursSince(lastVideo?.at, now), hoursSincePost }, press };
 }
+
+/**
+ * Supabase egress, estimated (Nov 2026: 6.22 GB of the free 5 GB by day 19, seen only on the
+ * owner's screenshot). The rows the database returned, from `pg_stat_statements`, against the
+ * previous watchdog run's total (app_settings "egress_probe"), times the bytes per row this
+ * project measured that month (6.22 GB / 8.0 M rows). An estimate, never a bill.
+ */
+export const EGRESS_KEY = "egress_probe";
+export const EGRESS_BYTES_PER_ROW = 800;
+
+export interface EgressProbe {
+  at: string;
+  rows: number;
+}
+
+/** MB per day between two probes, or null (no previous probe, a stats reset, or under 6 hours apart). */
+export function egressMbPerDay(prev: EgressProbe | null, cur: EgressProbe): number | null {
+  if (!prev || cur.rows < prev.rows) return null;
+  const hours = (Date.parse(cur.at) - Date.parse(prev.at)) / HOUR_MS;
+  if (!Number.isFinite(hours) || hours < 6) return null;
+  return Math.round((((cur.rows - prev.rows) * EGRESS_BYTES_PER_ROW) / 1e6) * (24 / hours));
+}
+
+/** Reads the counter, stores it for the next run, and returns the estimate (null without pg_stat_statements). */
+export async function collectEgress(db: DB, now: Date): Promise<number | null> {
+  const total = await db
+    .execute(sql`select coalesce(sum(s.rows), 0)::bigint as rows from extensions.pg_stat_statements s where s.userid = (select oid from pg_roles where rolname = current_user)`)
+    .then((r) => Number((r as unknown as { rows: { rows: unknown }[] }).rows[0]?.rows ?? NaN))
+    .catch(() => NaN);
+  if (!Number.isFinite(total)) return null;
+  const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, EGRESS_KEY));
+  let prev: EgressProbe | null = null;
+  try {
+    const p = row ? (JSON.parse(row.value) as EgressProbe) : null;
+    prev = p && typeof p.at === "string" && typeof p.rows === "number" ? p : null;
+  } catch {
+    prev = null;
+  }
+  const cur: EgressProbe = { at: now.toISOString(), rows: total };
+  const value = JSON.stringify(cur);
+  await db.insert(appSettings).values({ key: EGRESS_KEY, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: now } });
+  return egressMbPerDay(prev, cur);
+}

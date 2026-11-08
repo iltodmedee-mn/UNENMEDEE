@@ -8,5 +8,7 @@ import { getSiteStats } from "@/lib/queries";
  */
 export async function GET() {
   const stats = await getSiteStats();
-  return Response.json({ activeSources: stats.activeSources, lastArticleAt: stats.lastArticleAt });
+  // The commit this deployment was built from: the pipeline's feed check compares it with `main`
+  // (Nov 2026: production sat on a 2-day-old build and nobody knew, src/lib/feed-check.ts).
+  return Response.json({ activeSources: stats.activeSources, lastArticleAt: stats.lastArticleAt, commit: process.env.VERCEL_GIT_COMMIT_SHA ?? null });
 }
