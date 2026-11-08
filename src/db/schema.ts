@@ -520,3 +520,15 @@ export const siteErrors = pgTable(
   },
   (t) => [index("site_errors_last_seen_idx").on(t.lastSeen)],
 );
+
+/**
+ * The finished content of one list page (home feed, a topic) as of the last pipeline run
+ * (docs/adr/0001-list-pages-read-snapshots.md). `hash` covers only what makes the page different
+ * (its stories and digest editions), so a run that changes nothing rebuilds nothing.
+ */
+export const feedSnapshots = pgTable("feed_snapshots", {
+  key: varchar("key", { length: 64 }).primaryKey(),
+  data: jsonb("data").notNull(),
+  hash: varchar("hash", { length: 64 }).notNull(),
+  builtAt: timestamp("built_at", { withTimezone: true }).notNull().defaultNow(),
+});

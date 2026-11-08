@@ -320,13 +320,14 @@ jobs:
         continue-on-error: true
         run: npm run social:post -- --mode weekly-quiz
 
-      # Marks the list pages stale at once (src/lib/cache-purge.ts), so new and withdrawn stories show
-      # within a minute instead of the 30-minute cache life. Only warns on failure.
+      # Writes the list-page snapshots and purges only the pages whose snapshot changed
+      # (docs/adr/0001-list-pages-read-snapshots.md), so new and withdrawn stories show within a
+      # minute and a run with nothing new rebuilds nothing. Only warns on failure.
       - name: Refresh the site's list pages now
         id: cache_purge
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
         continue-on-error: true
-        run: npm run cache:purge
+        run: npm run snapshots:write
 
       # Every step above keeps running after a failure (a scrape or AI outage must never stop the
       # digest or the pushes), so the run turned green whatever broke and the watchdog, which reads

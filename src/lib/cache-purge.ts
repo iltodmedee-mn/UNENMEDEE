@@ -1,14 +1,17 @@
 import { timingSafeEqual } from "node:crypto";
 
+import { SNAPSHOT_TAG } from "@/lib/snapshots";
+
 /**
  * On-demand cache purge (Nov 2026: a story unpublished in the database stayed on the home page for
  * 30 minutes, the `news` cache life). The pipeline and maintenance tasks call /api/revalidate after
  * they write. No new secret is needed: both sides already reach the database, so the caller stores a
  * single-use nonce in `app_settings` and the route accepts it once, within `NONCE_TTL_MS`.
  *
- * Only the list pages are purged after a normal run ("feed": home, topics, places, archive, laws,
- * source hubs; digests; clusters). Purging "articles" re-renders every article page as crawlers
- * visit it (Vercel Hobby counts each as an ISR write), so only a maintenance repair asks for it.
+ * A pipeline run purges only the snapshot tags (`snap-…`) whose snapshot changed, plus "clusters"
+ * (scripts/write-snapshots.ts, docs/adr/0001-list-pages-read-snapshots.md). Maintenance purges the
+ * named tags below; "articles" re-renders every article page as crawlers visit it (each an ISR write),
+ * so only a repair of stored rows asks for it.
  */
 export const NONCE_KEY = "revalidate_nonce";
 export const NONCE_TTL_MS = 5 * 60_000;
@@ -29,8 +32,12 @@ export function nonceValid(stored: string | null | undefined, given: unknown, no
   return timingSafeEqual(Buffer.from(nonce), Buffer.from(given));
 }
 
-/** The requested tags that are allowed; unknown names are dropped. */
-export function allowedTags(raw: unknown): PurgeTag[] {
+/** Tags one request may purge (23 list pages and a few named tags fit easily). */
+export const MAX_TAGS = 64;
+
+/** The requested tags that are allowed (the named ones and snapshot tags); unknown names are dropped. */
+export function allowedTags(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [...RUN_TAGS];
-  return [...new Set(raw.filter((t): t is PurgeTag => typeof t === "string" && (PURGE_TAGS as readonly string[]).includes(t)))];
+  const ok = raw.filter((t): t is string => typeof t === "string" && ((PURGE_TAGS as readonly string[]).includes(t) || SNAPSHOT_TAG.test(t)));
+  return [...new Set(ok)].slice(0, MAX_TAGS);
 }

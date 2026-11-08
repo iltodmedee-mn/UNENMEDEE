@@ -186,6 +186,14 @@ jobs:
             npm run digest -- --kind "$IN_KIND" --due
           fi
 
+      # The home and topic pages show the newest edition from their snapshot
+      # (docs/adr/0001-list-pages-read-snapshots.md): rewrite it and purge the digest pages.
+      - name: Refresh the list-page snapshots
+        id: snapshots
+        if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}
+        continue-on-error: true
+        run: npm run snapshots:write -- --also digests
+
       - name: Notify subscribers about the new digest
         id: push_digest
         if: ${{ !cancelled() && steps.migrate.outcome == 'success' }}

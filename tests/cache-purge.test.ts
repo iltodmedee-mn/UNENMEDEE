@@ -26,3 +26,8 @@ test("only known tags are purged; the default is the list pages, not every artic
   assert.ok(!RUN_TAGS.includes("articles"));
   assert.deepEqual(allowedTags(["feed", "officials", "articles", "feed"]), ["feed", "articles"]);
 });
+
+test("snapshot tags pass, anything else shaped like one does not", () => {
+  assert.deepEqual(allowedTags(["snap-feed-all", "snap-feed-health", "snap-", "snap-FEED", "snap-../x", "clusters"]), ["snap-feed-all", "snap-feed-health", "clusters"]);
+  assert.equal(allowedTags(Array.from({ length: 100 }, (_, i) => `snap-feed-${i}`)).length, 64, "capped");
+});

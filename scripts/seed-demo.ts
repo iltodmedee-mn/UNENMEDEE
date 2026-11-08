@@ -10,6 +10,7 @@ import "@/lib/runtime-banner";
 import { closeDb, getDb, isPgliteUrl } from "@/db";
 import { migrateDemo } from "@/db/demo-migrate";
 import { seedDemo } from "@/db/demo-seed";
+import { writeSnapshots } from "@/lib/snapshot-writer";
 import { errorDetail } from "@/lib/log-safe";
 
 async function main() {
@@ -24,6 +25,10 @@ async function main() {
   const result = await seedDemo(db);
   if (!result) console.log("✓ Demo data already loaded (delete .demo-db/ to start fresh).");
   else console.log(`✓ Demo data: ${result.articles} articles, ${result.politicians} MPs, ${result.snapshots} data snapshots, digest: ${result.digest}.`);
+  // The list pages read snapshots in production (docs/adr/0001-list-pages-read-snapshots.md):
+  // write them here too, so the demo exercises the same read path.
+  const lists = await writeSnapshots();
+  if (lists.length) console.log(`✓ ${lists.length} list-page snapshot(s) written.`);
 }
 
 main()

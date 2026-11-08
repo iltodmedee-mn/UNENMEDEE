@@ -224,6 +224,14 @@ describe("data integrity and phone layout rules", () => {
     assert.deepEqual(ok, [], "GitHub's 204 is the success answer");
   });
 
+  it("says when the list-page snapshots stopped being written", () => {
+    assert.deepEqual(evaluateHealth({ integrity: { ...clean, hoursSinceSnapshot: 1 } }, CONFIG, NOW), []);
+    assert.deepEqual(evaluateHealth({ integrity: { ...clean, hoursSinceSnapshot: null } }, CONFIG, NOW), [], "none yet: nothing to say");
+    const out = evaluateHealth({ integrity: { ...clean, hoursSinceSnapshot: 5 } }, CONFIG, NOW);
+    assert.equal(out.length, 1);
+    assert.match(out[0], /snapshot 5 цаг/);
+  });
+
   it("reports a page wider than the phone screen", () => {
     const out = evaluateHealth({ layout: [{ path: "/risk", viewport: 360, width: 644, culprit: "article.group" }] }, CONFIG, NOW);
     assert.equal(out.length, 1);

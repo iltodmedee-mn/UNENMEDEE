@@ -44,6 +44,7 @@
     "health": "tsx scripts/health-check.ts",
     "feed:check": "tsx scripts/check-feed.ts",
     "cache:purge": "tsx scripts/purge-cache.ts",
+    "snapshots:write": "tsx scripts/write-snapshots.ts",
     "ai:reader": "tsx scripts/reader-backfill.ts",
     "press:sync": "tsx scripts/press-sync.ts",
     "doctor": "tsx scripts/doctor.ts"
