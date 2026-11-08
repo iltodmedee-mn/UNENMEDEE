@@ -91,7 +91,7 @@ export function InfoRequestForm({ orgs, day }: { orgs: string[]; day: string }) 
           <h2 id="letter-heading" className="label-mono text-tertiary">
             Таны захидал
           </h2>
-          <div className="flex flex-wrap items-center gap-1">
+          <div data-progress-flag="request" className="flex flex-wrap items-center gap-1">
             <CopyText text={letter} label="Хуулах" />
             <a href={mailto} className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-semibold text-brand-secondary hover:bg-primary_hover">
               <Mail01 className="size-3.5" aria-hidden />

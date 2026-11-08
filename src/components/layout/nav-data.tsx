@@ -1,4 +1,4 @@
-import { Archive, BankNote01, BookClosed, BookOpen01, Briefcase01, Building02, Building07, Calculator, File06, Globe02, Home02, InfoCircle, LayersThree01, LineChartUp02, Lock01, Mail01, MessageChatCircle, Receipt, RefreshCw05, ShoppingCart01, Star01, Target04 } from "@untitledui/icons";
+import { Archive, BankNote01, BookClosed, BookOpen01, Briefcase01, Building02, Building07, Calculator, File06, Globe02, Home02, InfoCircle, LayersThree01, LineChartUp02, Lock01, Mail01, MessageChatCircle, Receipt, RefreshCw05, ShoppingCart01, Star01, Target04, Trophy01 } from "@untitledui/icons";
 import type { ComponentType } from "react";
 
 import { TopicIcon } from "@/components/iltod/topic-icon";
@@ -59,6 +59,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/", label: "Нүүр", desc: "Өнөөдрийн мэдээ", icon: Home02 },
       { href: "/digest", label: "Онцлох тойм", desc: "Өдөрт 2 удаа, гол мэдээ", icon: topicIcon("digest") },
       { href: "/my", label: "Миний мэдээ", desc: "Дагасан сэдэв, аймаг", icon: Star01 },
+      { href: "/amjilt", label: "Миний амжилт", desc: "Түвшин, badge, дараалсан өдөр", icon: Trophy01 },
       { href: "/laws", label: "Хууль", desc: "Шинэ хууль, тогтоол", icon: topicIcon("justice") },
       { href: "/risk", label: "Эрсдэл", desc: "AI-ийн үнэлгээ, буруутгал биш", icon: topicIcon("risk") },
       { href: "/clusters", label: "Олон эх сурвалж", desc: "Нэг мэдээг олон сайт бичсэн", icon: LayersThree01 },
