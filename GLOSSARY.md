@@ -13,7 +13,7 @@ The finished content of one list page (the home feed, a topic, a place, the arch
 _Avoid_: cache, export, dump
 
 **Read path**:
-Everything that happens between a reader opening a page and the page appearing. The goal for list pages is that it never queries the database.
+Everything that happens between a reader opening a page and the page appearing. For list pages a reader's visit never queries the database; when a list page is rebuilt it reads only its one snapshot.
 _Avoid_: frontend, request path
 
 **Write path**:
