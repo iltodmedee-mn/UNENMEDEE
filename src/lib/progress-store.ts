@@ -17,6 +17,8 @@ export interface ProgressEvent {
   levelName: string | null;
   /** a badge tier this event earned: "Баримт шалгагч · Хүрэл" */
   badge: string | null;
+  /** a one-off note, shown before a badge or level ("Өмнө уншсан 240 мэдээ тоологдлоо") */
+  note?: string | null;
 }
 
 export function progressRaw(): string | null {

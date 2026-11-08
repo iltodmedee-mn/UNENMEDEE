@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DAILY_CAP, emptyProgress, FULL_DAY, LEVELS, levelOf, liveStreak, pageOf, parseProgress, recentDays, recordDigest, recordFact, recordFlag, recordItem, recordPage, recordPress, recordRead, recordSource, XP } from "@/lib/progress";
+import { DAILY_CAP, emptyProgress, FULL_DAY, importHistory, LEVELS, levelOf, liveStreak, pageOf, parseProgress, recentDays, recordDigest, recordFact, recordFlag, recordItem, recordPage, recordPress, recordRead, recordSource, XP } from "@/lib/progress";
 
 // 2026-11-09 10:00 Ulaanbaatar (02:00 UTC), a Monday.
 const MON = Date.UTC(2026, 10, 9, 2);
@@ -167,5 +167,31 @@ describe("what reads, pages and rows count toward (badges)", () => {
     const p = parseProgress(JSON.stringify({ ...old, xp: 70, reads: 7 }));
     assert.equal(p.reads, 7);
     assert.deepEqual([p.places, p.badges, p.unseen], [{}, {}, []]);
+  });
+});
+
+describe("importHistory (readers who were here before progress existed)", () => {
+  const today = "2026-11-09"; // MON in Ulaanbaatar
+  it("earlier read stories count once, with their XP, and never again", () => {
+    const out = importHistory(emptyProgress(), { readIds: [1, 2, 3, 3], digestStreak: null, now: MON });
+    assert.equal(out.gained, 3 * XP.read);
+    assert.deepEqual([out.progress.reads, out.progress.imported], [3, 3]);
+    assert.equal(read(out.progress, 2).gained, 0, "an imported story is already read");
+    assert.equal(importHistory(out.progress, { readIds: [4, 5], digestStreak: null, now: MON }).progress, out.progress, "only once per browser");
+  });
+
+  it("a live digest streak becomes the streak; an ended one still counts as the best", () => {
+    const live = importHistory(emptyProgress(), { readIds: [], digestStreak: { d: "2026-11-08", n: 12 }, now: MON }).progress;
+    assert.deepEqual([live.streak, live.lastDay, live.bestStreak, liveStreak(live, MON)], [12, "2026-11-08", 12, 12]);
+    assert.equal(read(live, 9, MON).progress.streak, 13, "reading today continues it");
+    const ended = importHistory(emptyProgress(), { readIds: [], digestStreak: { d: "2026-10-01", n: 30 }, now: MON }).progress;
+    assert.deepEqual([ended.streak, ended.bestStreak], [0, 30]);
+  });
+
+  it("a read already counted today joins yesterday's digest streak", () => {
+    const p = read(emptyProgress(), 1, MON).progress;
+    assert.equal(p.lastDay, today);
+    const out = importHistory(p, { readIds: [1], digestStreak: { d: "2026-11-08", n: 4 }, now: MON }).progress;
+    assert.deepEqual([out.streak, out.reads, out.imported], [5, 1, 0]);
   });
 });

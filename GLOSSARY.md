@@ -23,7 +23,7 @@ _Avoid_: backend, ingestion
 ## Reader progress
 
 **Counted read**:
-A story the reader actually read: its page was on screen for 15 seconds and scrolled past half. Each story counts once, and at most 20 a day count.
+A story the reader actually read: its page was on screen for 15 seconds and scrolled past half. Each story counts once, and at most 20 a day count. Stories a browser had already marked read before reader progress existed count once too.
 _Avoid_: view, visit, click
 
 **XP**:

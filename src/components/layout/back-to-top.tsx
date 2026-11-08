@@ -88,9 +88,9 @@ export function BackToTop() {
         window.clearTimeout(flashTimer);
         flashTimer = window.setTimeout(() => setFlash(null), FLASH_MS);
       }
-      const text = e.badge ? `Шинэ badge · ${e.badge}` : e.level && e.levelName ? `${e.level}-р түвшин · ${e.levelName}` : null;
+      const text = e.note ?? (e.badge ? `Шинэ badge · ${e.badge}` : e.level && e.levelName ? `${e.level}-р түвшин · ${e.levelName}` : null);
       if (text) {
-        setToast({ text, badge: e.badge !== null });
+        setToast({ text, badge: Boolean(e.note || e.badge) });
         window.clearTimeout(toastTimer);
         toastTimer = window.setTimeout(() => setToast(null), TOAST_MS);
       }
@@ -100,6 +100,14 @@ export function BackToTop() {
       window.clearTimeout(flashTimer);
       window.clearTimeout(toastTimer);
     };
+  }, []);
+
+  // A browser that read here before reader progress existed gets its history once (badge-award.ts),
+  // when the page is idle so it never competes with loading.
+  useEffect(() => {
+    if (parseProgress(progressRaw()).flags.includes("imported")) return;
+    const idle = window.requestIdleCallback ?? ((cb: () => void) => window.setTimeout(cb, 2_000));
+    idle(() => checkBadges());
   }, []);
 
   useEffect(() => {
@@ -149,7 +157,7 @@ export function BackToTop() {
   return (
     <>
       {open && <button type="button" tabIndex={-1} aria-label="Хаах" onClick={close} className="fade-enter fixed inset-0 z-50 bg-primary/90" />}
-      <div className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-end gap-3 md:right-6 md:bottom-6">
+      <div className="fixed right-4 bottom-[calc(5rem+env(safe-area-inset-bottom)+var(--install-lift,0px))] z-50 flex flex-col items-end gap-3 transition-[bottom] duration-300 ease-out motion-reduce:transition-none md:right-6 md:bottom-6">
         {toast && !open && (
           <p role="status" className="fade-enter flex items-center gap-2 rounded-full bg-brand-solid py-1.5 pr-1.5 pl-3 text-sm font-semibold text-white shadow-lg">
             {toast.badge ? "🏅" : "⬆"} {toast.text}
@@ -199,14 +207,20 @@ export function BackToTop() {
                 ))}
               </span>
               <span className="block text-xs text-tertiary">
-                {readToday ? "Өнөөдөр уншсан ✓ Маргааш үргэлжлүүлээрэй" : streak > 0 ? `Өнөөдөр 1 мэдээ уншвал ${streak + 1} болно` : "Өнөөдөр 1 мэдээ уншаад эхлүүлээрэй"}
+                {readToday
+                  ? "Өнөөдөр уншсан ✓ Маргааш үргэлжлүүлээрэй"
+                  : streak > 0
+                    ? `Өнөөдөр 1 мэдээ уншвал ${streak + 1} болно`
+                    : progress.bestStreak > 1
+                      ? `Хамгийн урт: ${progress.bestStreak} өдөр · өнөөдөр дахин эхлүүлээрэй`
+                      : "Өнөөдөр 1 мэдээ уншаад эхлүүлээрэй"}
               </span>
             </DialRow>
             <DialRow
               onClick={toTop}
               delay={0}
               circle={
-                <span className="grid size-11 place-items-center rounded-full bg-primary-solid text-white">
+                <span className="grid size-11 place-items-center rounded-full bg-primary-solid text-white ring-1 ring-line">
                   <TopIcon />
                 </span>
               }
@@ -235,7 +249,8 @@ export function BackToTop() {
                 fill="none"
                 stroke={flash !== null || readingStory ? "var(--color-signal)" : "var(--color-fg-brand-primary)"}
                 strokeWidth="3"
-                strokeLinecap="round"
+                // At 0 a round cap would still draw a dot at the top.
+                strokeLinecap={flash !== null || ring > 0 ? "round" : "butt"}
                 pathLength={100}
                 strokeDasharray={`${Math.max(0, Math.min(100, (flash !== null ? 1 : ring) * 100))} 100`}
                 className="transition-[stroke-dasharray] duration-500 motion-reduce:transition-none"

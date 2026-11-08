@@ -292,6 +292,24 @@ export function InstallBanner() {
     return () => clearTimeout(t);
   }, [visible]);
 
+  // While the strip is up, the back-to-top button rises above it (the owner's phone, Nov 8 2026:
+  // the two overlapped). The button reads --install-lift; it falls back to 0 when the strip goes.
+  const strip = useRef<HTMLDivElement>(null);
+  const shown = visible && eligible;
+  useEffect(() => {
+    const el = strip.current;
+    if (!shown || !el) return;
+    const root = document.documentElement;
+    const lift = () => root.style.setProperty("--install-lift", `${el.offsetHeight}px`);
+    lift();
+    const resize = new ResizeObserver(lift);
+    resize.observe(el);
+    return () => {
+      resize.disconnect();
+      root.style.removeProperty("--install-lift");
+    };
+  }, [shown]);
+
   const dismiss = () => {
     setVisible(false);
     rememberDismiss();
@@ -315,8 +333,8 @@ export function InstallBanner() {
 
   return (
     <>
-      {visible && eligible && (
-        <div className="fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] sheet-enter z-40 md:hidden">
+      {shown && (
+        <div ref={strip} className="fixed inset-x-3 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] sheet-enter z-40 md:hidden">
           <div className="flex items-center gap-3 rounded-2xl bg-primary p-3 shadow-xl ring-1 ring-line">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img src="/icons/icon-192.png" alt="" className="size-11 rounded-xl" />

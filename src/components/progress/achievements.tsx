@@ -125,6 +125,7 @@ export function Achievements() {
           </p>
           <p className="num-mono text-xs text-tertiary">
             Badge: {tiers.earned} / {tiers.total} шат · {formatNumber(progress.reads)} мэдээ уншсан
+            {progress.imported > 0 && ` (${formatNumber(progress.imported)} нь өмнөх)`}
           </p>
         </div>
       </section>
