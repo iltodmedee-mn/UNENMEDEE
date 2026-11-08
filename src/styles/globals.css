@@ -333,6 +333,21 @@ html {
     }
 }
 
+/*
+ * The installed app's header is opaque, with no backdrop blur: iOS 26 home-screen apps read a
+ * translucent, blurred top bar as glass and draw their own top-edge blur over it, so the header
+ * looked blurred and took no taps (the owner's iPhone, Nov 8 2026; the same fix worked for other
+ * apps on iOS 27 together with an opaque status bar, layout.tsx).
+ */
+@media (display-mode: standalone) {
+    /* element + class: outranks the header's own bg-primary/85 and backdrop-blur-xl utilities */
+    header.app-solid-bar {
+        background-color: var(--color-bg-primary);
+        -webkit-backdrop-filter: none;
+        backdrop-filter: none;
+    }
+}
+
 /* Kagi-style story list. The "Tт" toggle scales every rem-based size at once. */
 /*
  * Scraped titles sometimes glue two words together ("ГҮЙЦЭТГЭЛИЙНТӨЛӨВЛӨГӨӨГ"): let such a word
