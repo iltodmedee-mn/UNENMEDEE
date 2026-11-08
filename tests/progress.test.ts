@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DAILY_CAP, emptyProgress, FULL_DAY, importHistory, LEVELS, levelOf, liveStreak, pageOf, parseProgress, recentDays, recordDigest, recordFact, recordFlag, recordItem, recordPage, recordPress, recordRead, recordSource, XP } from "@/lib/progress";
+import { DAILY_CAP, emptyProgress, FULL_DAY, importHistory, LEVELS, levelOf, liveStreak, pageOf, parseProgress, recordDigest, recordFact, recordFlag, recordItem, recordPage, recordPress, recordRead, recordSource, streakWindow, XP } from "@/lib/progress";
 
 // 2026-11-09 10:00 Ulaanbaatar (02:00 UTC), a Monday.
 const MON = Date.UTC(2026, 10, 9, 2);
@@ -153,12 +153,12 @@ describe("what reads, pages and rows count toward (badges)", () => {
     assert.deepEqual(p.flags, ["request"]);
   });
 
-  it("recentDays marks the current streak's days, oldest first", () => {
+  it("streakWindow: two days back, today, two ahead, with the day of the month", () => {
     let p = read(emptyProgress(), 1, MON).progress;
-    p = read(p, 2, MON + DAY).progress;
-    assert.deepEqual(recentDays(p, MON + DAY, 5), [false, false, false, true, true]);
-    assert.deepEqual(recentDays(p, MON + 2 * DAY, 5), [false, false, true, true, false]);
-    assert.deepEqual(recentDays(p, MON + 9 * DAY, 3), [false, false, false]);
+    p = read(p, 2, MON + DAY).progress; // read Mon 9 and Tue 10
+    const marks = (now: number) => streakWindow(p, now).map((d) => `${d.date}:${d.mark}`);
+    assert.deepEqual(marks(MON + DAY), ["8:missed", "9:read", "10:today-read", "11:future", "12:future"]);
+    assert.deepEqual(marks(MON + 2 * DAY), ["9:read", "10:read", "11:today-open", "12:future", "13:future"]);
   });
 
   it("a value stored before badges existed gets the new counters empty", () => {

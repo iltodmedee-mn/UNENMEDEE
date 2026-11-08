@@ -7,7 +7,8 @@ import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "reac
 
 import { Bar, DialRow, Ring } from "@/components/progress/dial-row";
 import { formatNumber } from "@/lib/format";
-import { LEVELS, levelOf, liveStreak, parseProgress, recentDays } from "@/lib/progress";
+import { StreakStrip } from "@/components/progress/streak-strip";
+import { LEVELS, levelOf, liveStreak, parseProgress, streakWindow } from "@/lib/progress";
 import { checkBadges, markSeen, onProgressEvent, progressRaw, readingNow, subscribeProgress, subscribeReading } from "@/lib/progress-store";
 
 /** The badge row brings the badge rules with it: loaded only when the dial opens. */
@@ -20,8 +21,6 @@ const DialBadge = dynamic(() => import("@/components/progress/dial-badge").then(
 const SHOW_AFTER_PX = 900;
 const FLASH_MS = 2_000;
 const TOAST_MS = 4_000;
-/** The dial closes when the page scrolls this far under it. */
-const CLOSE_SCROLL_PX = 40;
 const STREAK_ORANGE = "#ff6a3d";
 
 function subscribeScroll(onChange: () => void) {
@@ -112,19 +111,21 @@ export function BackToTop() {
 
   useEffect(() => {
     if (!open) return;
-    const from = window.scrollY;
     const close = () => setOpen(false);
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
       close();
       button.current?.focus();
     };
-    const onScroll = () => Math.abs(window.scrollY - from) > CLOSE_SCROLL_PX && close();
+    // The reader scrolling (a swipe or the wheel) closes it; a page's own layout moving the scroll
+    // position (content-visibility, late images) does not, so this listens to gestures, not "scroll".
     window.addEventListener("keydown", onKey);
-    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("touchmove", close, { passive: true });
+    window.addEventListener("wheel", close, { passive: true });
     return () => {
       window.removeEventListener("keydown", onKey);
-      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("touchmove", close);
+      window.removeEventListener("wheel", close);
     };
   }, [open]);
 
@@ -151,8 +152,8 @@ export function BackToTop() {
   const label = `Миний ахиц, дээш буцах · ${readingStory ? `энэ мэдээ ${Math.round(reading * 100)}% уншсан` : `${level.level}-р түвшин, дараагийнх хүртэл ${Math.round(level.fraction * 100)}%`}`;
   const nextLevel = LEVELS[level.level];
   const streak = open ? liveStreak(progress, now) : 0;
-  const days = open ? recentDays(progress, now) : [];
-  const readToday = days.at(-1) ?? false;
+  const days = open ? streakWindow(progress, now) : [];
+  const readToday = days[2]?.mark === "today-read";
 
   return (
     <>
@@ -201,10 +202,8 @@ export function BackToTop() {
               }
             >
               <b className="block text-primary">{streak} өдөр дараалан</b>
-              <span aria-hidden className="my-1 flex gap-1">
-                {days.map((on, i) => (
-                  <span key={i} className="size-3 rounded-full" style={on ? { background: STREAK_ORANGE } : { boxShadow: `inset 0 0 0 2px ${STREAK_ORANGE}` }} />
-                ))}
+              <span className="my-1.5 block">
+                <StreakStrip days={days} small />
               </span>
               <span className="block text-xs text-tertiary">
                 {readToday

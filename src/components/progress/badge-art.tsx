@@ -48,10 +48,20 @@ const GLYPHS: Record<Glyph, string> = {
   flag: '<path d="M48 82V38"/><path d="M48 40c10-4 16 4 26 0v20c-10 4-16-4-26 0"/>',
   spark: '<path d="M60 38v44M38 60h44M45 45l30 30M75 45L45 75"/>',
   target: '<circle cx="60" cy="60" r="20"/><circle cx="60" cy="60" r="10"/><circle cx="60" cy="60" r="1.5"/>',
+  // The streak ladder: from a spark to a legend.
+  ember: '<path d="M60 50c5 6 7 9 6 14a6 6 0 0 1-12 0c0-4 2-6 3-8 1 2 2 3 2 3 1-3 1-6 1-9z"/><path d="M46 46l3 3M74 46l-3 3M60 36v5M44 66h4M72 66h4"/>',
+  campfire: '<path d="M60 38c8 9 12 14 10 22a10 10 0 0 1-20 0c-1-6 3-10 5-14 1 4 4 6 4 6 1-5 2-9 1-14z"/><path d="M40 82l40-12M40 70l40 12"/>',
+  hearth: '<path d="M38 82h44M44 82V64l16-10 16 10v18"/><path d="M60 58c5 6 7 9 6 14a6 6 0 0 1-12 0c0-4 2-6 3-8 1 2 2 3 2 3 1-3 1-6 1-9z"/>',
+  torch: '<path d="M54 60h12l-3 26h-6z"/><path d="M60 34c7 8 10 12 8 19a8 8 0 0 1-16 0c-1-5 2-8 4-11 1 3 3 5 3 5 1-4 2-8 1-13z"/>',
+  wildfire: '<path d="M46 84c-8-5-9-15-3-24 1 5 4 7 4 7 0-8 3-14 9-19 2 10 9 13 9 21"/><path d="M60 84c10 0 18-6 18-15 0-6-4-10-6-15-2 5-5 7-5 7-1-6-4-11-9-14"/>',
+  volcano: '<path d="M34 84l16-28h20l16 28z"/><path d="M52 56l4 8 4-6 4 6 4-8"/><path d="M54 46l-4-9M60 44V34M66 46l4-9"/>',
+  eternal: '<circle cx="60" cy="60" r="24"/><path d="M60 42c7 8 10 12 8 19a8 8 0 0 1-16 0c-1-5 2-8 4-11 1 3 3 5 3 5 1-4 2-8 1-13z"/>',
+  crown: '<path d="M38 78h44l4-32-15 13-11-19-11 19-15-13z"/><path d="M42 86h36"/>',
 };
 
 const FILLS: Record<Collection, [string, string]> = {
   start: ["#3b6fd4", "#24479a"],
+  streak: ["#4b3bb5", "#1d1652"],
   read: ["#0a8f88", "#035f5c"],
   check: ["#2b2d31", "#121314"],
   money: ["#ffd400", "#c79a00"],
@@ -93,13 +103,16 @@ export function BadgeArt({ badge, tier, size = 96, className }: { badge: Badge; 
   } else {
     const [f1, f2] = FILLS[badge.collection];
     const [rim, rimDark] = RIMS[tier];
-    const ink = badge.collection === "money" ? "#3a2c00" : "#fff";
+    const ink = badge.collection === "money" ? "#3a2c00" : badge.collection === "streak" ? "#ffb64d" : "#fff";
+    // A night sky behind the streak flames: a few fixed stars.
+    const stars = badge.collection === "streak" ? '<g fill="#fff" fill-opacity=".7"><circle cx="36" cy="44" r="1.6"/><circle cx="84" cy="40" r="1.2"/><circle cx="80" cy="78" r="1.6"/><circle cx="42" cy="80" r="1.1"/><circle cx="58" cy="30" r="1"/></g>' : "";
     svg =
       `<defs><linearGradient id="${id}f" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="${f1}"/><stop offset="1" stop-color="${f2}"/></linearGradient>` +
       `<linearGradient id="${id}r" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="${rim}"/><stop offset=".55" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="${rimDark}"/></linearGradient></defs>` +
       (tier === "g" || tier === "p" ? heeRing(rim) : "") +
       `<g transform="translate(60 60) scale(.9) translate(-60 -60)"><g fill="url(#${id}f)" stroke="url(#${id}r)" stroke-width="7" stroke-linejoin="round">${shape}</g>` +
       `<g fill="none" stroke="rgba(255,255,255,.18)" stroke-width="1.5">${shape}</g></g>` +
+      stars +
       `<g fill="none" stroke="${ink}" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(60 60) scale(.92) translate(-60 -60)">${glyph}</g>`;
   }
   // The markup is built from the constants above only (no reader or database text).

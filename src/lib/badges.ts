@@ -12,16 +12,18 @@ import { levelOf, type LevelInfo, type Progress } from "@/lib/progress";
 import { ubDay } from "@/lib/read-state";
 import { TOPICS } from "@/lib/topics";
 
-export type Collection = "start" | "read" | "check" | "money" | "state" | "habit" | "explore" | "secret";
+export type Collection = "start" | "streak" | "read" | "check" | "money" | "state" | "habit" | "explore" | "secret";
 export type Shape = "circle" | "hex" | "shield" | "diamond" | "star";
 export type TierKey = "b" | "s" | "g" | "p";
 export type Glyph =
   | "eye" | "mag" | "doc" | "coin" | "scale" | "flame" | "compass" | "scroll" | "build" | "mega" | "mail" | "pin" | "book"
   | "cal" | "sun" | "moon" | "lock" | "two" | "tag" | "bell" | "phone" | "bolt" | "star" | "back" | "warn" | "news"
-  | "diff" | "receipt" | "flag" | "spark" | "target";
+  | "diff" | "receipt" | "flag" | "spark" | "target" | "ember" | "campfire" | "hearth" | "torch" | "wildfire" | "volcano"
+  | "eternal" | "crown";
 
 export const COLLECTIONS: { key: Collection; label: string; shape: Shape }[] = [
   { key: "start", label: "Эхлэл", shape: "circle" },
+  { key: "streak", label: "Дараалсан өдөр", shape: "circle" },
   { key: "read", label: "Унших", shape: "circle" },
   { key: "check", label: "Шалгах", shape: "hex" },
   { key: "money", label: "Мөнгө", shape: "shield" },
@@ -58,6 +60,8 @@ export interface Badge {
   unit: string;
   value: (p: Progress) => number;
   steps: Step[];
+  /** the look and XP of a one-step badge on a ladder (the streak milestones) */
+  tier?: TierKey;
 }
 
 const section = (key: string) => (p: Progress) => p.sections[key]?.days ?? 0;
@@ -65,6 +69,34 @@ const items = (kind: string) => (p: Progress) => p.items[kind]?.n ?? 0;
 const flag = (name: string) => (p: Progress) => (p.flags.includes(name) ? 1 : 0);
 const tiers = (...needs: number[]): Step[] => needs.map((need) => ({ need }));
 const DAYS_LADDER = tiers(3, 10, 30, 100);
+
+/** The streak milestones: days, name, look. */
+export const STREAK_MILESTONES: { days: number; name: string; glyph: Glyph; tier: TierKey }[] = [
+  { days: 3, name: "Оч", glyph: "ember", tier: "b" },
+  { days: 7, name: "Гал", glyph: "flame", tier: "b" },
+  { days: 14, name: "Түүдэг", glyph: "campfire", tier: "s" },
+  { days: 30, name: "Голомт", glyph: "hearth", tier: "s" },
+  { days: 60, name: "Бамбар", glyph: "torch", tier: "g" },
+  { days: 100, name: "Түймэр", glyph: "wildfire", tier: "g" },
+  { days: 200, name: "Галт уул", glyph: "volcano", tier: "g" },
+  { days: 365, name: "Мөнхийн гал", glyph: "eternal", tier: "p" },
+  { days: 500, name: "Нар", glyph: "sun", tier: "p" },
+  { days: 1_000, name: "Домог", glyph: "crown", tier: "p" },
+];
+
+function streakLadder(): Badge[] {
+  return STREAK_MILESTONES.map((m) => ({
+    id: `streak-${m.days}`,
+    name: m.name,
+    collection: "streak" as const,
+    glyph: m.glyph,
+    how: `${m.days} өдөр дараалан уншина`,
+    unit: "өдөр",
+    value: (p: Progress) => p.bestStreak,
+    steps: tiers(m.days),
+    tier: m.tier,
+  }));
+}
 
 const READ_TOPICS = TOPICS.map((t) => t.key).filter((k) => k !== "other");
 const AIMAGS = PLACES.filter((p) => p.kind === "aimag").map((p) => p.slug);
@@ -110,8 +142,12 @@ export const BADGES: Badge[] = [
   { id: "glossary", name: "Толь бичиг", collection: "state", glyph: "book", how: "«Нэр томьёо» хуудсыг уншина", unit: "өдөр", value: section("glossary"), steps: DAYS_LADDER },
   { id: "request", name: "Мэдээлэл хүсэгч", collection: "state", glyph: "mail", how: "Төрөөс мэдээлэл хүсэх захидал бичнэ", unit: "", value: flag("request"), steps: tiers(1) },
 
+  // Дараалсан өдөр: one badge per milestone, each with its own name (Reddit's streak ladder, the
+  // owner's pick). Replaced the four-tier "streak" badge (7/30/100/365, retired Nov 8 2026: its id
+  // is never reused); those four days are still milestones here.
+  ...streakLadder(),
+
   // Зуршил
-  { id: "streak", name: "Мөнхийн гал", collection: "habit", glyph: "flame", how: "Өдөр бүр дараалан уншина", unit: "өдөр", value: (p) => p.bestStreak, steps: tiers(7, 30, 100, 365) },
   { id: "morning", name: "Өглөөний уншигч", collection: "habit", glyph: "sun", how: "Өглөө 08:00-аас өмнө уншина", unit: "мэдээ", value: (p) => p.morning, steps: tiers(10, 50, 200, 500) },
   { id: "night", name: "Шөнийн шувуу", collection: "habit", glyph: "moon", how: "Шөнө 23:00-аас хойш уншина", unit: "мэдээ", value: (p) => p.night, steps: tiers(10, 50, 200, 500) },
   { id: "weekend", name: "Амралтын өдөр", collection: "habit", glyph: "cal", how: "Бямба, ням гарагт уншина", unit: "мэдээ", value: (p) => p.weekend, steps: tiers(20, 100, 300, 800) },
@@ -151,11 +187,13 @@ export const isSecret = (b: Badge) => b.collection === "secret";
 
 /** The tier look of step `i` of a badge: four-step badges climb хүрэл → ил тод. */
 export function tierOf(b: Badge, i: number): TierKey {
+  if (b.tier) return b.tier;
   if (b.steps.length === 4) return FOUR[i];
   return isSecret(b) ? "p" : "b";
 }
 
 function stepXp(b: Badge, i: number): number {
+  if (b.tier) return TIER_XP[b.tier];
   if (b.steps.length === 4) return TIER_XP[FOUR[i]];
   return isSecret(b) ? SECRET_XP : START_XP;
 }
@@ -250,17 +288,3 @@ export function tierCount(p: Progress): { earned: number; total: number } {
   }
   return { earned, total };
 }
-
-/** Streak milestones shown on /amjilt, each with its own name (the long ladder). */
-export const STREAK_MILESTONES: { days: number; name: string }[] = [
-  { days: 3, name: "Оч" },
-  { days: 7, name: "Гал" },
-  { days: 14, name: "Түүдэг" },
-  { days: 30, name: "Голомт" },
-  { days: 60, name: "Бамбар" },
-  { days: 100, name: "Түймэр" },
-  { days: 200, name: "Галт уул" },
-  { days: 365, name: "Мөнхийн гал" },
-  { days: 500, name: "Нар" },
-  { days: 1_000, name: "Домог" },
-];

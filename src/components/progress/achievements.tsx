@@ -4,12 +4,12 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { BadgeArt, tierColor } from "@/components/progress/badge-art";
 import { Bar, Ring } from "@/components/progress/dial-row";
-import { allBadges, type BadgeState, COLLECTIONS, isSecret, STREAK_MILESTONES, TIER_NAMES, type TierKey, tierCount, tierOf } from "@/lib/badges";
+import { StreakStrip } from "@/components/progress/streak-strip";
+import { allBadges, type BadgeState, COLLECTIONS, isSecret, TIER_NAMES, type TierKey, tierCount, tierOf } from "@/lib/badges";
 import { formatNumber } from "@/lib/format";
-import { LEVELS, levelOf, liveStreak, parseProgress, recentDays } from "@/lib/progress";
+import { LEVELS, levelOf, liveStreak, parseProgress, streakWindow } from "@/lib/progress";
 import { checkBadges, markSeen, progressRaw, subscribeProgress } from "@/lib/progress-store";
 
-const STREAK_ORANGE = "#ff6a3d";
 const TIER_CHIP: Record<TierKey, { background: string; color: string }> = {
   b: { background: "#f3e3d6", color: "#7a4419" },
   s: { background: "#e9edf1", color: "#4a5560" },
@@ -73,6 +73,24 @@ function BadgeCard({ state }: { state: BadgeState }) {
   );
 }
 
+/** A streak milestone: its name, then the day it was reached, its day count, or (the next one) a bar. */
+function StreakBadge({ state, isNext }: { state: BadgeState; isNext: boolean }) {
+  const { badge, earned, dates, next, fraction } = state;
+  const need = badge.steps[0].need;
+  return (
+    <li className="flex flex-col items-center gap-1 text-center">
+      <BadgeArt badge={badge} tier={earned > 0 ? tierOf(badge, 0) : null} size={84} className={earned > 0 ? undefined : "text-fg-quaternary"} />
+      <b className="text-sm leading-tight text-primary">{badge.name}</b>
+      <span className="num-mono text-[0.6875rem] text-tertiary">{earned > 0 ? dotDate(dates[0]) : isNext && next ? `${next.have} / ${need} өдөр` : `${need} өдөр`}</span>
+      {isNext && (
+        <span className="block w-4/5">
+          <Bar fraction={fraction} color={tierColor(tierOf(badge, 0))} />
+        </span>
+      )}
+    </li>
+  );
+}
+
 /**
  * /amjilt: the reader's level, streak and every badge, from their own browser (src/lib/progress.ts,
  * src/lib/badges.ts). Locked badges are silhouettes with their numbers (Reddit's achievements, the
@@ -102,8 +120,8 @@ export function Achievements() {
   const nextLevel = LEVELS[level.level];
   const tiers = tierCount(progress);
   const streak = liveStreak(progress, now);
-  const week = recentDays(progress, now, 7);
-  const nextMilestone = STREAK_MILESTONES.find((m) => m.days > progress.bestStreak) ?? null;
+  const ladder = states.filter((s) => s.badge.collection === "streak");
+  const nextStep = ladder.find((s) => s.earned === 0) ?? null;
   const close = states
     .filter((s) => s.next && !isSecret(s.badge) && s.fraction > 0)
     .sort((a, b) => b.fraction - a.fraction)
@@ -130,43 +148,24 @@ export function Achievements() {
         </div>
       </section>
 
-      <section id="streak" aria-label="Дараалсан өдөр" className="scroll-mt-24 flex flex-col gap-4">
-        <div className="flex items-end gap-3">
-          <span className="font-display text-6xl leading-none font-extrabold" style={{ color: STREAK_ORANGE }}>
-            🔥{streak}
-          </span>
-          <div className="pb-1">
-            <p className="font-semibold text-primary">өдөр дараалан</p>
-            <p className="text-sm text-tertiary">Хамгийн урт: {progress.bestStreak} өдөр</p>
-          </div>
-        </div>
-        <div aria-label="Сүүлийн 7 өдөр" className="flex gap-2">
-          {week.map((on, i) => (
-            <span key={i} className="grid size-8 place-items-center rounded-full text-xs font-bold text-white" style={on ? { background: STREAK_ORANGE } : { boxShadow: `inset 0 0 0 2px ${STREAK_ORANGE}` }}>
-              {on ? "✓" : ""}
+      <section id="streak" aria-label="Дараалсан өдөр" className="scroll-mt-24 flex flex-col gap-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div className="flex flex-col">
+            <span className="flex items-center gap-1 font-display text-5xl leading-none font-extrabold text-primary tabular-nums">
+              {streak}
+              <span aria-hidden className="text-4xl">
+                🔥
+              </span>
             </span>
-          ))}
+            <span className="mt-1 text-sm text-tertiary">өдөр дараалан{progress.bestStreak > streak ? ` · хамгийн урт ${progress.bestStreak}` : ""}</span>
+          </div>
+          <StreakStrip days={streakWindow(progress, now)} />
         </div>
-        <ol aria-label="Дараалсан өдрийн шат" className="flex flex-wrap gap-1.5">
-          {STREAK_MILESTONES.map((m) => {
-            const reached = progress.bestStreak >= m.days;
-            const isNext = m === nextMilestone;
-            return (
-              <li
-                key={m.days}
-                className={`rounded-full px-2.5 py-1 text-xs font-semibold ${reached ? "text-white" : isNext ? "text-primary ring-2" : "text-tertiary ring-1 ring-line"}`}
-                style={reached ? { background: STREAK_ORANGE } : isNext ? { boxShadow: `inset 0 0 0 2px ${STREAK_ORANGE}` } : undefined}
-              >
-                {m.name} · {m.days}
-              </li>
-            );
-          })}
-        </ol>
-        {nextMilestone && (
-          <p className="text-sm text-secondary">
-            Дараагийнх «{nextMilestone.name}»: {nextMilestone.days} өдөр дараалан ({Math.max(0, nextMilestone.days - streak)} өдөр дутуу).
-          </p>
-        )}
+        <ul className="grid grid-cols-3 gap-x-2 gap-y-6">
+          {ladder.map((s) => (
+            <StreakBadge key={s.badge.id} state={s} isNext={s === nextStep} />
+          ))}
+        </ul>
       </section>
 
       {close.length > 0 && (
@@ -192,7 +191,7 @@ export function Achievements() {
         </section>
       )}
 
-      {COLLECTIONS.map((c) => {
+      {COLLECTIONS.filter((c) => c.key !== "streak").map((c) => {
         const list = states.filter((s) => s.badge.collection === c.key);
         const got = list.filter((s) => s.earned > 0).length;
         return (
