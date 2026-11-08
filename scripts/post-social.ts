@@ -8,7 +8,6 @@
  *   npm run social:post -- --mode quiz              # the daily Discord quiz poll (once a day)
  *   npm run social:post -- --mode weekly            # "7 хоногийн ТОП" on Mondays (--any-day to test)
  *   npm run social:post -- --mode video             # the newest generated video (make-video.ts) as a Reel on Facebook, Instagram and Threads
- *   npm run social:post -- --mode promo             # the Launchpad campaign post due today (src/lib/social/promo.ts), 3–7 Nov 2026
  *   npm run social:post -- --mode weekly-quiz       # Sunday 19:00 the weekly quiz carousel, the next evening its answers (src/lib/social/weekly-quiz.ts; --any-day posts the quiz now)
  *
  * Facebook needs FB_PAGE_ID (variable) and FB_PAGE_TOKEN (secret). Threads needs THREADS_TOKEN
@@ -48,7 +47,6 @@ import { displayTitle, namesMnt, postable } from "@/lib/story-rules";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
 import { errorDetail, errorLine } from "@/lib/log-safe";
-import { duePromo, type PromoPost } from "@/lib/social/promo";
 import {
   answersCaption,
   answersDue,
@@ -91,8 +89,6 @@ interface Platform {
   weekly?(w: WeeklyTop): { preview: string; publish(): Promise<string> };
   /** Video platforms (Facebook Reels, Instagram Reels, Threads). */
   video?(v: VideoForPost): { preview: string; publish(): Promise<string> };
-  /** The Launchpad campaign reel (same three platforms). */
-  promo?(p: PromoPost, videoUrl: string): { preview: string; publish(): Promise<string> };
   /** The weekly quiz carousel and, the next evening, its answers card (Facebook, Instagram, Threads). */
   weeklyQuiz?(q: WeeklyQuiz): { preview: string; publish(): Promise<string> };
   weeklyAnswers?(q: WeeklyQuiz): { preview: string; publish(): Promise<string> };
@@ -119,7 +115,6 @@ function facebook(pageId: string, token: string): Platform {
       const description = facebookVideoText(v.meta);
       return { preview: `${v.url}\n${description}`, publish: () => publishReel({ pageId, token, videoUrl: v.url, description }) };
     },
-    promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.facebook}`, publish: () => publishReel({ pageId, token, videoUrl, description: pr.facebook }) }),
     weeklyQuiz: (q) => {
       const message = quizCaption(q, "facebook");
       const imageUrls = quizImageUrls(q);
@@ -140,7 +135,6 @@ function threads(token: string): Platform {
       const text = threadsVideoText(v.meta);
       return { preview: `${v.url}\n${text}`, publish: () => publishThreads({ token, post: { text, link: v.url, videoUrl: v.url } }) };
     },
-    promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.threads}`, publish: () => publishThreads({ token, post: { text: pr.threads, link: videoUrl, videoUrl } }) }),
     weeklyQuiz: (q) => {
       const text = quizThreadsText(q);
       const imageUrls = quizImageUrls(q);
@@ -188,7 +182,6 @@ function instagram(token: string): Platform {
       const caption = instagramVideoCaption(v.meta);
       return { preview: `${v.url}\n${caption}`, publish: () => publishInstagram({ token, post: { videoUrl: v.url, caption } }) };
     },
-    promo: (pr, videoUrl) => ({ preview: `${videoUrl}\n${pr.instagram}`, publish: () => publishInstagram({ token, post: { videoUrl, caption: pr.instagram } }) }),
     weeklyQuiz: (q) => {
       const caption = quizCaption(q, "instagram");
       const imageUrls = quizImageUrls(q);
@@ -410,14 +403,6 @@ async function postVideo(db: Db, p: Platform) {
   await post(db, p, "video", v.id, p.video({ id: v.id, meta: v.meta, url: `${PRODUCTION_URL}/reel?v=${v.id}` }));
 }
 
-/** Today's Launchpad campaign reel, once per platform (social_posts kind "promo", ref = day). */
-async function postPromo(db: Db, p: Platform) {
-  if (!p.promo) return;
-  const pr = duePromo(new Date());
-  if (!pr) return console.log(`🗳️ ${p.name}: no Launchpad campaign post due now.`);
-  await post(db, p, "promo", pr.day, p.promo(pr, `${PRODUCTION_URL}${pr.video}`));
-}
-
 /** The week's stories that may hold a quiz question: published, AI-summarized, dated, a ₮ amount in the headline. */
 async function quizCandidates(db: Db, now: Date): Promise<QuizCandidate[]> {
   const title = displayTitle;
@@ -512,7 +497,7 @@ async function main() {
   }
   const db = getDb();
   const mode =
-    values.mode === "digest" || values.mode === "quiz" || values.mode === "weekly" || values.mode === "video" || values.mode === "promo" || values.mode === "weekly-quiz" ? values.mode : "news";
+    values.mode === "digest" || values.mode === "quiz" || values.mode === "weekly" || values.mode === "video" || values.mode === "weekly-quiz" ? values.mode : "news";
   const now = new Date();
   let answersFor: WeeklyQuiz | null = null;
   if (mode === "weekly-quiz" && !dry && !values["any-day"] && !isQuizTime(now)) {
@@ -570,7 +555,6 @@ async function main() {
       else if (mode === "quiz") await postQuiz(db, p);
       else if (mode === "weekly" && weekly) await postWeekly(db, p, weekly);
       else if (mode === "video") await postVideo(db, p);
-      else if (mode === "promo") await postPromo(db, p);
       else if (mode === "weekly-quiz") {
         if (quiz && p.weeklyQuiz) await post(db, p, "wquiz", quiz.week, p.weeklyQuiz(quiz));
         if (dry && quiz) await postQuizAnswers(db, p, quiz, now);

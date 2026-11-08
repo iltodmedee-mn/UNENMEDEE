@@ -22,13 +22,13 @@ import { socialPosts } from "@/db/schema";
 import { errorLine } from "@/lib/log-safe";
 import { UnknownOutcomeError } from "@/lib/social/outcome";
 
-export type PostKind = "digest" | "article" | "quiz" | "weekly" | "video" | "promo" | "wquiz" | "wquiz_ans";
+export type PostKind = "digest" | "article" | "quiz" | "weekly" | "video" | "wquiz" | "wquiz_ans";
 
 /**
  * Kinds whose refusal is retried at most MAX_TRIES times ("failed:n"), not every run: each try
  * uploads files to the platform (a Reel, the quiz's unpublished photos and containers).
  */
-export const LIMITED_TRIES: ReadonlySet<PostKind> = new Set<PostKind>(["video", "promo", "wquiz", "wquiz_ans"]);
+export const LIMITED_TRIES: ReadonlySet<PostKind> = new Set<PostKind>(["video", "wquiz", "wquiz_ans"]);
 
 /** A limited kind the platform refused is tried this many times in all. */
 export const MAX_TRIES = 3;
