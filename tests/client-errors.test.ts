@@ -5,7 +5,7 @@ import { sql } from "drizzle-orm";
 
 import type { DB } from "@/db";
 import { CLIENT_ERROR_SCRIPT } from "@/lib/client-error-script";
-import { CLIENT_ROW_CAP, clientRoute, parseClientError, recordClientError } from "@/lib/client-errors";
+import { CLIENT_ROW_CAP, clientRoute, FLUSH_MS, parseClientError, recordClientError, resetPending, shouldWrite } from "@/lib/client-errors";
 
 process.env.DATABASE_URL = "pglite:memory";
 
@@ -26,8 +26,15 @@ describe("client error reports", () => {
     assert.equal(parseClientError(JSON.stringify({ m: "x".repeat(2_000), p: "/" })), null);
     assert.equal(parseClientError('{"m":"a\\nb","p":"/"}')?.message, "a b");
   });
+  it("writes once per error per minute and carries the counts in between", () => {
+    resetPending();
+    assert.deepEqual(shouldWrite("k", 0), { write: true, add: 1 });
+    for (let i = 0; i < 500; i++) assert.equal(shouldWrite("k", 1_000 + i).write, false);
+    assert.deepEqual(shouldWrite("k", FLUSH_MS + 1), { write: true, add: 501 });
+    resetPending();
+  });
   it("the inline script is small and valid JavaScript", () => {
-    assert.ok(CLIENT_ERROR_SCRIPT.length < 600, `${CLIENT_ERROR_SCRIPT.length} bytes`);
+    assert.ok(CLIENT_ERROR_SCRIPT.length < 700, `${CLIENT_ERROR_SCRIPT.length} bytes`);
     assert.doesNotThrow(() => new Function(CLIENT_ERROR_SCRIPT));
   });
 });
@@ -46,10 +53,12 @@ describe("recordClientError (PGlite)", () => {
   });
 
   it("counts repeats and stops adding rows at the cap", async () => {
-    await recordClientError(db, { route: "CLIENT /tax", message: "boom" });
-    await recordClientError(db, { route: "CLIENT /tax", message: "boom" });
+    resetPending();
+    await recordClientError(db, { route: "CLIENT /tax", message: "boom" }, 0);
+    await recordClientError(db, { route: "CLIENT /tax", message: "boom" }, 10); // held in memory
+    await recordClientError(db, { route: "CLIENT /tax", message: "boom" }, FLUSH_MS + 20); // writes 2
     const [row] = (await db.execute(sql`select count from site_errors where route = 'CLIENT /tax'`)).rows as { count: number }[];
-    assert.equal(Number(row.count), 2);
+    assert.equal(Number(row.count), 3);
     for (let i = 0; i < CLIENT_ROW_CAP + 5; i++) await recordClientError(db, { route: "CLIENT /x", message: `m${i}` });
     const [{ n }] = (await db.execute(sql`select count(*)::int as n from site_errors where route like 'CLIENT %'`)).rows as { n: number }[];
     assert.equal(Number(n), CLIENT_ROW_CAP);
