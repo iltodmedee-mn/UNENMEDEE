@@ -246,7 +246,7 @@ export function StoryList({ stories: first, leadId, moreFeed }: { stories: Artic
   return (
     <div>
       {lead && <ul className="border-t border-line">{item(lead)}</ul>}
-      <ul className="divide-y divide-line-soft border-y border-line">{rest.map(item)}</ul>
+      <ul className="story-rows divide-y divide-line-soft border-y border-line">{rest.map(item)}</ul>
 
       {moreFeed && more === null && stories.length > 0 && (
         <button
