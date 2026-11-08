@@ -206,7 +206,7 @@ export function BackToTop() {
               onClick={toTop}
               delay={0}
               circle={
-                <span className="grid size-11 place-items-center rounded-full bg-primary-solid text-white">
+                <span className="grid size-11 place-items-center rounded-full bg-primary-solid text-white ring-1 ring-line">
                   <TopIcon />
                 </span>
               }
@@ -235,7 +235,8 @@ export function BackToTop() {
                 fill="none"
                 stroke={flash !== null || readingStory ? "var(--color-signal)" : "var(--color-fg-brand-primary)"}
                 strokeWidth="3"
-                strokeLinecap="round"
+                // At 0 a round cap would still draw a dot at the top.
+                strokeLinecap={flash !== null || ring > 0 ? "round" : "butt"}
                 pathLength={100}
                 strokeDasharray={`${Math.max(0, Math.min(100, (flash !== null ? 1 : ring) * 100))} 100`}
                 className="transition-[stroke-dasharray] duration-500 motion-reduce:transition-none"

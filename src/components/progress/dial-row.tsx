@@ -25,12 +25,13 @@ export function DialRow({ href, onClick, delay, circle, children }: { href?: str
   );
 }
 
-/** A progress ring drawn just outside a 44 px circle. */
+/** A progress ring drawn 6 px outside its circle, whatever the circle's size (the parent is `relative`). */
 export function Ring({ fraction, color, track = "var(--color-line-soft)" }: { fraction: number; color: string; track?: string }) {
   return (
-    <svg aria-hidden viewBox="0 0 56 56" className="pointer-events-none absolute -inset-1.5 size-14 -rotate-90">
+    <svg aria-hidden viewBox="0 0 56 56" className="pointer-events-none absolute -top-1.5 -left-1.5 size-[calc(100%+0.75rem)] -rotate-90">
       <circle cx="28" cy="28" r="25" fill="none" stroke={track} strokeWidth="3" />
-      <circle cx="28" cy="28" r="25" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" pathLength={100} strokeDasharray={`${Math.max(0, Math.min(100, fraction * 100))} 100`} />
+      {/* At 0 a round cap would still draw a dot: no arc then. */}
+      {fraction > 0 && <circle cx="28" cy="28" r="25" fill="none" stroke={color} strokeWidth="3" strokeLinecap="round" pathLength={100} strokeDasharray={`${Math.min(100, fraction * 100)} 100`} />}
     </svg>
   );
 }
