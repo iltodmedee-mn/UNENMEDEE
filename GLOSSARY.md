@@ -38,6 +38,14 @@ _Avoid_: rank
 A named achievement for one habit (reading, checking, following money, following the state, keeping a streak, exploring), most with tiers. Kept only in the reader's own browser; there are no accounts.
 _Avoid_: award, trophy, medal
 
+**Collection**:
+A group of badges about one habit (Эхлэл, Унших, Шалгах, Мөнгө, Төр ба иргэн, Зуршил, Нээлт, Нууц); each collection has its own badge shape.
+_Avoid_: category, set
+
+**Streak**:
+Consecutive Ulaanbaatar days with at least one counted read; it stays alive through the next day and breaks after a day with none.
+_Avoid_: chain, run
+
 **Tier**:
 How far a badge has been taken: хүрэл, мөнгө, алт, ил тод (the rarest, about a year of the habit).
 _Avoid_: grade, rank

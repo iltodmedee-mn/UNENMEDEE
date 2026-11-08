@@ -29,7 +29,8 @@ export const metadata: Metadata = {
 function TenderRow({ t }: { t: TenderItem }) {
   const over = overBudgetPct(t);
   return (
-    <li className="flex flex-col gap-1.5 py-4">
+    // data-progress-item: a row seen for a while counts toward «Тендерийн нүд» (src/components/progress/page-meter.tsx).
+    <li data-progress-item={`tender:${t.id}`} className="flex flex-col gap-1.5 py-4">
       <p className="label-mono normal-case text-tertiary">
         <span className="text-secondary">{t.orgName}</span>
         {" · "}

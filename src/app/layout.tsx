@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import localFont from "next/font/local";
 
 import { BackToTop } from "@/components/layout/back-to-top";
+import { PageMeter } from "@/components/progress/page-meter";
 import { SiteFooter } from "@/components/layout/site-footer";
 import { SiteHeader } from "@/components/layout/site-header";
 import { Providers } from "@/components/providers";
@@ -106,6 +107,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           <SiteFooter />
           <InstallBanner />
           <BackToTop />
+          <PageMeter />
         </Providers>
         <ServiceWorkerRegister />
         {/*

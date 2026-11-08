@@ -2,7 +2,7 @@
 
 import { useEffect, useRef } from "react";
 
-import { parseProgress, recordFact, recordRead, recordSource } from "@/lib/progress";
+import { parseProgress, type ReadEvent, recordFact, recordPress, recordRead, recordSource } from "@/lib/progress";
 import { applyProgress, progressRaw, setReading } from "@/lib/progress-store";
 
 /** A counted read (GLOSSARY.md): this long on screen and past this share of the story. */
@@ -12,12 +12,15 @@ export const READ_SHARE = 0.5;
 const FACT_SECONDS = 3;
 const TICK_MS = 500;
 
+type StoryKind = Pick<ReadEvent, "law" | "place" | "multi" | "risky">;
+
 /**
  * The article page's reading meter: renders nothing, measures. It feeds the back-to-top ring
- * (setReading) and records the counted read, the facts view (`data-progress="facts"`) and the
- * source visit (`data-progress="source"`) in the reader's own browser (src/lib/progress.ts).
+ * (setReading) and records the counted read, the facts view (`data-progress="facts"`), the source
+ * visit (`data-progress="source"`) and a press link (`data-progress="press"`) in the reader's own
+ * browser (src/lib/progress.ts). `kind` says what else the read counts toward (badges).
  */
-export function ReadMeter({ id, topic, publishedAt }: { id: number; topic: string; publishedAt: string | null }) {
+export function ReadMeter({ id, topic, publishedAt, law = false, place = null, multi = false, risky = false }: { id: number; topic: string; publishedAt: string | null } & StoryKind) {
   const anchor = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
@@ -38,7 +41,7 @@ export function ReadMeter({ id, topic, publishedAt }: { id: number; topic: strin
       setReading(Math.round(toward * 50) / 50);
       if (seconds >= READ_SECONDS && share >= READ_SHARE) {
         counted = true;
-        applyProgress((p) => recordRead(p, { id, topic, publishedAt: Number.isFinite(published) ? published : null, now: Date.now() }));
+        applyProgress((p) => recordRead(p, { id, topic, publishedAt: Number.isFinite(published) ? published : null, now: Date.now(), law, place, multi, risky }));
         setReading(1);
       }
     }, TICK_MS);
@@ -58,7 +61,9 @@ export function ReadMeter({ id, topic, publishedAt }: { id: number; topic: strin
     if (facts) observer?.observe(facts);
 
     const onClick = (e: MouseEvent) => {
-      if ((e.target as Element | null)?.closest?.('[data-progress="source"]')) applyProgress((p) => recordSource(p, { id, now: Date.now() }));
+      const target = (e.target as Element | null)?.closest?.("[data-progress]")?.getAttribute("data-progress");
+      if (target === "source") applyProgress((p) => recordSource(p, { id, now: Date.now() }));
+      else if (target === "press") applyProgress((p) => recordPress(p, { id, now: Date.now() }));
     };
     article.addEventListener("click", onClick);
 
@@ -69,7 +74,7 @@ export function ReadMeter({ id, topic, publishedAt }: { id: number; topic: strin
       article.removeEventListener("click", onClick);
       setReading(null);
     };
-  }, [id, topic, publishedAt]);
+  }, [id, topic, publishedAt, law, place, multi, risky]);
 
   return <span ref={anchor} hidden />;
 }

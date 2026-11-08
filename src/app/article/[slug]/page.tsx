@@ -24,7 +24,7 @@ import { STORY_BUTTON_PRIMARY } from "@/components/iltod/story-buttons";
 import { TimeAgo } from "@/components/iltod/time-ago";
 import { aiModelLabel } from "@/lib/ai/model-label";
 import { archiveDateLabel, ubDateKey } from "@/lib/archive";
-import { formatDateMn, tldrSentences } from "@/lib/format";
+import { formatDateMn, riskLevel, tldrSentences } from "@/lib/format";
 import { GLOSSARY, glossarySegments } from "@/lib/glossary";
 import { placeGenitive, placeOfDomain } from "@/lib/places";
 import { linkPeople } from "@/lib/officials/links";
@@ -188,7 +188,15 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
     // A 720 px reading column; the progress line on top fills as the reader scrolls (CSS only).
     <article className="mx-auto flex w-full max-w-[45rem] flex-col gap-8">
       <span aria-hidden className="reading-progress" />
-      <ReadMeter id={article.id} topic={topic.key} publishedAt={dateUnknown || !article.publishedAt ? null : new Date(article.publishedAt).toISOString()} />
+      <ReadMeter
+        id={article.id}
+        topic={topic.key}
+        publishedAt={dateUnknown || !article.publishedAt ? null : new Date(article.publishedAt).toISOString()}
+        law={article.sourceDomain === "legalinfo.mn"}
+        place={place?.slug ?? null}
+        multi={article.clusterId !== null}
+        risky={riskLevel(article.riskScore) === "high"}
+      />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(articleJsonLd(article)) }} />
       <header className="flex flex-col gap-4">
         {/* Visible breadcrumb (the same trail as the BreadcrumbList JSON-LD): crawlable links up to the hubs. */}

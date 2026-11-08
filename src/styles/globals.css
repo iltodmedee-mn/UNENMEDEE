@@ -123,6 +123,19 @@
         transition: none;
     }
 }
+/* The back-to-top dial's rows rise in one after another (transition-delay set per row). */
+@utility dial-enter {
+    transition:
+        opacity 180ms ease-out,
+        translate 180ms ease-out;
+    @starting-style {
+        opacity: 0;
+        translate: 0 10px;
+    }
+    @media (prefers-reduced-motion: reduce) {
+        transition: none;
+    }
+}
 @utility sheet-enter {
     transition:
         opacity 300ms ease-out,

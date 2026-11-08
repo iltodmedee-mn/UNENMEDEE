@@ -20,7 +20,7 @@ export function PressPanel({ press, blindspot }: { press: PressCoverage[]; blind
         <ul className="flex flex-col divide-y divide-line-soft">
           {press.map((p) => (
             <li key={p.url} className="py-2.5 first:pt-0 last:pb-0">
-              <a href={safeHttpUrl(p.url)} target="_blank" rel="noreferrer nofollow" className="group flex items-start gap-3">
+              <a href={safeHttpUrl(p.url)} target="_blank" rel="noreferrer nofollow" data-progress="press" className="group flex items-start gap-3">
                 <span className="label-mono w-20 shrink-0 pt-[0.2em] text-tertiary">{p.outlet}</span>
                 <span className="flex-1 text-md text-primary group-hover:text-brand-secondary group-hover:underline">{p.title}</span>
                 <LinkExternal01 aria-hidden className="mt-1 size-3.5 shrink-0 text-fg-quaternary" />

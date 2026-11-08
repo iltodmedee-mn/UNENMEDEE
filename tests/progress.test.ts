@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { DAILY_CAP, emptyProgress, LEVELS, levelOf, liveStreak, parseProgress, recordDigest, recordFact, recordRead, recordSource, XP } from "@/lib/progress";
+import { DAILY_CAP, emptyProgress, FULL_DAY, LEVELS, levelOf, liveStreak, pageOf, parseProgress, recentDays, recordDigest, recordFact, recordFlag, recordItem, recordPage, recordPress, recordRead, recordSource, XP } from "@/lib/progress";
 
 // 2026-11-09 10:00 Ulaanbaatar (02:00 UTC), a Monday.
 const MON = Date.UTC(2026, 10, 9, 2);
@@ -95,5 +95,77 @@ describe("storage", () => {
     assert.equal(parseProgress("{bad").xp, 0);
     assert.equal(parseProgress(JSON.stringify({ v: 99, xp: 5 })).xp, 0);
     assert.equal(parseProgress(JSON.stringify({ ...emptyProgress(), xp: 42 })).xp, 42);
+  });
+});
+
+describe("what reads, pages and rows count toward (badges)", () => {
+  it("a read counts its kind: law, place, several outlets, high risk; the 10th of a day is a full day", () => {
+    let p = emptyProgress();
+    for (let i = 0; i < FULL_DAY; i++) p = recordRead(p, { id: i, topic: "justice", publishedAt: null, now: MON, law: i === 0, place: i < 2 ? "khovd" : null, multi: i === 1, risky: i === 2 }).progress;
+    assert.deepEqual([p.laws, p.multi, p.risky, p.places.khovd, p.fullDays], [1, 1, 1, 2, 1]);
+    p = recordRead(p, { id: 99, topic: "justice", publishedAt: null, now: MON }).progress;
+    assert.equal(p.fullDays, 1, "the 11th read of the day is not another full day");
+  });
+
+  it("a read on a holiday in Ulaanbaatar is remembered (Naadam, New Year)", () => {
+    const naadam = Date.UTC(2027, 6, 11, 4); // 12:00 UB, 11 July
+    const eve = Date.UTC(2026, 11, 31, 17); // 01:00 UB, 1 January
+    assert.ok(read(emptyProgress(), 1, naadam).progress.flags.includes("naadam"));
+    assert.ok(read(emptyProgress(), 1, eve).progress.flags.includes("new-year"));
+    assert.deepEqual(read(emptyProgress(), 1, MON).progress.flags, []);
+  });
+
+  it("pageOf knows section pages and once-each pages, with or without a trailing slash", () => {
+    assert.deepEqual(pageOf("/budget/"), { section: "budget", item: null });
+    assert.deepEqual(pageOf("/promises/economy"), { section: "promises", item: null });
+    assert.deepEqual(pageOf("/officials/12"), { section: null, item: { kind: "mp", id: "12" } });
+    assert.deepEqual(pageOf("/archive/2026-11-02"), { section: null, item: { kind: "archive", id: "2026-11-02" } });
+    assert.deepEqual(pageOf("/officials/companies"), { section: "soe", item: null });
+    assert.deepEqual(pageOf("/article/x"), { section: null, item: null });
+  });
+
+  it("a section counts once per Ulaanbaatar day; an MP page counts once ever", () => {
+    let p = recordPage(emptyProgress(), { path: "/budget", now: MON }).progress;
+    p = recordPage(p, { path: "/budget", now: MON + 3_600_000 }).progress;
+    assert.equal(p.sections.budget.days, 1);
+    p = recordPage(p, { path: "/budget", now: MON + DAY }).progress;
+    assert.equal(p.sections.budget.days, 2);
+    p = recordPage(p, { path: "/officials/7", now: MON }).progress;
+    assert.equal(recordPage(p, { path: "/officials/7", now: MON + DAY }).progress, p);
+    assert.equal(p.items.mp.n, 1);
+    assert.equal(p.xp, 0, "pages earn no XP themselves");
+  });
+
+  it("list rows and press links count once each, at most DAILY_CAP a day", () => {
+    let p = emptyProgress();
+    for (let i = 0; i < DAILY_CAP + 5; i++) p = recordItem(p, { kind: "tender", id: String(i), now: MON }).progress;
+    assert.equal(p.items.tender.n, DAILY_CAP);
+    p = recordItem(p, { kind: "tender", id: "999", now: MON + DAY }).progress;
+    assert.equal(p.items.tender.n, DAILY_CAP + 1);
+    p = recordPress(p, { id: 5, now: MON }).progress;
+    assert.equal(recordPress(p, { id: 5, now: MON }).progress, p);
+    assert.equal(p.press, 1);
+  });
+
+  it("flags stay once set", () => {
+    const p = recordFlag(emptyProgress(), "request").progress;
+    assert.equal(recordFlag(p, "request").progress, p);
+    assert.deepEqual(p.flags, ["request"]);
+  });
+
+  it("recentDays marks the current streak's days, oldest first", () => {
+    let p = read(emptyProgress(), 1, MON).progress;
+    p = read(p, 2, MON + DAY).progress;
+    assert.deepEqual(recentDays(p, MON + DAY, 5), [false, false, false, true, true]);
+    assert.deepEqual(recentDays(p, MON + 2 * DAY, 5), [false, false, true, true, false]);
+    assert.deepEqual(recentDays(p, MON + 9 * DAY, 3), [false, false, false]);
+  });
+
+  it("a value stored before badges existed gets the new counters empty", () => {
+    const { places, sections, items, flags, badges, unseen, ...old } = emptyProgress();
+    void [places, sections, items, flags, badges, unseen];
+    const p = parseProgress(JSON.stringify({ ...old, xp: 70, reads: 7 }));
+    assert.equal(p.reads, 7);
+    assert.deepEqual([p.places, p.badges, p.unseen], [{}, {}, []]);
   });
 });
