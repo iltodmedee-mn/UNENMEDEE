@@ -9,6 +9,7 @@ import { InstallBanner } from "@/components/pwa/pwa-controls";
 import { ServiceWorkerRegister } from "@/components/pwa/sw-register";
 import { isDemoDatabase } from "@/db";
 import { jsonLd, REPO_URL, SITE_ALTERNATE_NAMES, SITE_DESCRIPTION, SITE_KEYWORDS, SITE_NAME, SITE_TITLE, SITE_URL, CONTACT_EMAIL, SOCIAL, THEME_COLOR } from "@/lib/site";
+import { CLIENT_ERROR_SCRIPT } from "@/lib/client-error-script";
 
 import "./globals.css";
 
@@ -89,6 +90,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         {/* Chrome's install offer can fire before any chunk runs (a fast, service-worker-controlled
             load): keep it for use-pwa.ts, or the install strip never appears on Android. */}
         <script dangerouslySetInnerHTML={{ __html: "addEventListener('beforeinstallprompt',function(e){e.preventDefault();window.__iltodBip=e});addEventListener('appinstalled',function(){window.__iltodBip=null})" }} />
+        {/* The first JavaScript error of a page view, sent once to /api/client-error (~400 bytes, no library). */}
+        <script dangerouslySetInnerHTML={{ __html: CLIENT_ERROR_SCRIPT }} />
       </head>
       <body className="flex min-h-full flex-col bg-primary text-primary">
         <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(SITE_JSON_LD) }} />
