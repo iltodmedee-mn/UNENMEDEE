@@ -5,7 +5,7 @@ import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 
-import { Bar, DialRow, Ring } from "@/components/progress/dial-row";
+import { Bar, DIAL_WIDTHS, DialRow, Ring } from "@/components/progress/dial-row";
 import { formatNumber } from "@/lib/format";
 import { StreakStrip } from "@/components/progress/streak-strip";
 import { LEVELS, levelOf, liveStreak, parseProgress, streakWindow } from "@/lib/progress";
@@ -14,7 +14,7 @@ import { checkBadges, markSeen, onProgressEvent, progressRaw, readingNow, subscr
 /** The badge row brings the badge rules with it: loaded only when the dial opens. */
 const DialBadge = dynamic(() => import("@/components/progress/dial-badge").then((m) => m.DialBadge), {
   ssr: false,
-  loading: () => <span aria-hidden className="block h-[4.75rem] w-60 animate-pulse rounded-2xl bg-secondary" />,
+  loading: () => <span aria-hidden className="mr-[3.375rem] block h-[4.75rem] w-[16rem] max-w-[calc(100vw-6rem)] animate-pulse rounded-2xl bg-secondary" />,
 });
 
 /** Shown once the reader is this far down (about two screens of stories). */
@@ -176,6 +176,7 @@ export function BackToTop() {
               href="/amjilt"
               onClick={close}
               delay={80}
+              width={DIAL_WIDTHS[1]}
               circle={
                 <span className="grid size-11 place-items-center rounded-full bg-brand-solid font-display text-lg font-extrabold text-white">
                   <Ring fraction={level.fraction} color="var(--color-signal)" />
@@ -195,6 +196,7 @@ export function BackToTop() {
               href="/amjilt#streak"
               onClick={close}
               delay={40}
+              width={DIAL_WIDTHS[2]}
               circle={
                 <span className="grid size-11 place-items-center rounded-full" style={{ background: STREAK_ORANGE }}>
                   <FlameIcon />
@@ -206,18 +208,13 @@ export function BackToTop() {
                 <StreakStrip days={days} small />
               </span>
               <span className="block text-xs text-tertiary">
-                {readToday
-                  ? "Өнөөдөр уншсан ✓ Маргааш үргэлжлүүлээрэй"
-                  : streak > 0
-                    ? `Өнөөдөр 1 мэдээ уншвал ${streak + 1} болно`
-                    : progress.bestStreak > 1
-                      ? `Хамгийн урт: ${progress.bestStreak} өдөр · өнөөдөр дахин эхлүүлээрэй`
-                      : "Өнөөдөр 1 мэдээ уншаад эхлүүлээрэй"}
+                {readToday ? "Өнөөдөр уншсан ✓" : streak > 0 ? `Өнөөдөр уншвал ${streak + 1} болно` : progress.bestStreak > 1 ? `Хамгийн урт: ${progress.bestStreak} өдөр` : "Өнөөдөр эхлүүлээрэй"}
               </span>
             </DialRow>
             <DialRow
               onClick={toTop}
               delay={0}
+              width={DIAL_WIDTHS[3]}
               circle={
                 <span className="grid size-11 place-items-center rounded-full bg-primary-solid text-white ring-1 ring-line">
                   <TopIcon />
