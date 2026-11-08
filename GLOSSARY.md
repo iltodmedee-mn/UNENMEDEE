@@ -19,3 +19,25 @@ _Avoid_: frontend, request path
 **Write path**:
 Everything a pipeline run does to change stored stories and produce snapshots. Only the write path touches the database for list pages.
 _Avoid_: backend, ingestion
+
+## Reader progress
+
+**Counted read**:
+A story the reader actually read: its page was on screen for 15 seconds and scrolled past half. Each story counts once, and at most 20 a day count.
+_Avoid_: view, visit, click
+
+**XP**:
+The reader's points, earned by counted reads and by habits the site wants to grow (opening the facts-versus-spin view, going to the original source, finishing a digest, reading on consecutive days).
+_Avoid_: score, points (in UI copy XP is fine)
+
+**Level**:
+One of ten named steps a reader climbs by XP, from «Шинэ уншигч» to «Ил тод баатар»; the top takes about a year of daily reading.
+_Avoid_: rank
+
+**Badge**:
+A named achievement for one habit (reading, checking, following money, following the state, keeping a streak, exploring), most with tiers. Kept only in the reader's own browser; there are no accounts.
+_Avoid_: award, trophy, medal
+
+**Tier**:
+How far a badge has been taken: хүрэл, мөнгө, алт, ил тод (the rarest, about a year of the habit).
+_Avoid_: grade, rank
