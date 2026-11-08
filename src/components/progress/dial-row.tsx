@@ -2,14 +2,25 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 /**
+ * The rows' card widths, top to bottom: a staircase that narrows toward the thumb (the owner, Nov
+ * 2026: "the top one longest, each lower one shorter"), whatever text each card holds.
+ */
+export const DIAL_WIDTHS = [
+  "w-[16rem] max-w-[calc(100vw-6rem)]",
+  "w-[13.5rem] max-w-[calc(100vw-7.5rem)]",
+  "w-[11rem] max-w-[calc(100vw-9rem)]",
+  "w-[8.5rem] max-w-[calc(100vw-10.5rem)]",
+] as const;
+
+/**
  * One row of the back-to-top dial (the owner's pick, Nov 2026: a stack of labelled rows above the
  * button). The label card sits left of a 44 px circle, and the whole row is the tap target.
  */
-export function DialRow({ href, onClick, delay, circle, children }: { href?: string; onClick?: () => void; delay: number; circle: ReactNode; children: ReactNode }) {
+export function DialRow({ href, onClick, delay, width, circle, children }: { href?: string; onClick?: () => void; delay: number; width: (typeof DIAL_WIDTHS)[number]; circle: ReactNode; children: ReactNode }) {
   const className = "dial-enter flex items-center justify-end gap-2.5 rounded-2xl text-left focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand";
   const body = (
     <>
-      <span className="max-w-[min(15rem,calc(100vw-6rem))] rounded-2xl bg-primary px-3 py-2 text-sm text-secondary shadow-lg ring-1 ring-line">{children}</span>
+      <span className={`${width} rounded-2xl bg-primary px-3 py-2 text-sm text-secondary shadow-lg ring-1 ring-line`}>{children}</span>
       <span className="relative grid size-11 shrink-0 place-items-center rounded-full shadow-lg">{circle}</span>
     </>
   );

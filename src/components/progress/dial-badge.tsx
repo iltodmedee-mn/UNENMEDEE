@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 
 import { BadgeArt, tierColor } from "@/components/progress/badge-art";
-import { Bar, DialRow, Ring } from "@/components/progress/dial-row";
+import { Bar, DIAL_WIDTHS, DialRow, Ring } from "@/components/progress/dial-row";
 import { nextBadge, TIER_NAMES } from "@/lib/badges";
 import { formatNumber } from "@/lib/format";
 import type { Progress } from "@/lib/progress";
@@ -16,7 +16,7 @@ export function DialBadge({ progress, delay, onGo }: { progress: Progress; delay
   const state = useMemo(() => nextBadge(progress), [progress]);
   if (!state?.next) {
     return (
-      <DialRow href="/amjilt" onClick={onGo} delay={delay} circle={<span className="grid size-11 place-items-center rounded-full bg-primary text-lg ring-1 ring-line">🏅</span>}>
+      <DialRow href="/amjilt" onClick={onGo} delay={delay} width={DIAL_WIDTHS[0]} circle={<span className="grid size-11 place-items-center rounded-full bg-primary text-lg ring-1 ring-line">🏅</span>}>
         <b className="block text-primary">Бүх badge авсан</b>
         <span className="text-xs font-semibold text-brand-secondary">Бүгдийг харах →</span>
       </DialRow>
@@ -30,6 +30,7 @@ export function DialBadge({ progress, delay, onGo }: { progress: Progress; delay
       href="/amjilt"
       onClick={onGo}
       delay={delay}
+      width={DIAL_WIDTHS[0]}
       circle={
         <span className="grid size-11 place-items-center rounded-full bg-primary ring-1 ring-line">
           <Ring fraction={fraction} color={color} />
