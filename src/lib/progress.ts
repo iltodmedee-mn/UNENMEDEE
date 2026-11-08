@@ -8,7 +8,7 @@
  * at most DAILY_CAP counted reads, fact views and source visits a day earn anything, and the top
  * level takes about a year of daily reading (~100 XP a day).
  */
-import { ubDay } from "@/lib/read-state";
+import { type Streak, ubDay } from "@/lib/read-state";
 
 export const PROGRESS_KEY = "iltod-progress";
 export const PROGRESS_VERSION = 1;
@@ -89,6 +89,8 @@ export interface Progress {
   badges: Record<string, string[]>;
   /** badges earned and not looked at yet (the dot on the back-to-top button) */
   unseen: string[];
+  /** stories carried over from before reader progress existed (importHistory) */
+  imported: number;
 }
 
 export function emptyProgress(): Progress {
@@ -129,6 +131,7 @@ export function emptyProgress(): Progress {
     flags: [],
     badges: {},
     unseen: [],
+    imported: 0,
   };
 }
 
@@ -361,6 +364,41 @@ export function recordPage(prev: Progress, e: { path: string; now: number }): Ou
 export function recordFlag(prev: Progress, flag: string): Outcome {
   if (prev.flags.includes(flag)) return none(prev);
   return finish(prev, { ...prev, flags: [...prev.flags, flag] }, 0);
+}
+
+/**
+ * A browser that read here before reader progress existed (the owner, Nov 8 2026: loyal readers
+ * must not start at zero). Once per browser: the stories it already marked read (`iltod-read`, up
+ * to its last 600) become counted reads with their XP, and so never count again; the daily digest
+ * streak (`iltod-streak`) carries over as the streak, and as the best streak even if it has ended.
+ */
+export function importHistory(prev: Progress, e: { readIds: number[]; digestStreak: Streak | null; now: number }): Outcome {
+  if (prev.flags.includes("imported")) return none(prev);
+  const fresh = [...new Set(e.readIds)].filter((id) => !prev.readIds.includes(id));
+  const today = ubDay(e.now);
+  const s = e.digestStreak;
+  let { streak, lastDay } = prev;
+  if (s && (s.d === today || s.d === prevDay(today))) {
+    if (lastDay === null || lastDay < s.d) {
+      streak = s.n;
+      lastDay = s.d;
+    } else if (lastDay === s.d) streak = Math.max(streak, s.n);
+    else if (lastDay === today && s.d === prevDay(today)) streak = Math.max(streak, s.n + 1);
+  }
+  return finish(
+    prev,
+    {
+      ...prev,
+      reads: prev.reads + fresh.length,
+      readIds: fresh.reduce(remember, prev.readIds),
+      streak,
+      lastDay,
+      bestStreak: Math.max(prev.bestStreak, streak, s?.n ?? 0),
+      imported: fresh.length,
+      flags: [...prev.flags, "imported"],
+    },
+    fresh.length * XP.read,
+  );
 }
 
 /** The streak as it stands today: alive if the last counted read was today or yesterday. */

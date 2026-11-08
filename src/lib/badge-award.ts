@@ -1,8 +1,9 @@
 import { award, TIER_NAMES } from "@/lib/badges";
 import { INSTALLED_KEY } from "@/lib/install-ask";
 import { FOLLOW_KEY } from "@/lib/officials/follow";
-import { parseProgress, recordFlag } from "@/lib/progress";
+import { importHistory, levelOf, parseProgress, recordFlag } from "@/lib/progress";
 import { announce, progressRaw, saveProgress } from "@/lib/progress-store";
+import { parseIds, parseStreak, READ_KEY, STREAK_KEY } from "@/lib/read-state";
 import { PLACE_FOLLOW_KEY, TOPIC_FOLLOW_KEY } from "@/lib/topic-follow";
 
 /**
@@ -45,14 +46,17 @@ export function browserFlags(): string[] {
 
 export function awardNow(now = Date.now()): void {
   const start = parseProgress(progressRaw());
-  let p = start;
+  // Once per browser: what it read before reader progress existed.
+  const history = importHistory(start, { readIds: [...parseIds(stored(READ_KEY) ?? "[]")], digestStreak: parseStreak(stored(STREAK_KEY) ?? ""), now });
+  let p = history.progress;
   for (const f of browserFlags()) p = recordFlag(p, f).progress;
   const a = award(p, now);
   if (a.progress === start) return;
   saveProgress(a.progress);
   const last = a.earned.at(-1);
-  if (last) {
-    const tier = last.badge.steps.length === 4 ? ` · ${TIER_NAMES[last.tier]}` : "";
-    announce({ gained: a.gained, level: a.levelUp?.level ?? null, levelName: a.levelUp?.name ?? null, badge: `${last.badge.name}${tier}` });
-  }
+  const after = levelOf(a.progress.xp);
+  const level = after.level > levelOf(start.xp).level ? after : null;
+  const badge = last ? `${last.badge.name}${last.badge.steps.length === 4 ? ` · ${TIER_NAMES[last.tier]}` : ""}` : null;
+  const note = a.progress.imported > 0 && start.imported === 0 ? `Өмнө уншсан ${a.progress.imported} мэдээ тоологдлоо · ${after.level}-р түвшин` : null;
+  if (badge || note || level) announce({ gained: note ? 0 : a.gained, level: level?.level ?? null, levelName: level?.name ?? null, badge, note });
 }
