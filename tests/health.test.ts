@@ -203,6 +203,27 @@ describe("data integrity and phone layout rules", () => {
     assert.match(out[0], /orkhon\.khural\.mn.*огноогүй/);
   });
 
+  it("names site errors, a refused fallback dispatch and unreadable sources", () => {
+    const out = evaluateHealth(
+      {
+        integrity: {
+          ...clean,
+          siteErrors: [{ route: "GET /tax", message: "TypeError: bad", count: 4 }],
+          fallbackDispatchStatus: 403,
+          unreadableSources: ["mof.gov.mn (5/5)"],
+        },
+      },
+      CONFIG,
+      NOW,
+    );
+    assert.equal(out.length, 3);
+    assert.ok(out.some((l) => /GET \/tax \(4×\): TypeError: bad/.test(l)));
+    assert.ok(out.some((l) => /403.*PIPELINE-FALLBACK/.test(l)));
+    assert.ok(out.some((l) => /mof\.gov\.mn \(5\/5\)/.test(l)));
+    const ok = evaluateHealth({ integrity: { ...clean, siteErrors: [], fallbackDispatchStatus: 204, unreadableSources: [] } }, CONFIG, NOW);
+    assert.deepEqual(ok, [], "GitHub's 204 is the success answer");
+  });
+
   it("reports a page wider than the phone screen", () => {
     const out = evaluateHealth({ layout: [{ path: "/risk", viewport: 360, width: 644, culprit: "article.group" }] }, CONFIG, NOW);
     assert.equal(out.length, 1);

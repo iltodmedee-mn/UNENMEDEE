@@ -218,7 +218,7 @@ function filterCondition(filter: FeedFilter): SQL | undefined {
 export async function getFeed(filter: FeedFilter, limit = 30): Promise<ArticleListItem[]> {
   "use cache";
   cacheLife("news");
-  cacheTag("articles");
+  cacheTag("articles", "feed");
   return safe("getFeed", [], async () => {
     const rows = await getDb()
       .select(listColumns)
@@ -277,7 +277,7 @@ export async function getTopicNeighbours(filter: FeedFilter, excludeId: number, 
 export async function getPlaceFeed(domains: string[], limit = 40): Promise<ArticleListItem[]> {
   "use cache";
   cacheLife("news");
-  cacheTag("articles");
+  cacheTag("articles", "feed");
   if (domains.length === 0) return [];
   return safe("getPlaceFeed", [], async () => {
     const rows = await getDb()
@@ -310,7 +310,7 @@ export async function getDayArchive(date: string): Promise<DayArchive> {
   // A day two or more days back only changes when an older story is found late: a day's cache is enough.
   if (date < ubDateKey(Date.now() - 2 * 86_400_000)) cacheLife("days");
   else cacheLife("hours");
-  cacheTag("articles");
+  cacheTag("articles", "feed");
   return safe("getDayArchive", { stories: [], prev: null, next: null }, async () => {
     const db = getDb();
     const [start, end] = ubDayBounds(date).map((t) => new Date(t));
@@ -344,7 +344,7 @@ export interface ArchiveDay {
 export async function getArchiveDays(days = 60): Promise<ArchiveDay[]> {
   "use cache";
   cacheLife("hours");
-  cacheTag("articles");
+  cacheTag("articles", "feed");
   return safe("getArchiveDays", [], async () => {
     const rows = await getDb()
       .select({
@@ -373,7 +373,7 @@ export interface SourceHub {
 export async function getSourceHub(domain: string, limit = 40): Promise<{ source: SourceHub; stories: ArticleListItem[] } | null> {
   "use cache";
   cacheLife("hours");
-  cacheTag("articles");
+  cacheTag("articles", "feed");
   const seed = SOURCE_SEEDS.find((s) => s.domain === domain);
   const fallback = seed ? { source: { name: seed.name, domain: seed.domain, category: seed.category, isActive: true }, stories: [] } : null;
   return safe("getSourceHub", fallback, async () => {
@@ -1371,7 +1371,7 @@ export async function getAttendance(): Promise<{ highlight: AttendanceHighlight;
 export async function getLegalActs(limit = 40): Promise<ArticleListItem[]> {
   "use cache";
   cacheLife("hours");
-  cacheTag("articles");
+  cacheTag("articles", "feed");
   return safe("getLegalActs", [], async () => {
     const rows = await getDb()
       .select(listColumns)

@@ -194,3 +194,40 @@ export function decide(prev: CheckState, stored: string, result: FetchResult, no
   }
   return { status: "ok", missingCount: 0 };
 }
+
+/**
+ * The weekly extraction check (scripts/recheck-sources.ts): a site whose pages still answer but
+ * from which the current extractor reads almost no text has changed its layout, and new stories
+ * from it would arrive empty or not at all. Only pages that answered count; a site needs
+ * EXTRACT_MIN_PAGES of them before it can be judged.
+ */
+export const EXTRACTION_KEY = "extraction_check";
+export const EXTRACT_MIN_PAGES = 3;
+export const EXTRACT_EMPTY_SHARE = 0.8;
+
+export interface ExtractionTally {
+  read: number;
+  empty: number;
+}
+export interface ExtractionReport {
+  at: string;
+  broken: { domain: string; read: number; empty: number }[];
+}
+
+export function extractionBroken(tally: Map<string, ExtractionTally>): ExtractionReport["broken"] {
+  return [...tally]
+    .filter(([, t]) => t.read >= EXTRACT_MIN_PAGES && t.empty / t.read >= EXTRACT_EMPTY_SHARE)
+    .map(([domain, t]) => ({ domain, ...t }))
+    .sort((a, b) => a.domain.localeCompare(b.domain));
+}
+
+/** The stored report, or null when it is missing or not in this shape. */
+export function parseExtractionReport(raw: string | null | undefined): ExtractionReport | null {
+  if (!raw) return null;
+  try {
+    const v = JSON.parse(raw) as ExtractionReport;
+    return typeof v?.at === "string" && Array.isArray(v.broken) ? v : null;
+  } catch {
+    return null;
+  }
+}

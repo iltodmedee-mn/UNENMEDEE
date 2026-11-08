@@ -12,12 +12,13 @@
 import { and, desc, eq, gt, gte, isNull, sql, type SQL } from "drizzle-orm";
 
 import type { DB } from "@/db";
-import { articles, digests, pressItems, pushSubscriptions, sources, videos } from "@/db/schema";
+import { appSettings, articles, digests, pressItems, pushSubscriptions, siteErrors, sources, videos } from "@/db/schema";
 import { dailySpendUsd } from "@/lib/ai/usage-log";
 import { type CoreSnapshot, type IntegritySnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot } from "@/lib/health";
 import { OUTLETS } from "@/lib/press/outlets";
 import { MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { sourceHealth } from "@/lib/scraper/db-sink";
+import { EXTRACTION_KEY, parseExtractionReport } from "@/lib/scraper/recheck";
 import { lastRealPost, unknownSince } from "@/lib/social/post-ledger";
 import { aiSummarized, dated, published, undated } from "@/lib/story-rules";
 
@@ -131,7 +132,33 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
       .orderBy(sources.domain),
   ]);
   const n = (r: unknown) => Number((r as { rows: { n: unknown }[] }).rows[0]?.n ?? 0);
-  return { brokenAiText: broken, widespreadClusters: n(wide), duplicateHashes: n(dups), silentSources: silent.map((x) => x.domain), undatedBursts: burst.map((x) => x.domain) };
+  // Server errors readers hit in the last 24 h (src/instrumentation.ts → site_errors).
+  const errors = await db
+    .select({ route: siteErrors.route, message: siteErrors.message, count: siteErrors.count })
+    .from(siteErrors)
+    .where(gte(siteErrors.lastSeen, since24h))
+    .orderBy(desc(siteErrors.count))
+    .limit(5);
+  // The pipeline fallback's last GitHub answer (pg_net keeps responses for a few hours): a 4xx means
+  // the token or the URL is wrong and the fallback silently does nothing (Nov 7 2026: 403 for a day).
+  const dispatch = await db
+    .execute(sql`select status_code from net._http_response where created > ${since24h} order by created desc limit 1`)
+    .then((r) => Number((r as unknown as { rows: { status_code: unknown }[] }).rows[0]?.status_code ?? 0) || null)
+    .catch(() => null);
+  // The weekly extraction check (scripts/recheck-sources.ts); a report older than 15 days is stale.
+  const [extractionRow] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, EXTRACTION_KEY));
+  const extraction = parseExtractionReport(extractionRow?.value);
+  const extractionFresh = extraction && now.getTime() - Date.parse(extraction.at) < 15 * DAY_MS;
+  return {
+    brokenAiText: broken,
+    widespreadClusters: n(wide),
+    duplicateHashes: n(dups),
+    silentSources: silent.map((x) => x.domain),
+    undatedBursts: burst.map((x) => x.domain),
+    siteErrors: errors,
+    fallbackDispatchStatus: dispatch,
+    unreadableSources: extractionFresh ? extraction.broken.map((b) => `${b.domain} (${b.empty}/${b.read})`) : [],
+  };
 }
 
 /** Per platform: hours since a post really went out, and posts of unknown outcome in the last 7 days. */

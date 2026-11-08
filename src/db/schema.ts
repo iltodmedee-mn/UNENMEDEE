@@ -501,3 +501,22 @@ export const pressLinks = pgTable(
   },
   (t) => [primaryKey({ columns: [t.articleId, t.pressItemId] }), index("press_links_press_item_idx").on(t.pressItemId)],
 );
+
+/**
+ * Server errors the public site hit (src/instrumentation.ts), one row per route and first message
+ * line, counted, so the watchdog can say a page is failing without a paid error tracker. Holds no
+ * request headers, body, query string or user data; pruned after 30 days.
+ */
+export const siteErrors = pgTable(
+  "site_errors",
+  {
+    key: varchar("key", { length: 64 }).primaryKey(),
+    route: varchar("route", { length: 300 }).notNull(),
+    message: varchar("message", { length: 300 }).notNull(),
+    digest: varchar("digest", { length: 40 }),
+    count: integer("count").notNull().default(1),
+    firstSeen: timestamp("first_seen", { withTimezone: true }).notNull().defaultNow(),
+    lastSeen: timestamp("last_seen", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [index("site_errors_last_seen_idx").on(t.lastSeen)],
+);

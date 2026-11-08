@@ -176,6 +176,13 @@
       "when": 1793591870832,
       "tag": "0024_documents",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1794109442921,
+      "tag": "0025_site_errors",
+      "breakpoints": true
     }
   ]
 }
