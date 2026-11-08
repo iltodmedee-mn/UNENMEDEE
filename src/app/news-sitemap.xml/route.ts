@@ -1,28 +1,18 @@
-import { cacheLife, cacheTag } from "next/cache";
-
-import { getSitemapArticles, type SitemapArticle } from "@/lib/queries";
+import { getNewsSitemapArticles } from "@/lib/queries";
 import { absoluteUrl, SITE_NAME, xmlEscape } from "@/lib/site";
 
 /**
  * Google News sitemap: only articles published in the last two days (Google's limit), and only
  * those whose page printed a real publication date.
  */
-async function recentNews(): Promise<SitemapArticle[]> {
-  "use cache";
-  cacheLife("news");
-  cacheTag("articles");
-  const cutoff = Date.now() - 2 * 86_400_000;
-  return (await getSitemapArticles(1000, true)).filter((a) => !a.dateUnknown && a.publishedAt && a.publishedAt.getTime() >= cutoff);
-}
-
 export async function GET() {
-  const items = (await recentNews())
+  const items = (await getNewsSitemapArticles())
     .map(
       (a) => `  <url>
     <loc>${xmlEscape(absoluteUrl(`/article/${a.slug}`))}</loc>
     <news:news>
       <news:publication><news:name>${xmlEscape(SITE_NAME)}</news:name><news:language>mn</news:language></news:publication>
-      <news:publication_date>${a.publishedAt!.toISOString()}</news:publication_date>
+      <news:publication_date>${a.publishedAt.toISOString()}</news:publication_date>
       <news:title>${xmlEscape(a.title)}</news:title>
     </news:news>
   </url>`,

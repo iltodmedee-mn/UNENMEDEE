@@ -14,8 +14,8 @@ import { formatMntShort, formatNumber } from "@/lib/format";
 import { declarationFlags } from "@/lib/officials/flags";
 import { termLabel, termOf } from "@/lib/officials/terms";
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
-import type { OfficialCompaniesSnapshot } from "@/lib/officials/companies";
-import { getAttendance, getCompanyTenders, getIndicator, getPolitician, getPoliticianIds } from "@/lib/queries";
+import { declaredCompanies } from "@/lib/officials/companies";
+import { getAttendance, getCompanyTenders, getOfficialCompanies, getPolitician, getPoliticianIds } from "@/lib/queries";
 import { jsonLd, parseRouteId, SITE_NAME } from "@/lib/site";
 import { breadcrumbLd, personLd } from "@/lib/structured-data";
 
@@ -127,7 +127,8 @@ async function Profile({ params }: { params: PageProps<"/officials/[id]">["param
   const data = await getPolitician(id);
   if (!data) notFound();
   const { politician: p, declarations: rows, hiddenYears, mentions, nameShared, nameSharedNow } = data;
-  const [companies, companyTenders] = await Promise.all([getIndicator<OfficialCompaniesSnapshot>("officials_companies").catch(() => null), getCompanyTenders().catch(() => ({}))]);
+  const declared = declaredCompanies(rows.at(-1)?.details);
+  const [companies, companyTenders] = await Promise.all([getOfficialCompanies([...declared.stocks, ...declared.lenders].map((o) => o.key)).catch(() => null), getCompanyTenders().catch(() => ({}))]);
   // Only years the member held this seat can have a "missing" filing.
   const seatFrom = p.termStart ? Number(p.termStart.slice(0, 4)) : null;
   const flags = declarationFlags(rows, hiddenYears, seatFrom ? { from: seatFrom, to: p.termEnd ? Number(p.termEnd.slice(0, 4)) : null } : undefined);
@@ -279,7 +280,7 @@ async function Profile({ params }: { params: PageProps<"/officials/[id]">["param
             Эх сурвалж: Авлигатай тэмцэх газар, ХАСХОМ · шинэчлэгдсэн <TimeAgo date={latest?.fetchedAt ?? null} />
           </p>
           {latest && (
-            <DeclaredCompanies details={latest.details} year={latest.year} xacxomUrl={p.xacxomId ? `https://xacxom.iaac.mn/xacxom/${p.xacxomId}` : null} snapshot={companies?.data ?? null} tenders={companyTenders} />
+            <DeclaredCompanies details={latest.details} year={latest.year} xacxomUrl={p.xacxomId ? `https://xacxom.iaac.mn/xacxom/${p.xacxomId}` : null} snapshot={companies} tenders={companyTenders} />
           )}
         </>
       )}

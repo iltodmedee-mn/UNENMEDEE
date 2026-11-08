@@ -21,7 +21,7 @@ import { toPrefixQuery } from "@/lib/search";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { LOG_KEEP_MONTHS, PRUNE_STATE_KEY } from "@/lib/retention";
 import { ubMidnight } from "@/lib/ticker";
-import { aiSummarized, displayTitle, effectiveTopic, feedVisible, indexable, namesMnt, published, undated, visible } from "@/lib/story-rules";
+import { aiSummarized, dated, displayTitle, effectiveTopic, feedVisible, indexable, namesMnt, published, undated, visible } from "@/lib/story-rules";
 import { findTopic, TOPICS } from "@/lib/topics";
 import type { DatasetHighlight, DigestItem, ExtractedEntities, FactVsSpin, ReaderImpact, ScrapeMeta, SourceCategory } from "@/lib/types";
 
@@ -126,9 +126,12 @@ const listColumns = {
   publishedAt: articles.publishedAt,
   riskScore: articles.riskScore,
   riskFlag: articles.riskFlag,
-  factVsSpin: articles.factVsSpin,
-  entities: articles.extractedEntities,
-  deep: articles.grokDeepAnalysis,
+  // A list row needs three small facts from the analysis, not the analysis (Nov 8 2026: these
+  // three columns were ~1 KB of every ~2.2 KB list row, ~0.9 GB of Supabase egress in a month).
+  // getArticleBySlug selects the full columns over these.
+  factVsSpin: sql<Pick<FactVsSpin, "spin_detected" | "neutrality_score"> | null>`case when ${articles.factVsSpin} is null then null else jsonb_build_object('neutrality_score', ${articles.factVsSpin}->'neutrality_score', 'spin_detected', left(btrim(${articles.factVsSpin}->>'spin_detected'), 20)) end`,
+  entities: sql<Pick<ExtractedEntities, "amounts_mnt"> | null>`jsonb_build_object('amounts_mnt', coalesce(${articles.extractedEntities}->'amounts_mnt', '[]'::jsonb))`,
+  deep: sql<string | null>`case when coalesce(${articles.grokDeepAnalysis}, '') <> '' then 'y' end`,
   clusterId: articles.clusterId,
   originalUrl: articles.originalUrl,
   topic: articles.topic,
@@ -152,8 +155,8 @@ type ListRow = {
   publishedAt: Date | null;
   riskScore: number;
   riskFlag: boolean;
-  factVsSpin: FactVsSpin | null;
-  entities: ExtractedEntities | null;
+  factVsSpin: Pick<FactVsSpin, "spin_detected" | "neutrality_score"> | null;
+  entities: Pick<ExtractedEntities, "amounts_mnt"> | null;
   deep: string | null;
   clusterId: number | null;
   originalUrl: string;
@@ -564,6 +567,9 @@ export async function getArticleBySlug(slug: string): Promise<ArticleDetail | nu
     const [r] = await getDb()
       .select({
         ...listColumns,
+        factVsSpin: articles.factVsSpin,
+        entities: articles.extractedEntities,
+        deep: articles.grokDeepAnalysis,
         originalUrl: articles.originalUrl,
         contentHash: articles.contentHash,
         cleanContent: articles.cleanContent,
@@ -678,8 +684,8 @@ export async function getSitemapSlugs(limit = 45_000): Promise<{ slug: string; l
   );
 }
 
-/** `indexableOnly` leaves thin pages out (the Google News sitemap); RSS readers get everything. */
-export async function getSitemapArticles(limit = 1000, indexableOnly = false): Promise<SitemapArticle[]> {
+/** The newest public stories for RSS (thin pages included: feed readers get everything). */
+export async function getSitemapArticles(limit = 1000): Promise<SitemapArticle[]> {
   "use cache";
   cacheLife("news");
   cacheTag("articles");
@@ -698,10 +704,31 @@ export async function getSitemapArticles(limit = 1000, indexableOnly = false): P
       })
       .from(articles)
       .innerJoin(sources, eq(articles.sourceId, sources.id))
-      .where(indexableOnly ? and(visible, indexable) : visible)
+      .where(visible)
       .orderBy(desc(sql`coalesce(${articles.publishedAt}, ${articles.createdAt})`))
       .limit(limit);
     return rows.map((r) => ({ ...r, tldr: r.tldr ?? "" }));
+  });
+}
+
+/**
+ * The Google News sitemap: dated, indexable stories of the last two days (Google's limit), slug,
+ * title and date only. It used to read the newest 1 000 rows with their summaries every 30 minutes
+ * and keep ~100 of them in JavaScript (Nov 2026: ~0.3 GB of Supabase egress a month).
+ */
+export async function getNewsSitemapArticles(): Promise<{ slug: string; title: string; publishedAt: Date }[]> {
+  "use cache";
+  cacheLife("news");
+  cacheTag("articles");
+  return safe("getNewsSitemapArticles", [], async () => {
+    const rows = await getDb()
+      .select({ slug: articles.slug, title: displayTitle, publishedAt: articles.publishedAt })
+      .from(articles)
+      .innerJoin(sources, eq(articles.sourceId, sources.id))
+      .where(and(visible, indexable, dated, gte(articles.publishedAt, sql`now() - interval '2 days'`)))
+      .orderBy(desc(articles.publishedAt))
+      .limit(1000);
+    return rows.flatMap((r) => (r.publishedAt ? [{ slug: r.slug, title: r.title, publishedAt: r.publishedAt }] : []));
   });
 }
 
@@ -1208,7 +1235,9 @@ export interface PoliticianDetail {
 
 export async function getPolitician(id: number): Promise<PoliticianDetail | null> {
   "use cache";
-  cacheLife("hours");
+  // Declarations change once a year and the roster sync is daily: "hours" re-read every member's
+  // page each hour a crawler came by (38 859 reads in 19 days, Nov 2026).
+  cacheLife("days");
   cacheTag("officials", `politician-${id}`);
   return safe("getPolitician", null, async () => {
     const db = getDb();
@@ -1248,6 +1277,29 @@ export async function getIndicator<T>(key: string): Promise<{ data: T; asOf: str
   return safe(`getIndicator(${key})`, null, async () => {
     const [row] = await getDb().select().from(indicatorSnapshots).where(eq(indicatorSnapshots.key, key)).limit(1);
     return row ? { data: row.data as T, asOf: row.asOf, updatedAt: row.updatedAt } : null;
+  });
+}
+
+/**
+ * The companies one member declared, out of the 57 KB `officials_companies` snapshot: only those
+ * keys leave the database (every member's page used to read the whole snapshot).
+ */
+export async function getOfficialCompanies(keys: string[]): Promise<OfficialCompaniesSnapshot | null> {
+  "use cache";
+  cacheLife("days");
+  cacheTag("indicators", "indicator-officials_companies");
+  return safe("getOfficialCompanies", null, async () => {
+    const wanted = JSON.stringify([...new Set(keys)].sort());
+    const [row] = await getDb()
+      .select({
+        from: sql<string>`${indicatorSnapshots.data}->>'from'`,
+        to: sql<string>`${indicatorSnapshots.data}->>'to'`,
+        companies: sql<OfficialCompaniesSnapshot["companies"]>`coalesce((select jsonb_object_agg(k, ${indicatorSnapshots.data}->'companies'->k) from jsonb_array_elements_text(${wanted}::jsonb) k where ${indicatorSnapshots.data}->'companies' ? k), '{}'::jsonb)`,
+      })
+      .from(indicatorSnapshots)
+      .where(eq(indicatorSnapshots.key, "officials_companies"))
+      .limit(1);
+    return row ? { from: row.from ?? "", to: row.to ?? "", companies: row.companies ?? {} } : null;
   });
 }
 
@@ -1655,7 +1707,7 @@ export interface CompanyTenders {
  */
 export async function getCompanyTenders(): Promise<Record<string, CompanyTenders>> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("days");
   cacheTag("tenders");
   cacheTag("officials");
   return safe("getCompanyTenders", {}, async () => {
