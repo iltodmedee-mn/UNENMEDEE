@@ -11,7 +11,7 @@ export async function ArchiveLinks({ days = 7 }: { days?: number }) {
   const list = (await getArchiveDays(days + 1)).slice(0, days);
   if (list.length === 0) return null;
   return (
-    <nav aria-labelledby="archive-links" className="flex flex-col gap-2 border-t border-line pt-4">
+    <nav aria-labelledby="archive-links" className="cv-auto flex flex-col gap-2 border-t border-line pt-4">
       <h2 id="archive-links" className="label-mono text-tertiary">
         Өмнөх өдрүүдийн мэдээ
       </h2>

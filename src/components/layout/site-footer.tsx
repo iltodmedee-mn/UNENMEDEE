@@ -19,7 +19,7 @@ const footerLink = "text-tertiary transition hover:text-primary";
  */
 export function SiteFooter() {
   return (
-    <footer className="mt-24 border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)]">
+    <footer className="cv-footer mt-24 border-t border-line bg-secondary pb-[env(safe-area-inset-bottom)]">
       <div className="mx-auto grid max-w-7xl grid-cols-2 gap-x-6 gap-y-7 px-4 pt-10 pb-8 md:px-8 lg:grid-cols-[1.5fr_repeat(4,minmax(0,1fr))]">
         <div className="col-span-2 flex flex-col gap-3 lg:col-span-1 lg:pr-6">
           <Logo withDomain />

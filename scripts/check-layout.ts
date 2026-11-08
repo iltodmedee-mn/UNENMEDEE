@@ -81,6 +81,9 @@ async function main() {
           continue;
         }
         checked++;
+        // `content-visibility: auto` (story rows, archive links, footer) skips laying out what is
+        // off screen, so an overflow down the page would not show in scrollWidth: lay it all out.
+        await page.addStyleTag({ content: "*{content-visibility:visible!important}" });
         const r = (await page.evaluate(`(${MEASURE})(${width})`)) as { scrollWidth: number; culprit: string };
         if (r.scrollWidth > width + 1) {
           found.push({ path, viewport: width, width: r.scrollWidth, culprit: oneLine(r.culprit, 120) });
