@@ -313,7 +313,7 @@ export async function getDayArchive(date: string): Promise<DayArchive> {
   // A day two or more days back only changes when an older story is found late: a day's cache is enough.
   if (date < ubDateKey(Date.now() - 2 * 86_400_000)) cacheLife("days");
   else cacheLife("hours");
-  cacheTag("articles", "feed");
+  cacheTag("articles"); // not "feed": settled days are cached for days, a purge every run re-rendered them all
   return safe("getDayArchive", { stories: [], prev: null, next: null }, async () => {
     const db = getDb();
     const [start, end] = ubDayBounds(date).map((t) => new Date(t));
@@ -376,7 +376,7 @@ export interface SourceHub {
 export async function getSourceHub(domain: string, limit = 40): Promise<{ source: SourceHub; stories: ArticleListItem[] } | null> {
   "use cache";
   cacheLife("hours");
-  cacheTag("articles", "feed");
+  cacheTag("articles"); // not "feed": ~130 hubs re-rendered on every run (Vercel Hobby limit, Nov 8 2026)
   const seed = SOURCE_SEEDS.find((s) => s.domain === domain);
   const fallback = seed ? { source: { name: seed.name, domain: seed.domain, category: seed.category, isActive: true }, stories: [] } : null;
   return safe("getSourceHub", fallback, async () => {
