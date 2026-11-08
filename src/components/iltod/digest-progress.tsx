@@ -3,6 +3,8 @@
 import { useEffect, useSyncExternalStore } from "react";
 
 import { useLocalStorage } from "@/lib/local-store";
+import { recordDigest } from "@/lib/progress";
+import { applyProgress } from "@/lib/progress-store";
 import { addIds, bumpStreak, currentStreak, parseIds, parseStreak, READ_KEY, STREAK_KEY, ubDay } from "@/lib/read-state";
 import { cx } from "@/utils/cx";
 
@@ -29,6 +31,8 @@ function useDigestRead(ids: number[], edition?: number) {
     const today = ubDay(Date.now());
     const prev = parseStreak(streakRaw);
     if (prev?.d !== today && prev?.e !== edition) setStreak(JSON.stringify(bumpStreak(prev, today, edition)));
+    // XP for a finished edition (src/lib/progress.ts): once per edition, whatever the streak did.
+    applyProgress((p) => recordDigest(p, { edition, now: Date.now() }));
   }, [complete, streakRaw, setStreak, edition]);
   const markRead = (more: number[]) => setRaw(addIds(raw, more));
   return { read, markRead, streakRaw };

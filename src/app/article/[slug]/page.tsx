@@ -10,6 +10,7 @@ import { GlossaryPopovers, GlossaryText } from "@/components/iltod/glossary-text
 import { ArticleGrid } from "@/components/iltod/article-grid";
 import { Chip, DeepBadge, RiskBadge, SourceBadge } from "@/components/iltod/badges";
 import { FactSpinPanel } from "@/components/iltod/fact-spin-panel";
+import { ReadMeter } from "@/components/progress/read-meter";
 import { FollowCard } from "@/components/iltod/follow-card";
 import { HashBadge } from "@/components/iltod/hash-badge";
 import { KeyNumbers } from "@/components/iltod/key-numbers";
@@ -187,6 +188,7 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
     // A 720 px reading column; the progress line on top fills as the reader scrolls (CSS only).
     <article className="mx-auto flex w-full max-w-[45rem] flex-col gap-8">
       <span aria-hidden className="reading-progress" />
+      <ReadMeter id={article.id} topic={topic.key} publishedAt={dateUnknown || !article.publishedAt ? null : new Date(article.publishedAt).toISOString()} />
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: jsonLd(articleJsonLd(article)) }} />
       <header className="flex flex-col gap-4">
         {/* Visible breadcrumb (the same trail as the BreadcrumbList JSON-LD): crawlable links up to the hubs. */}
@@ -243,7 +245,7 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
           {article.hasDeepAnalysis && <DeepBadge />}
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href={safeHttpUrl(article.originalUrl)} target="_blank" rel="noreferrer nofollow" className={STORY_BUTTON_PRIMARY}>
+          <a href={safeHttpUrl(article.originalUrl)} target="_blank" rel="noreferrer nofollow" data-progress="source" className={STORY_BUTTON_PRIMARY}>
             Эх сурвалж <LinkExternal01 className="size-4" />
           </a>
           <ShareButton path={`/article/${slug}`} title={article.title} text={tldrSentences(article.tldr, 1)[0]} className="w-fit" />
@@ -261,7 +263,11 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
       {/* The ₮ amounts moved out of the header row into their own ledger. */}
       {article.amounts.length > 0 && <KeyNumbers amounts={article.amounts} facts={article.facts} />}
 
-      {!article.summaryFallback && <FactSpinPanel facts={article.facts} spin={article.spinDetected} neutrality={article.neutralityScore} />}
+      {!article.summaryFallback && (
+        <div data-progress="facts">
+          <FactSpinPanel facts={article.facts} spin={article.spinDetected} neutrality={article.neutralityScore} />
+        </div>
+      )}
 
       <PressPanel press={article.press} blindspot={article.pressBlindspot} />
 
