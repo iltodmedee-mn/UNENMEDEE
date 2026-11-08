@@ -24,8 +24,8 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { budgetConfig } from "@/lib/ai/limits";
 import { GOVERNMENTS_VERIFIED_THROUGH } from "@/lib/budget/governments";
-import { healthProblems, healthReport, SOCIAL_PLATFORMS, type HealthConfig, type HealthSnapshot, type NetworkSnapshot, type WorkflowSnapshot } from "@/lib/health";
-import { collectCore, collectIntegrity, collectSocial, collectVideosAndPress } from "@/lib/health-collect";
+import { healthProblems, healthReport, SOCIAL_PLATFORMS, type HealthConfig, type HealthSnapshot, type IntegritySnapshot, type NetworkSnapshot, type WorkflowSnapshot } from "@/lib/health";
+import { collectCore, collectEgress, collectIntegrity, collectSocial, collectVideosAndPress } from "@/lib/health-collect";
 import { parseLayoutReport } from "@/lib/layout-check";
 import { errorDetail, errorLine } from "@/lib/log-safe";
 import { POPULATION } from "@/lib/per-person";
@@ -180,6 +180,11 @@ function bundledCerts() {
     .map((file) => ({ file: `certs/${file}`, validTo: new Date(new X509Certificate(readFileSync(join(dir, file))).validTo) }));
 }
 
+/** The egress estimate rides on the integrity snapshot; without that snapshot there is nothing to add it to. */
+function integrityWithEgress(integrity: IntegritySnapshot | undefined, egressMbPerDay: number | null | undefined): IntegritySnapshot | undefined {
+  return integrity ? { ...integrity, egressMbPerDay } : undefined;
+}
+
 async function main() {
   if (!hasDatabase()) {
     console.error("✗ DATABASE_URL is not set.");
@@ -193,6 +198,7 @@ async function main() {
   const collectors = {
     "мэдээ/AI/push": () => collectCore(getDb(), new Date(), budgetConfig().dailyUsd),
     "өгөгдлийн бүрэн бүтэн байдал": () => collectIntegrity(getDb(), new Date()),
+    "Supabase egress": () => collectEgress(getDb(), new Date()),
     "УИХ-ын гишүүд": officials,
     "өгөгдлийн хэсгүүд": indicators,
     "opendata.mn": opendata,
@@ -214,7 +220,7 @@ async function main() {
   const s = got<Awaited<ReturnType<typeof settings>>>("тохиргоо");
   const snapshot: HealthSnapshot = {
     core: got("мэдээ/AI/push"),
-    integrity: got("өгөгдлийн бүрэн бүтэн байдал"),
+    integrity: integrityWithEgress(got<IntegritySnapshot>("өгөгдлийн бүрэн бүтэн байдал"), got<number | null>("Supabase egress")),
     // Written by scripts/check-layout.ts in the watchdog workflow; absent when the scan did not run.
     layout: parseLayoutReport(process.env.LAYOUT_REPORT && existsSync(process.env.LAYOUT_REPORT) ? readFileSync(process.env.LAYOUT_REPORT, "utf8") : null),
     officials: got("УИХ-ын гишүүд"),

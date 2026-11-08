@@ -19,7 +19,7 @@ export interface FeedCheckItem {
 }
 
 export interface FeedProblem {
-  rule: "latin" | "broken" | "duplicate" | "flood" | "old-as-new" | "date";
+  rule: "latin" | "broken" | "duplicate" | "flood" | "old-as-new" | "date" | "deploy";
   ids: number[];
   slugs: string[];
   text: string;
@@ -72,10 +72,30 @@ export function feedProblems(items: FeedCheckItem[], now: Date): FeedProblem[] {
   return out;
 }
 
+/** Minutes a `main` commit may wait for its deployment before the live site counts as stuck. */
+export const DEPLOY_GRACE_MIN = 60;
+
+/**
+ * The live site still runs an older build than `main` (Nov 6–8 2026: after the move to the
+ * iltodmedee-mn organization Vercel stopped receiving pushes; ~40 merged fixes, the ISR cut among
+ * them, never reached readers and the Hobby project was paused). `live` is /api/pulse's `commit`.
+ */
+export function deployProblem(o: { live: string | null; main: string | null; mainAt: Date | null; now: Date }): FeedProblem | null {
+  if (!o.live || !o.main || !o.mainAt || o.live === o.main) return null;
+  const minutes = Math.round((o.now.getTime() - o.mainAt.getTime()) / 60_000);
+  if (minutes < DEPLOY_GRACE_MIN) return null;
+  return {
+    rule: "deploy",
+    ids: [],
+    slugs: [],
+    text: `Сайт хуучин хувилбар дээр байна: сайт ${o.live.slice(0, 7)}, main ${o.main.slice(0, 7)} (${minutes} минутын өмнө). Vercel → Deployments-ийг шалгана: шинэ deploy үүсээгүй бол Settings → Git холболтыг дахин холбоно, улаан бол build-ийн алдааг уншина.`,
+  };
+}
+
 /** The issue text: a marker line with the problem set (to update only when it changes), then one line each. */
 export function feedReport(problems: FeedProblem[], siteUrl: string): string {
   if (!problems.length) return "";
   const key = problems.map((p) => `${p.rule}:${p.ids.join(",")}`).sort().join("|");
-  const lines = problems.map((p) => `- ${p.text}\n  ${p.slugs.map((slug) => `${siteUrl}/article/${slug}`).join(" ")}`);
+  const lines = problems.map((p) => `- ${p.text}${p.slugs.length ? `\n  ${p.slugs.map((slug) => `${siteUrl}/article/${slug}`).join(" ")}` : ""}`);
   return `<!-- feed-check: ${key} -->\nНүүр хуудасны мэдээнд дараах асуудал илэрлээ (30 минут тутам шалгадаг, юу ч өөрчлөөгүй):\n\n${lines.join("\n")}\n\nЗасах: мэдээг /admin-аас нийтлэлээс хасах эсвэл засах; шалтгааныг засуулах бол \`@gemini энэ issue-ийн асуудлыг засаад PR нээ\` гэж бичнэ. Асуудал арилмагц issue өөрөө хаагдана.\n`;
 }

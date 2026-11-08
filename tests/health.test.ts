@@ -290,3 +290,15 @@ describe("watchdog levels", () => {
     assert.equal(healthReport([{ level: "info", text: "b" }]).level, "info");
   });
 });
+
+describe("Supabase egress estimate", () => {
+  const NOW = new Date("2026-11-09T04:00:00Z");
+  it("warns above the daily share of the free 5 GB, quiet below or when unknown", () => {
+    const clean = { brokenAiText: 0, widespreadClusters: 0, duplicateHashes: 0, silentSources: [] };
+    assert.deepEqual(evaluateHealth({ integrity: { ...clean, egressMbPerDay: 120 } }, CONFIG, NOW), []);
+    assert.deepEqual(evaluateHealth({ integrity: { ...clean, egressMbPerDay: null } }, CONFIG, NOW), []);
+    const out = evaluateHealth({ integrity: { ...clean, egressMbPerDay: 330 } }, CONFIG, NOW);
+    assert.equal(out.length, 1);
+    assert.match(out[0], /≈330 MB/);
+  });
+});

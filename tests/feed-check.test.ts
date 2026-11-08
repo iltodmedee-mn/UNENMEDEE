@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
-import { test } from "node:test";
+import { describe, it, test } from "node:test";
 
-import { feedProblems, feedReport, type FeedCheckItem } from "@/lib/feed-check";
+import { deployProblem, feedProblems, feedReport, type FeedCheckItem } from "@/lib/feed-check";
 
 const NOW = new Date("2026-11-07T12:00:00Z");
 let n = 0;
@@ -58,4 +58,25 @@ test("a platform request limit is a warning, not a failure", async () => {
   assert.equal(isRateLimited(new Error("Instagram 403: Application request limit reached (code 4)")), true);
   assert.equal(isRateLimited(Object.assign(new Error("x"), { status: 429 })), true);
   assert.equal(isRateLimited(new Error("Instagram 400: Invalid parameter (code 100)")), false);
+});
+
+describe("stuck deployment", () => {
+  const now = new Date("2026-11-08T10:00:00Z");
+  const a = "a".repeat(40);
+  const b = "b".repeat(40);
+  it("says so when main waited more than an hour for its build", () => {
+    const p = deployProblem({ live: a, main: b, mainAt: new Date(now.getTime() - 2 * 3_600_000), now });
+    assert.equal(p?.rule, "deploy");
+    assert.match(p?.text ?? "", /aaaaaaa.*bbbbbbb.*120 минутын/);
+  });
+  it("stays quiet on the same build, inside the grace time, or when a side is unknown", () => {
+    assert.equal(deployProblem({ live: a, main: a, mainAt: new Date(0), now }), null);
+    assert.equal(deployProblem({ live: a, main: b, mainAt: new Date(now.getTime() - 10 * 60_000), now }), null);
+    assert.equal(deployProblem({ live: null, main: b, mainAt: new Date(0), now }), null);
+    assert.equal(deployProblem({ live: a, main: null, mainAt: new Date(0), now }), null);
+  });
+  it("the issue line has no empty link row", () => {
+    const p = deployProblem({ live: a, main: b, mainAt: new Date(0), now })!;
+    assert.ok(!feedReport([p], "https://x").includes("\n  \n"));
+  });
 });
