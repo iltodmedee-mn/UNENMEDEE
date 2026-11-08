@@ -34,8 +34,11 @@ const verification: Metadata["verification"] = {
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   applicationName: SITE_NAME,
-  // iOS home-screen app: full-screen, status bar over the page (safe-area padding in CSS).
-  appleWebApp: { capable: true, title: "ИЛ ТОД", statusBarStyle: "black-translucent" },
+  // iOS home-screen app. The status bar is a solid bar in the theme colour above the page, not
+  // over it: on iOS 26 a home-screen app's top edge (status bar and the system's blur under it)
+  // covered the header with "black-translucent", blurred it and took its taps (the owner's iPhone,
+  // Nov 8 2026; WebKit bug 301994: safe-area-inset-top reads 0 there).
+  appleWebApp: { capable: true, title: "ИЛ ТОД", statusBarStyle: "default" },
   formatDetection: { telephone: false },
   title: { default: SITE_TITLE, template: `%s · ${SITE_NAME}` },
   description: SITE_DESCRIPTION,
