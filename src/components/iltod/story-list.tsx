@@ -166,7 +166,7 @@ const StoryRow = memo(function StoryRow({ s, isRead, isOpen, lead, onOpen, onTog
             <Link href={`/article/${s.slug}`} className={STORY_BUTTON_PRIMARY}>
               Дэлгэрэнгүй{s.hasDeepAnalysis ? " ⚡" : ""} →
             </Link>
-            <a href={safeHttpUrl(s.originalUrl)} target="_blank" rel="noreferrer" className={STORY_BUTTON_OUTLINE}>
+            <a href={safeHttpUrl(s.originalUrl)} target="_blank" rel="noreferrer" data-track="source" className={STORY_BUTTON_OUTLINE}>
               Эх сурвалж <ArrowUpRight className="size-4" />
             </a>
             <ShareButton path={`/article/${s.slug}`} title={s.title} />

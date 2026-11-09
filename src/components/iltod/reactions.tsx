@@ -5,6 +5,7 @@ import Link from "next/link";
 import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 
 import { ReactionFace } from "@/components/iltod/reaction-faces";
+import { track } from "@/lib/track";
 import { COUNTS_CACHE_S, EMOJI_KINDS, type EmojiKind, REACTION_KINDS, REACTION_LABELS, type ReactionCounts, type ReactionKind } from "@/lib/reaction-kinds";
 import { cx } from "@/utils/cx";
 
@@ -110,6 +111,7 @@ export function Reactions({ articleId }: { articleId: number }) {
       remember(articleId, kind);
       setMine((m) => [...m, kind]);
       setPopped(kind);
+      track("Reaction", { kind, story: articleId });
     } catch {
       setFailed(true);
     } finally {

@@ -4,6 +4,7 @@ import { Check, Copy01, Share07 } from "@untitledui/icons";
 import { useEffect, useRef, useState } from "react";
 
 import { hasStoryImage } from "@/lib/story-pages";
+import { track } from "@/lib/track";
 import { cx } from "@/utils/cx";
 
 /**
@@ -163,6 +164,11 @@ export function ShareButton({
       {menu && (
         <div
           role="menu"
+          // One "Share" event per menu item tapped, named by its data-share.
+          onClickCapture={(e) => {
+            const via = (e.target as Element).closest("[data-share]")?.getAttribute("data-share");
+            if (via) track("Share", { via, page: path });
+          }}
           className="absolute top-full left-0 z-30 mt-1 menu-enter w-60 origin-top-left rounded-xl bg-primary p-1 shadow-lg ring-1 ring-line"
         >
           {native && (
@@ -170,6 +176,7 @@ export function ShareButton({
               role="menuitem"
               type="button"
               className={item}
+              data-share="native"
               onClick={() => shareNative(menu)}
             >
               <Share07 className="size-5" aria-hidden />
@@ -179,6 +186,7 @@ export function ShareButton({
           <a
             role="menuitem"
             className={item}
+            data-share="facebook"
             href={`https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(menu)}`}
             target="_blank"
             rel="noreferrer"
@@ -196,6 +204,7 @@ export function ShareButton({
             <a
               role="menuitem"
               className={item}
+              data-share="messenger"
               href={`fb-messenger://share/?link=${encodeURIComponent(menu)}`}
               onClick={() => setMenu(null)}
             >
@@ -213,6 +222,7 @@ export function ShareButton({
               role="menuitem"
               type="button"
               className={item}
+              data-share="story"
               onClick={() => shareStory(menu)}
               disabled={story === "busy"}
             >
@@ -236,6 +246,7 @@ export function ShareButton({
           <a
             role="menuitem"
             className={item}
+            data-share="reddit"
             href={`https://www.reddit.com/r/mongolia/submit?type=LINK&url=${encodeURIComponent(menu)}&title=${encodeURIComponent(title)}`}
             target="_blank"
             rel="noreferrer"
@@ -252,6 +263,7 @@ export function ShareButton({
           <a
             role="menuitem"
             className={item}
+            data-share="x"
             href={`https://twitter.com/intent/tweet?url=${encodeURIComponent(menu)}&text=${encodeURIComponent(title)}`}
             target="_blank"
             rel="noreferrer"
@@ -269,6 +281,7 @@ export function ShareButton({
             role="menuitem"
             type="button"
             className={item}
+            data-share="copy"
             onClick={() => copy(menu)}
           >
             {copied ? (

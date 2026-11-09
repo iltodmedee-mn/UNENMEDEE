@@ -1,9 +1,10 @@
 "use client";
 
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useRef, useState } from "react";
 
 import { formatMntShort, formatNumber } from "@/lib/format";
 import { type BudgetShare, looksLikeSalary, payrollFromInputs, payrollParts, pitSchedule, RATES_CHECKED, SI_RATE, siCapMonthly, taxReceipt, upcomingSchedules } from "@/lib/tax/receipt";
+import { track } from "@/lib/track";
 
 const toNumber = (s: string) => Number(s.replace(/[^\d]/g, "")) || 0;
 const pct = (x: number) => `${(x * 100).toLocaleString("en-US", { maximumFractionDigits: 1 })}%`;
@@ -49,6 +50,17 @@ export function TaxReceiptCalculator({ shares, year, day }: { shares: BudgetShar
   const suspicious = looksLikeSalary(toNumber(exact), toNumber(salary));
   const r = taxReceipt({ payrollMonthly: payroll.monthly, purchasesMonthly: toNumber(purchases) }, shares);
   const max = r.lines[0]?.amount || 1;
+  // One "Tax calc" per visit, once a figure has stayed typed for 2 s (no amounts are sent).
+  const counted = useRef(false);
+  const filled = [toNumber(salary) > 0 || toNumber(exact) > 0 ? "salary" : "", toNumber(purchases) > 0 ? "purchases" : ""].filter(Boolean).join("+");
+  useEffect(() => {
+    if (!filled || counted.current) return;
+    const t = window.setTimeout(() => {
+      counted.current = true;
+      track("Tax calc", { input: filled });
+    }, 2000);
+    return () => window.clearTimeout(t);
+  }, [filled]);
 
   return (
     <div className="flex flex-col gap-6">
