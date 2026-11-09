@@ -1,27 +1,16 @@
 "use client";
 
-import { Flag05, HelpCircle, ThumbsUp } from "@untitledui/icons";
+import { Flag05 } from "@untitledui/icons";
 import Link from "next/link";
-import { type ComponentType, useEffect, useRef, useState } from "react";
+import { type PointerEvent as ReactPointerEvent, useEffect, useRef, useState } from "react";
 
-import { COUNTS_CACHE_S, REACTION_KINDS, REACTION_LABELS, type ReactionCounts, type ReactionKind } from "@/lib/reaction-kinds";
+import { ReactionFace } from "@/components/iltod/reaction-faces";
+import { COUNTS_CACHE_S, EMOJI_KINDS, type EmojiKind, REACTION_KINDS, REACTION_LABELS, type ReactionCounts, type ReactionKind } from "@/lib/reaction-kinds";
 import { cx } from "@/utils/cx";
 
-/** This browser's taps, by article id: a reader counts once per story and kind. */
+/** This browser's taps, by article id: one face per story, plus «Залруулга байна». */
 const STORE_KEY = "iltod-reactions";
 const MAX_REMEMBERED = 400;
-
-/** The site's own line icons (Untitled UI), tinted per kind like the rest of the ledger. */
-const ICONS: Record<ReactionKind, ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
-  useful: ThumbsUp,
-  doubt: HelpCircle,
-  correction: Flag05,
-};
-const ON: Record<ReactionKind, string> = {
-  useful: "bg-brand-solid text-white ring-transparent",
-  doubt: "bg-warning-solid text-white ring-transparent",
-  correction: "bg-error-solid text-white ring-transparent",
-};
 
 function readStore(): Record<string, ReactionKind[]> {
   try {
@@ -45,19 +34,29 @@ function remember(id: number, kind: ReactionKind): void {
 }
 
 const isCounts = (v: unknown): v is ReactionCounts => !!v && typeof v === "object" && REACTION_KINDS.every((k) => typeof (v as ReactionCounts)[k] === "number");
+const isEmoji = (k: ReactionKind): k is EmojiKind => (EMOJI_KINDS as readonly string[]).includes(k);
+const kindAt = (x: number, y: number): EmojiKind | null => {
+  const k = (document.elementFromPoint(x, y)?.closest("[data-kind]") as HTMLElement | null)?.dataset.kind;
+  return k && isEmoji(k as ReactionKind) ? (k as EmojiKind) : null;
+};
 
 /**
- * «Энэ мэдээ танд ямар байв?»: three taps under a story, no account. Everyone sees the counts:
- * fetched when the row scrolls into view and again every COUNTS_CACHE_S seconds while the tab is
- * visible, from a CDN-cached answer (the database is read at most once a minute per story). A tap
- * answers fresh counts at once. The count slot is always there, so nothing shifts when it fills.
+ * «Энэ мэдээ танд ямар санагдав?»: the site's six faces under a story, no account (the owner's
+ * mockup, Nov 2026). A finger held on a face grows it and shows its name above; sliding moves to the
+ * next face; lifting the finger counts it, and a scroll cancels. A mouse shows the name on hover and
+ * counts on click. One face per story and browser; «Залруулга байна» is separate and links to the
+ * corrections page. Counts reach everyone from a CDN-cached answer (src/lib/reactions.ts), fetched
+ * when the row scrolls into view and every COUNTS_CACHE_S seconds while the tab is visible.
  */
 export function Reactions({ articleId }: { articleId: number }) {
   const [mine, setMine] = useState<ReactionKind[]>([]);
   const [counts, setCounts] = useState<ReactionCounts | null>(null);
-  const [busy, setBusy] = useState<ReactionKind | null>(null);
+  const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
+  const [pressed, setPressed] = useState<EmojiKind | null>(null);
   const box = useRef<HTMLElement>(null);
+
+  const face = mine.find(isEmoji) ?? null;
 
   useEffect(() => {
     const saved = readStore()[articleId];
@@ -75,7 +74,8 @@ export function Reactions({ articleId }: { articleId: number }) {
       fetch(`/api/react?id=${articleId}`)
         .then((r) => (r.ok ? r.json() : null))
         .then((v: unknown) => {
-          if (isCounts(v)) setCounts((c) => (c ? { useful: Math.max(c.useful, v.useful), doubt: Math.max(c.doubt, v.doubt), correction: Math.max(c.correction, v.correction) } : v));
+          // A cached answer can be older than this reader's own tap: never count down.
+          if (isCounts(v)) setCounts((c) => (c ? (Object.fromEntries(REACTION_KINDS.map((k) => [k, Math.max(c[k], v[k])])) as ReactionCounts) : v));
         })
         .catch(() => {});
     };
@@ -97,8 +97,8 @@ export function Reactions({ articleId }: { articleId: number }) {
   }, [articleId]);
 
   async function tap(kind: ReactionKind) {
-    if (mine.includes(kind) || busy) return;
-    setBusy(kind);
+    if (busy || mine.includes(kind) || (isEmoji(kind) && face)) return;
+    setBusy(true);
     setFailed(false);
     try {
       const res = await fetch("/api/react", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ id: articleId, kind }) });
@@ -110,45 +110,103 @@ export function Reactions({ articleId }: { articleId: number }) {
     } catch {
       setFailed(true);
     } finally {
-      setBusy(null);
+      setBusy(false);
     }
   }
 
+  // Touch: hold, slide, lift. The pointer capture is released so moving onto the next face follows the finger.
+  const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" || face) return;
+    (e.target as Element).releasePointerCapture?.(e.pointerId);
+    setPressed(kindAt(e.clientX, e.clientY));
+  };
+  const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse" || pressed === null) return;
+    setPressed(kindAt(e.clientX, e.clientY));
+  };
+  const onUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (e.pointerType === "mouse") return;
+    const k = pressed;
+    setPressed(null);
+    if (k) tap(k);
+  };
+
   return (
-    <section ref={box} aria-label="Энэ мэдээнд өгөх үнэлгээ" className="flex flex-col gap-2 border-t border-line pt-3">
-      <p className="label-mono text-tertiary">Энэ мэдээ танд ямар байв?</p>
-      <div className="flex flex-wrap gap-2">
-        {REACTION_KINDS.map((kind) => {
-          const Icon = ICONS[kind];
-          const on = mine.includes(kind);
+    <section ref={box} aria-label="Энэ мэдээнд өгөх хариу үйлдэл" className="flex flex-col gap-4 rounded-2xl bg-primary p-4 ring-1 ring-line sm:p-5">
+      <h2 className="font-display text-lg leading-tight font-bold text-primary sm:text-xl">Энэ мэдээ танд ямар санагдав?</h2>
+      <div
+        role="group"
+        aria-label="Хариу үйлдэл"
+        onPointerDown={onDown}
+        onPointerMove={onMove}
+        onPointerUp={onUp}
+        onPointerCancel={() => setPressed(null)}
+        onContextMenu={(e) => e.preventDefault()}
+        className="flex touch-pan-y items-end justify-between gap-1 pt-9 select-none [-webkit-touch-callout:none]"
+      >
+        {EMOJI_KINDS.map((kind) => {
+          const chosen = face === kind;
+          const big = pressed === kind;
           return (
             <button
               key={kind}
               type="button"
-              onClick={() => tap(kind)}
-              aria-pressed={on}
-              disabled={busy !== null}
+              data-kind={kind}
+              aria-pressed={chosen}
+              aria-label={`${REACTION_LABELS[kind]}${counts ? `, ${counts[kind]}` : ""}`}
+              disabled={busy || (face !== null && !chosen)}
+              // Mouse and keyboard; touch counts on lift (onUp above).
+              onClick={(e) => {
+                if ((e.nativeEvent as PointerEvent).pointerType && (e.nativeEvent as PointerEvent).pointerType !== "mouse") return;
+                tap(kind);
+              }}
               className={cx(
-                "inline-flex min-h-10 items-center gap-1.5 rounded-full py-1 pr-3 pl-3 text-sm font-semibold ring-1 transition-colors focus-visible:outline-2 focus-visible:outline-brand",
-                on ? ON[kind] : "bg-primary text-secondary ring-line hover:bg-primary_hover",
+                "group relative flex min-w-0 flex-1 flex-col items-center gap-1.5 rounded-xl py-1 outline-none focus-visible:ring-2 focus-visible:ring-brand",
+                face !== null && !chosen && "opacity-45",
               )}
             >
-              <Icon aria-hidden className="size-4" />
-              {REACTION_LABELS[kind]}
-              <span className={cx("num-mono min-w-[2ch] text-right text-xs tabular-nums", on ? "text-white/85" : "text-tertiary", !counts && "invisible")}>{counts ? counts[kind] : 0}</span>
+              <span
+                className={cx(
+                  "pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary-solid px-2.5 py-1 text-xs font-bold whitespace-nowrap text-white shadow-md transition-opacity",
+                  big ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+                )}
+              >
+                {REACTION_LABELS[kind]}
+              </span>
+              <ReactionFace
+                kind={kind}
+                className={cx(
+                  "size-11 transition-transform duration-150 ease-out motion-reduce:transition-none sm:size-12 dark:drop-shadow-[0_0_1.5px_rgba(255,255,255,0.6)]",
+                  big ? "-translate-y-2 scale-150" : "group-hover:-translate-y-1 group-hover:scale-110",
+                )}
+              />
+              <span className={cx("num-mono min-h-4 text-sm leading-none tabular-nums", chosen ? "font-bold text-brand-secondary" : "text-secondary", !counts && "invisible")}>
+                {counts ? counts[kind] : 0}
+              </span>
+              <span aria-hidden className={cx("h-0.5 w-6 rounded-full", chosen ? "bg-brand-solid" : "bg-transparent")} />
             </button>
           );
         })}
       </div>
-      {failed && <p className="text-xs text-error-primary">Бүртгэж чадсангүй. Дараа дахин оролдоно уу.</p>}
-      {mine.includes("correction") && (
-        <p className="text-sm text-secondary">
-          Юу буруу байгааг бидэнд бичээрэй:{" "}
-          <Link href="/about#corrections" prefetch={false} className="font-semibold text-brand-secondary underline underline-offset-4">
-            Алдаа, залруулга
+      {failed && <p className="text-sm font-semibold text-error-primary">Бүртгэж чадсангүй. Дараа дахин оролдоно уу.</p>}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-line pt-3 text-sm font-semibold">
+        <button
+          type="button"
+          onClick={() => tap("correction")}
+          aria-pressed={mine.includes("correction")}
+          disabled={busy || mine.includes("correction")}
+          className={cx("inline-flex min-h-10 items-center gap-2 rounded-lg focus-visible:outline-2 focus-visible:outline-brand", mine.includes("correction") ? "text-error-primary" : "text-secondary hover:text-primary")}
+        >
+          <Flag05 aria-hidden className="size-5" />
+          {mine.includes("correction") ? "Залруулга тэмдэглэгдлээ" : "Залруулга байна, бидэнд мэдэгдэх"}
+          {counts && counts.correction > 0 && <span className="num-mono text-xs text-tertiary">{counts.correction}</span>}
+        </button>
+        {mine.includes("correction") && (
+          <Link href="/about#corrections" prefetch={false} className="text-brand-secondary underline underline-offset-4">
+            Юу буруу байгааг бичих →
           </Link>
-        </p>
-      )}
+        )}
+      </div>
     </section>
   );
 }

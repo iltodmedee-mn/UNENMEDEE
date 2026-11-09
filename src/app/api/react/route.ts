@@ -1,4 +1,5 @@
 import { getDb, hasDatabase } from "@/db";
+import { emptyCounts } from "@/lib/reaction-kinds";
 import { addReaction, COUNTS_CACHE_S, parseArticleId, parseReaction, reactionCounts } from "@/lib/reactions";
 import { clientIp, failureLimiter } from "@/lib/rate-limit";
 
@@ -9,7 +10,7 @@ import { clientIp, failureLimiter } from "@/lib/rate-limit";
 export async function GET(request: Request) {
   const id = parseArticleId(new URL(request.url).searchParams.get("id"));
   if (!id) return Response.json({ error: "bad request" }, { status: 400 });
-  if (!hasDatabase()) return Response.json({ useful: 0, doubt: 0, correction: 0 });
+  if (!hasDatabase()) return Response.json(emptyCounts());
   try {
     const counts = await reactionCounts(getDb(), id);
     return Response.json(counts, { headers: { "cache-control": `public, max-age=0, s-maxage=${COUNTS_CACHE_S}, stale-while-revalidate=600` } });

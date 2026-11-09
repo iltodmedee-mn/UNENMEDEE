@@ -1,5 +1,6 @@
 /**
- * Readers' one-tap reactions under a story: «Тустай», «Эргэлзээтэй», «Залруулга байна». No account
+ * Readers' one-tap reactions under a story: six faces (src/lib/reaction-kinds.ts) and «Залруулга
+ * байна». No account
  * and nothing about the reader is stored, only a count per story and kind (`article_reactions`).
  *
  * Load (Nov 2026, Supabase egress over the free quota): the article page stays static. Everyone sees
@@ -12,9 +13,9 @@ import { eq, sql } from "drizzle-orm";
 import type { DB } from "@/db";
 import { articleReactions } from "@/db/schema";
 
-import { REACTION_KINDS, type ReactionCounts, type ReactionKind } from "@/lib/reaction-kinds";
+import { emptyCounts, REACTION_KINDS, type ReactionCounts, type ReactionKind } from "@/lib/reaction-kinds";
 
-export { COUNTS_CACHE_S, REACTION_KINDS, REACTION_LABELS, type ReactionCounts, type ReactionKind } from "@/lib/reaction-kinds";
+export { COUNTS_CACHE_S, EMOJI_KINDS, REACTION_KINDS, REACTION_LABELS, type EmojiKind, type ReactionCounts, type ReactionKind } from "@/lib/reaction-kinds";
 
 
 /** `?id=` of the counts request: a positive article id, or null. */
@@ -26,7 +27,7 @@ export function parseArticleId(v: string | null): number | null {
 
 const isKind = (v: unknown): v is ReactionKind => typeof v === "string" && (REACTION_KINDS as readonly string[]).includes(v);
 
-/** The body of a tap: `{"id": <article id>, "kind": "useful" | "doubt" | "correction"}`, or null. */
+/** The body of a tap: `{"id": <article id>, "kind": <a REACTION_KINDS entry>}`, or null. */
 export function parseReaction(body: string): { articleId: number; kind: ReactionKind } | null {
   if (body.length > 200) return null;
   let v: unknown;
@@ -52,7 +53,7 @@ export async function addReaction(db: DB, articleId: number, kind: ReactionKind,
 
 export async function reactionCounts(db: DB, articleId: number): Promise<ReactionCounts> {
   const rows = await db.select({ kind: articleReactions.kind, count: articleReactions.count }).from(articleReactions).where(eq(articleReactions.articleId, articleId));
-  const out: ReactionCounts = { useful: 0, doubt: 0, correction: 0 };
+  const out = emptyCounts();
   for (const r of rows) if (isKind(r.kind)) out[r.kind] = r.count;
   return out;
 }
