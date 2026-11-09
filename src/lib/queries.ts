@@ -7,12 +7,13 @@ import { shiftDate, ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { type BuyerSign, buyerSigns, type BuyerStats, isNonCompetitive, nationalShares, type NationalShares } from "@/lib/procurement/signs";
 import { NO_AWARD_SQL } from "@/lib/procurement/tenders";
+import { computeCompanyMatches, readCompanyMatches } from "@/lib/procurement/company-matches";
 import { tenderAwarded, tenderFirstOfSame, tenderThisYear } from "@/lib/procurement/tender-sql";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
 import type { DonationsSummary } from "@/lib/donations";
 import { ABOUT_KEY, type About, DEFAULT_ABOUT, parseAbout } from "@/lib/about";
 import { storedNeutrality, storedSpin } from "@/lib/ai/fact-spin";
-import { declaredCompanies, foundKeys, matchWinners, type OfficialCompaniesSnapshot } from "@/lib/officials/companies";
+import { declaredCompanies, type OfficialCompaniesSnapshot } from "@/lib/officials/companies";
 import { sharedShortNames, suspectUnitYears } from "@/lib/officials/flags";
 import { HIDDEN_YEARS_KEY, type HiddenYears, parseHiddenYears } from "@/lib/officials/hidden";
 import type { SourceDiff, SourceStatus } from "@/lib/scraper/recheck";
@@ -1799,14 +1800,9 @@ export async function getCompanyTenders(): Promise<Record<string, CompanyTenders
   cacheTag("officials");
   return safe("getCompanyTenders", {}, async () => {
     const db = getDb();
-    const [snap] = await db.select({ data: indicatorSnapshots.data }).from(indicatorSnapshots).where(eq(indicatorSnapshots.key, "officials_companies"));
-    const keys = foundKeys((snap?.data ?? null) as OfficialCompaniesSnapshot | null);
-    if (keys.size === 0) return {};
-    const winners = await db.selectDistinct({ winner: tenders.winner }).from(tenders).where(and(tenderAwarded, isNotNull(tenders.winner)));
-    const matched = matchWinners(
-      keys,
-      winners.flatMap((w) => (w.winner ? [w.winner] : [])),
-    );
+    // One small stored row (company-matches.ts), worked out at each tenders / companies sync; the
+    // live match reads all ~3 700 winner names and runs only before the first sync stored it.
+    const matched = (await readCompanyMatches(db)) ?? (await computeCompanyMatches(db));
     if (matched.size === 0) return {};
     const cells = [...new Set([...matched.values()].flat())];
     const [rows, latest] = await Promise.all([

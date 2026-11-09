@@ -19,6 +19,7 @@ import { assetDeclarations, indicatorSnapshots, politicians } from "@/db/schema"
 import { errorDetail, oneLine } from "@/lib/log-safe";
 import { type CompanyCheck, declaredCompanies, dueKeys, type OfficialCompaniesSnapshot, PAYMENTS_FROM } from "@/lib/officials/companies";
 import { checkCompany } from "@/lib/officials/companies-sync";
+import { storeCompanyMatches } from "@/lib/procurement/company-matches";
 
 const SNAPSHOT_KEY = "officials_companies";
 
@@ -106,7 +107,11 @@ async function main() {
   }
   const found = Object.values(companies).filter((c) => c.status === "found").length;
   console.log(`📊 ${done} checked this run, ${failed} failed; ${Object.keys(companies).length}/${wanted.size} on record, ${found} paid by a state body (${JSON.stringify(snap).length} B).`);
-  if (!dryRun && hasDatabase()) await save(snap);
+  if (!dryRun && hasDatabase()) {
+    await save(snap);
+    // The tender pages read which winners are these companies from one stored row (company-matches.ts).
+    console.log(`🧾 ${await storeCompanyMatches(getDb())} declared companies among the tender winners.`);
+  }
 }
 
 main()
