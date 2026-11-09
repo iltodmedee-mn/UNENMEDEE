@@ -135,13 +135,78 @@ export function emptyProgress(): Progress {
   };
 }
 
+const isObj = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null && !Array.isArray(v);
+const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
+const day = (v: unknown) => (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null);
+const numList = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is number => typeof x === "number" && Number.isFinite(x)).slice(-ID_MEMORY) : []);
+const strList = (v: unknown, max: number) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.length <= 64).slice(0, max) : []);
+const record = <T>(v: unknown, max: number, item: (x: unknown) => T | null): Record<string, T> => {
+  if (!isObj(v)) return {};
+  const out: Record<string, T> = {};
+  for (const [k, x] of Object.entries(v).slice(0, max)) {
+    const ok = k.length <= 64 ? item(x) : null;
+    if (ok !== null) out[k] = ok;
+  }
+  return out;
+};
+
+/**
+ * A progress value read from storage or a restore code, field by field: anything of the wrong
+ * type falls back to empty, so a broken or hand-made value can never break the page. Null when it
+ * is not progress of this version.
+ */
+export function sanitizeProgress(v: unknown): Progress | null {
+  if (!isObj(v) || v.v !== PROGRESS_VERSION || typeof v.xp !== "number") return null;
+  const e = emptyProgress();
+  return {
+    ...e,
+    xp: num(v.xp),
+    reads: num(v.reads),
+    readIds: numList(v.readIds),
+    facts: num(v.facts),
+    factIds: numList(v.factIds),
+    sources: num(v.sources),
+    sourceIds: numList(v.sourceIds),
+    digests: num(v.digests),
+    digestIds: numList(v.digestIds),
+    day: day(v.day) ?? "",
+    dayReads: num(v.dayReads),
+    dayFacts: num(v.dayFacts),
+    daySources: num(v.daySources),
+    streak: num(v.streak),
+    bestStreak: num(v.bestStreak),
+    lastDay: day(v.lastDay),
+    topics: record(v.topics, 64, (x) => (typeof x === "number" ? num(x) : null)),
+    morning: num(v.morning),
+    night: num(v.night),
+    weekend: num(v.weekend),
+    fast: num(v.fast),
+    returns: num(v.returns),
+    fullDays: num(v.fullDays),
+    multi: num(v.multi),
+    risky: num(v.risky),
+    laws: num(v.laws),
+    places: record(v.places, 64, (x) => (typeof x === "number" ? num(x) : null)),
+    press: num(v.press),
+    pressIds: numList(v.pressIds),
+    sections: record(v.sections, 64, (x) => (isObj(x) && day(x.last) ? { days: num(x.days), last: day(x.last)! } : null)),
+    items: record(v.items, 16, (x) => (isObj(x) ? { n: num(x.n), ids: strList(x.ids, ID_MEMORY) } : null)),
+    dayCounts: record(v.dayCounts, 16, (x) => (typeof x === "number" ? num(x) : null)),
+    flags: strList(v.flags, 64),
+    badges: record(v.badges, 256, (x) => {
+      const days = strList(x, 4).filter((d) => day(d));
+      return days.length > 0 ? days : null;
+    }),
+    unseen: strList(v.unseen, 256),
+    imported: num(v.imported),
+  };
+}
+
 /** The stored value, or a fresh start when it is missing, broken or another version. */
 export function parseProgress(raw: string | null | undefined): Progress {
   if (!raw) return emptyProgress();
   try {
-    const p = JSON.parse(raw) as Partial<Progress>;
-    if (p?.v !== PROGRESS_VERSION || typeof p.xp !== "number") return emptyProgress();
-    return { ...emptyProgress(), ...p };
+    return sanitizeProgress(JSON.parse(raw)) ?? emptyProgress();
   } catch {
     return emptyProgress();
   }

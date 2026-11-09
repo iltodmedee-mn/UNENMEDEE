@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 
 import { BadgeArt, tierColor } from "@/components/progress/badge-art";
 import { Bar, Ring } from "@/components/progress/dial-row";
+import { RestoreCode } from "@/components/progress/restore-code";
 import { StreakStrip } from "@/components/progress/streak-strip";
 import { allBadges, type BadgeState, COLLECTIONS, isSecret, TIER_NAMES, type TierKey, tierCount, tierOf } from "@/lib/badges";
 import { formatNumber } from "@/lib/format";
@@ -227,8 +228,10 @@ export function Achievements() {
         );
       })}
 
+      <RestoreCode />
+
       <p className="border-t border-line pt-4 text-sm text-tertiary">
-        Таны ахиц зөвхөн энэ төхөөрөмжийн хөтөчид хадгалагдана: бүртгэл, нэвтрэлт байхгүй, бид юу ч цуглуулдаггүй. Хөтчийн өгөгдлөө цэвэрлэвэл ахиц эхнээс нь эхэлнэ.
+        Таны ахиц зөвхөн энэ төхөөрөмжийн хөтөчид хадгалагдана: бүртгэл, нэвтрэлт байхгүй, бид юу ч цуглуулдаггүй. Хөтчийн өгөгдлөө цэвэрлэвэл ахиц эхнээс нь эхэлнэ, тиймээс сэргээх кодоо хадгалаарай.
       </p>
     </div>
   );

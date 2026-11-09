@@ -46,6 +46,10 @@ _Avoid_: category, set
 Consecutive Ulaanbaatar days with at least one counted read; it stays alive through the next day and breaks after a day with none.
 _Avoid_: chain, run
 
+**Restore code**:
+A code that carries a reader's whole progress to another phone or browser. The reader keeps it; nothing is stored for them anywhere else.
+_Avoid_: backup, account, sync
+
 **Tier**:
 How far a badge has been taken: хүрэл, мөнгө, алт, ил тод (the rarest, about a year of the habit).
 _Avoid_: grade, rank
