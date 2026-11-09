@@ -22,6 +22,7 @@ import { appSettings } from "@/db/schema";
 import { formatMntShort } from "@/lib/format";
 import { errorDetail, oneLine } from "@/lib/log-safe";
 import { fetchTenders } from "@/lib/procurement/fetch";
+import { storeCompanyMatches } from "@/lib/procurement/company-matches";
 import { upsertTenders } from "@/lib/procurement/tender-store";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false }, months: { type: "string", default: "3" } } });
@@ -54,11 +55,13 @@ async function main() {
   const [{ n }] = (await db.execute(sql`select count(*)::int as n from tenders`)).rows as { n: number }[];
   const firstSync = n === 0;
   const written = await upsertTenders(db, rows, firstSync);
+  // The members' companies among the winners, stored once for the pages (company-matches.ts).
+  const matched = await storeCompanyMatches(db);
   await db
     .insert(appSettings)
     .values({ key: "tenders_synced_at", value: new Date().toISOString() })
     .onConflictDoUpdate({ target: appSettings.key, set: { value: new Date().toISOString() } });
-  console.log(`✓ ${written} rows upserted${firstSync ? " (first sync: dated by the official result date)" : ""}${failed ? `, ${failed} call(s) failed` : ""}.`);
+  console.log(`✓ ${written} rows upserted${firstSync ? " (first sync: dated by the official result date)" : ""}${failed ? `, ${failed} call(s) failed` : ""}; ${matched} declared companies among the winners.`);
 }
 
 main()

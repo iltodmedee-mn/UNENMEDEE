@@ -4,6 +4,7 @@ import { after, before, beforeEach, describe, it } from "node:test";
 import { sql } from "drizzle-orm";
 
 import type { DB } from "@/db";
+import { COMPANY_MATCHES_KEY, readCompanyMatches, storeCompanyMatches } from "@/lib/procurement/company-matches";
 import { upsertTenders } from "@/lib/procurement/tender-store";
 import { type Tender, unitSuspect } from "@/lib/procurement/tenders";
 
@@ -92,5 +93,37 @@ describe("upsertTenders (PGlite)", () => {
     await upsertTenders(db, [lot({ key: k3, budgetMnt: 50_000_000 })], false, T0);
     await upsertTenders(db, [lot({ key: k3, contractMnt: 337_230 })], false, T0);
     assert.equal((await stored(k3)).unit_suspect, true);
+  });
+
+  // Nov 9 2026: every /officials/[id] and /tenders render read all 3 700 winner names to match them.
+  it("stores which winner cells name a declared company, and reads them back", async () => {
+    assert.equal(await readCompanyMatches(db), null);
+    const companies = {
+      from: "2025-01-01",
+      to: "2026-11-09",
+      companies: {
+        бодитчадал: { status: "found", name: "Бодит чадал ХХК", checkedAt: "2026-11-01", register: "5000001", amount: 1, count: 1, payers: [] },
+        хоёрнэр: { status: "ambiguous", name: "Хоёр нэр ХХК", checkedAt: "2026-11-01", registers: 2 },
+      },
+    };
+    await db.execute(sql`insert into indicator_snapshots (key, data, as_of, updated_at) values ('officials_companies', ${JSON.stringify(companies)}::jsonb, '2026-11-09', now()) on conflict (key) do update set data = excluded.data`);
+    await upsertTenders(
+      db,
+      [
+        lot({ key: "a|ХУД/2026/01|1", contractMnt: 48_000_000, winner: "Бодит чадал ХХК", awarded: true }),
+        lot({ key: "a|ХУД/2026/02|1", contractMnt: 30_000_000, winner: "Чоногол трейд, Бодит чадал", awarded: true }),
+        lot({ key: "a|ХУД/2026/03|1", contractMnt: 30_000_000, winner: "Хоёр нэр ХХК", awarded: true }),
+        lot({ key: "a|ХУД/2026/04|1", contractMnt: 30_000_000, winner: "Өөр компани ХХК", awarded: true }),
+      ],
+      false,
+      T0,
+    );
+    assert.equal(await storeCompanyMatches(db, T0), 1);
+    const read = await readCompanyMatches(db);
+    assert.deepEqual([...(read ?? new Map()).entries()].map(([k, v]) => [k, [...v].sort()]), [["бодитчадал", ["Бодит чадал ХХК", "Чоногол трейд, Бодит чадал"].sort()]]);
+    // A stored value of the wrong shape reads as "not built yet", never as a crash.
+    await db.execute(sql`update indicator_snapshots set data = '{"matches": "x"}'::jsonb where key = ${COMPANY_MATCHES_KEY}`);
+    assert.equal(await readCompanyMatches(db), null);
+    await db.execute(sql`delete from indicator_snapshots where key in ('officials_companies', ${COMPANY_MATCHES_KEY})`);
   });
 });
