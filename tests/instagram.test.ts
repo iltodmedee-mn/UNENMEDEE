@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { CAPTION_MAX, instagramArticlePost, instagramDigestPost, publishInstagram } from "@/lib/social/instagram";
+import { CAPTION_MAX, instagramArticlePost, instagramDigestPost, publishInstagram, publishInstagramCarousel } from "@/lib/social/instagram";
 import { outcomeUnknown, publishStep } from "@/lib/social/outcome";
 import { cut, publishThreads, threadsLength } from "@/lib/social/threads";
 
@@ -38,6 +38,7 @@ describe("instagram posts", () => {
     const id = await publishInstagram({ token: "SECRET", post: { imageUrl: "https://iltodmedee.mn/ig-image?d=1", caption: "x" }, fetchImpl: f, sleep: async () => {} });
     assert.equal(id, "m1");
     assert.deepEqual(calls, [
+      "GET https://graph.instagram.com/v26.0/me/media",
       "POST https://graph.instagram.com/v26.0/me/media",
       "GET https://graph.instagram.com/v26.0/c1",
       "GET https://graph.instagram.com/v26.0/c1",
@@ -55,15 +56,16 @@ describe("instagram posts", () => {
       return Response.json({});
     }) as unknown as typeof fetch;
     assert.equal(await publishInstagram({ token: "SECRET", post: { imageUrl: "u", caption: "c" }, fetchImpl: flaky, sleep: async () => {} }), "m2");
-    assert.deepEqual(seen, ["POST media", "GET c2", "GET c2", "POST media_publish", "POST media_publish"]);
+    assert.deepEqual(seen, ["GET media", "POST media", "GET c2", "GET c2", "POST media_publish", "POST media_publish"]);
     // The same 9007 on every publish attempt is still a failure, never an endless loop.
     const stuck = (async (url: string) => {
+      if (url.includes("/me/media?")) return Response.json({ data: [] });
       if (url.endsWith("/me/media")) return Response.json({ id: "c3" });
       if (url.includes("/c3?")) return Response.json({ status_code: "FINISHED" });
       return Response.json({ error: { message: "Media ID is not available", code: 9007 } }, { status: 400 });
     }) as unknown as typeof fetch;
     const gaveUp = await publishInstagram({ token: "SECRET", post: { imageUrl: "u", caption: "c" }, fetchImpl: stuck, sleep: async () => {} }).catch((e: Error) => e);
-    assert.ok(gaveUp instanceof Error && gaveUp.message.includes("code 9007"));
+    assert.ok(gaveUp instanceof Error && gaveUp.message.includes("(publish)") && gaveUp.message.includes("code 9007"));
     const bad = (async () => Response.json({ error: { message: "Invalid OAuth access token", code: 190 } }, { status: 400 })) as unknown as typeof fetch;
     const err = await publishInstagram({ token: "SECRET", post: { imageUrl: "u", caption: "c" }, fetchImpl: bad }).catch((e: Error) => e);
     assert.ok(err instanceof Error && err.message.includes("code 190") && !err.message.includes("SECRET"));
@@ -73,8 +75,9 @@ describe("instagram posts", () => {
   // still went out, and the log could not say which call refused or how much of the quota was used.
   it("a refusal names its step and, for a request limit, Meta's usage headers", async () => {
     const usage = { "x-app-usage": '{"call_count":100,"total_time":3,"total_cputime":2}', "x-business-use-case-usage": '{"1789":[{"type":"instagram","call_count":12}]}' };
-    const limited = (async (url: string) => {
-      if (url.endsWith("/me/media")) return Response.json({ id: "c4" });
+    const limited = (async (url: string, init?: RequestInit) => {
+      if (url.includes("/me/media?")) return Response.json({ data: [] });
+      if (url.endsWith("/me/media") && init?.method === "POST") return Response.json({ id: "c4" });
       if (url.includes("/c4?")) return Response.json({ status_code: "FINISHED" });
       return Response.json({ error: { message: "Application request limit reached", code: 4 } }, { status: 403, headers: usage });
     }) as unknown as typeof fetch;
@@ -87,7 +90,24 @@ describe("instagram posts", () => {
     // A create refusal says "create"; another error carries no usage.
     const noCreate = (async () => Response.json({ error: { message: "Invalid parameter", code: 100 } }, { status: 400, headers: usage })) as unknown as typeof fetch;
     const e2 = await publishInstagram({ token: "SECRET", post: { imageUrl: "u", caption: "c" }, fetchImpl: noCreate, sleep: async () => {} }).catch((e: Error) => e);
-    assert.ok(e2 instanceof Error && e2.message.startsWith("Instagram 400: (create) Invalid parameter (code 100)") && !e2.message.includes("usage"), e2 instanceof Error ? e2.message : "");
+    assert.ok(e2 instanceof Error && e2.message.startsWith("Instagram 400: (check) Invalid parameter (code 100)") && !e2.message.includes("usage"), e2 instanceof Error ? e2.message : "");
+  });
+
+  // Nov 7-9 2026: media_publish answered code 4 after publishing, and every hourly retry posted the
+  // same digest again. A retry now finds the live post by its caption and records it instead.
+  it("a post already on the account is found by its caption, never published twice", async () => {
+    const calls: string[] = [];
+    const f = (async (url: string, init?: RequestInit) => {
+      calls.push(`${init?.method ?? "GET"} ${url.split("?")[0].split("/").pop()}`);
+      if (url.includes("/me/media?")) return Response.json({ data: [{ id: "old" }, { id: "live", caption: "🗞 ОРОЙН ТОЙМ · 17:19\n\n⚡ Экспорт  " }] });
+      return Response.json({ id: "new" });
+    }) as unknown as typeof fetch;
+    const id = await publishInstagram({ token: "T", post: { imageUrl: "u", caption: "🗞 ОРОЙН ТОЙМ · 17:19\n\n⚡ Экспорт" }, fetchImpl: f, sleep: async () => {} });
+    assert.equal(id, "live");
+    assert.deepEqual(calls, ["GET media"]);
+    const carousel = await publishInstagramCarousel({ token: "T", imageUrls: ["a", "b"], caption: "🗞 ОРОЙН ТОЙМ · 17:19 ⚡ Экспорт", fetchImpl: f, sleep: async () => {} });
+    assert.equal(carousel, "live");
+    assert.ok(!calls.some((c) => c.startsWith("POST")), calls.join("\n"));
   });
 });
 
