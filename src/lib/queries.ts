@@ -7,13 +7,13 @@ import { shiftDate, ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { type BuyerSign, buyerSigns, type BuyerStats, isNonCompetitive, nationalShares, type NationalShares } from "@/lib/procurement/signs";
 import { NO_AWARD_SQL } from "@/lib/procurement/tenders";
-import { computeCompanyMatches, readCompanyMatches } from "@/lib/procurement/company-matches";
+import { computeCompanyMatches, computeCompanyOwners, readCompanyMatches } from "@/lib/procurement/company-matches";
 import { tenderAwarded, tenderFirstOfSame, tenderThisYear } from "@/lib/procurement/tender-sql";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
 import type { DonationsSummary } from "@/lib/donations";
 import { ABOUT_KEY, type About, DEFAULT_ABOUT, parseAbout } from "@/lib/about";
 import { storedNeutrality, storedSpin } from "@/lib/ai/fact-spin";
-import { declaredCompanies, type OfficialCompaniesSnapshot } from "@/lib/officials/companies";
+import type { OfficialCompaniesSnapshot } from "@/lib/officials/companies";
 import { sharedShortNames, suspectUnitYears } from "@/lib/officials/flags";
 import { HIDDEN_YEARS_KEY, type HiddenYears, parseHiddenYears } from "@/lib/officials/hidden";
 import type { SourceDiff, SourceStatus } from "@/lib/scraper/recheck";
@@ -1801,30 +1801,20 @@ export async function getCompanyTenders(): Promise<Record<string, CompanyTenders
   return safe("getCompanyTenders", {}, async () => {
     const db = getDb();
     // One small stored row (company-matches.ts), worked out at each tenders / companies sync; the
-    // live match reads all ~3 700 winner names and runs only before the first sync stored it.
-    const matched = (await readCompanyMatches(db)) ?? (await computeCompanyMatches(db));
+    // live match reads all ~3 700 winner names and every member's latest filing, and runs only
+    // before the first sync stored it.
+    const stored = await readCompanyMatches(db);
+    const matched = stored?.matches ?? (await computeCompanyMatches(db));
     if (matched.size === 0) return {};
     const cells = [...new Set([...matched.values()].flat())];
-    const [rows, latest] = await Promise.all([
+    const [rows, owners] = await Promise.all([
       db
         .select(tenderColumns)
         .from(tenders)
         .where(and(tenderAwarded, tenderFirstOfSame, inArray(tenders.winner, cells)))
         .orderBy(sql`${tenders.resultDate} desc nulls last`, desc(tenders.id)),
-      db
-        .selectDistinctOn([assetDeclarations.politicianId], { id: politicians.id, shortName: politicians.shortName, details: assetDeclarations.details })
-        .from(assetDeclarations)
-        .innerJoin(politicians, eq(politicians.id, assetDeclarations.politicianId))
-        .where(eq(politicians.isActive, true))
-        .orderBy(assetDeclarations.politicianId, desc(assetDeclarations.year)),
+      stored?.owners ? Promise.resolve(stored.owners) : computeCompanyOwners(db),
     ]);
-    const owners = new Map<string, { name: string; owners: { id: number; shortName: string }[] }>();
-    for (const m of latest)
-      for (const o of declaredCompanies(m.details as Record<string, string> | null).stocks) {
-        const e = owners.get(o.key) ?? { name: o.name, owners: [] };
-        e.owners.push({ id: m.id, shortName: m.shortName });
-        owners.set(o.key, e);
-      }
     const out: Record<string, CompanyTenders> = {};
     for (const [key, cellList] of matched) {
       const lots = rows.filter((r) => r.winner !== null && cellList.includes(r.winner));

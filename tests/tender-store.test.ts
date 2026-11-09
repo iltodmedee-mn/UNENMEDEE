@@ -120,7 +120,9 @@ describe("upsertTenders (PGlite)", () => {
     );
     assert.equal(await storeCompanyMatches(db, T0), 1);
     const read = await readCompanyMatches(db);
-    assert.deepEqual([...(read ?? new Map()).entries()].map(([k, v]) => [k, [...v].sort()]), [["бодитчадал", ["Бодит чадал ХХК", "Чоногол трейд, Бодит чадал"].sort()]]);
+    assert.deepEqual([...(read?.matches ?? new Map<string, string[]>()).entries()].map(([k, v]) => [k, [...v].sort()]), [["бодитчадал", ["Бодит чадал ХХК", "Чоногол трейд, Бодит чадал"].sort()]]);
+    // No member in this database declared it: the owners map is stored, and empty.
+    assert.deepEqual([...(read?.owners ?? new Map([["x", null]])).keys()], []);
     // A stored value of the wrong shape reads as "not built yet", never as a crash.
     await db.execute(sql`update indicator_snapshots set data = '{"matches": "x"}'::jsonb where key = ${COMPANY_MATCHES_KEY}`);
     assert.equal(await readCompanyMatches(db), null);
