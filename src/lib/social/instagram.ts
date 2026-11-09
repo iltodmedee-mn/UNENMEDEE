@@ -90,10 +90,38 @@ class InstagramError extends Error {
 
 const notReady = (err: unknown) => err instanceof InstagramError && err.code === MEDIA_NOT_READY;
 
+/** Which call refused: the log must tell a refused create from a refused publish. */
+function stepOf(url: string): string {
+  const path = url.split("?")[0];
+  if (path.endsWith("/media_publish")) return "publish";
+  if (path.endsWith("/media")) return "create";
+  if (path.endsWith("/refresh_access_token")) return "refresh";
+  return "status";
+}
+
+/** Graph throttling codes (app, user, page, per-action): the answer's usage headers say whose quota. */
+const LIMIT_CODES = new Set([4, 17, 32, 613]);
+
+/**
+ * Meta's own usage report on a throttled answer (percentages of the app's and the account's quotas,
+ * no ids that matter, never the token). Nov 7-9 2026: every image post answered "Application request
+ * limit reached (code 4)" while Reels still went out, and nothing showed which quota it was.
+ */
+function usageNote(res: Response): string {
+  const app = res.headers.get("x-app-usage");
+  const business = res.headers.get("x-business-use-case-usage");
+  const parts = [app && `app ${app}`, business && `business ${business}`].filter(Boolean);
+  return parts.length ? ` [usage: ${parts.join("; ")}]`.slice(0, 400) : "";
+}
+
 async function call(fetchImpl: Fetch, url: string, init?: RequestInit): Promise<Record<string, unknown>> {
   const res = await fetchImpl(url, { ...init, signal: AbortSignal.timeout(60_000) });
   const json = (await readJsonBody(res)) as Record<string, unknown> & { error?: { message?: string; code?: number } };
-  if (!res.ok || json.error) throw new InstagramError(`Instagram ${res.status}: ${json.error?.message ?? "request failed"} (code ${json.error?.code ?? "?"})`.slice(0, 300), json.error?.code);
+  if (!res.ok || json.error) {
+    const code = json.error?.code;
+    const head = `Instagram ${res.status}: (${stepOf(url)}) ${json.error?.message ?? "request failed"} (code ${code ?? "?"})`.slice(0, 300);
+    throw new InstagramError(head + (code !== undefined && LIMIT_CODES.has(code) ? usageNote(res) : ""), code);
+  }
   return json;
 }
 

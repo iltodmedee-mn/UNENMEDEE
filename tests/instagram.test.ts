@@ -68,6 +68,27 @@ describe("instagram posts", () => {
     const err = await publishInstagram({ token: "SECRET", post: { imageUrl: "u", caption: "c" }, fetchImpl: bad }).catch((e: Error) => e);
     assert.ok(err instanceof Error && err.message.includes("code 190") && !err.message.includes("SECRET"));
   });
+
+  // Nov 7-9 2026: every image post answered "Application request limit reached (code 4)" while Reels
+  // still went out, and the log could not say which call refused or how much of the quota was used.
+  it("a refusal names its step and, for a request limit, Meta's usage headers", async () => {
+    const usage = { "x-app-usage": '{"call_count":100,"total_time":3,"total_cputime":2}', "x-business-use-case-usage": '{"1789":[{"type":"instagram","call_count":12}]}' };
+    const limited = (async (url: string) => {
+      if (url.endsWith("/me/media")) return Response.json({ id: "c4" });
+      if (url.includes("/c4?")) return Response.json({ status_code: "FINISHED" });
+      return Response.json({ error: { message: "Application request limit reached", code: 4 } }, { status: 403, headers: usage });
+    }) as unknown as typeof fetch;
+    const err = await publishInstagram({ token: "SECRET", post: { imageUrl: "u", caption: "c" }, fetchImpl: limited, sleep: async () => {} }).catch((e: Error) => e);
+    assert.ok(err instanceof Error);
+    assert.match(err.message, /^Instagram 403: \(publish\) Application request limit reached \(code 4\)/);
+    assert.ok(err.message.includes('app {"call_count":100'), err.message);
+    assert.ok(err.message.includes("business"), err.message);
+    assert.ok(!err.message.includes("SECRET"));
+    // A create refusal says "create"; another error carries no usage.
+    const noCreate = (async () => Response.json({ error: { message: "Invalid parameter", code: 100 } }, { status: 400, headers: usage })) as unknown as typeof fetch;
+    const e2 = await publishInstagram({ token: "SECRET", post: { imageUrl: "u", caption: "c" }, fetchImpl: noCreate, sleep: async () => {} }).catch((e: Error) => e);
+    assert.ok(e2 instanceof Error && e2.message.startsWith("Instagram 400: (create) Invalid parameter (code 100)") && !e2.message.includes("usage"), e2 instanceof Error ? e2.message : "");
+  });
 });
 
 describe("social publishing safety", () => {
