@@ -15,6 +15,7 @@ import { FollowCard } from "@/components/iltod/follow-card";
 import { HashBadge } from "@/components/iltod/hash-badge";
 import { KeyNumbers } from "@/components/iltod/key-numbers";
 import { PressPanel } from "@/components/iltod/press-panel";
+import { Reactions } from "@/components/iltod/reactions";
 import { isProtocolStory, ProtocolNote, ReaderImpactBlock } from "@/components/iltod/reader-impact";
 import { Panel } from "@/components/iltod/panel";
 import { SourceChangeNotice } from "@/components/iltod/source-change";
@@ -278,6 +279,9 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
       )}
 
       <PressPanel press={article.press} blindspot={article.pressBlindspot} />
+
+      {/* Static until a tap: the counts come back only in the tap's answer (src/lib/reactions.ts). */}
+      <Reactions articleId={article.id} />
 
       {article.deepAnalysis && (
         <AIMarkdownMessage
