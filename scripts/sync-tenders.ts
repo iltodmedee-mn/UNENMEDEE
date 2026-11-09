@@ -18,15 +18,13 @@ import { parseArgs } from "node:util";
 import { sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
-import { appSettings, tenders } from "@/db/schema";
+import { appSettings } from "@/db/schema";
 import { formatMntShort } from "@/lib/format";
 import { errorDetail, oneLine } from "@/lib/log-safe";
 import { fetchTenders } from "@/lib/procurement/fetch";
-import { MIN_PLAIN_MNT, UNIT_RATIO } from "@/lib/procurement/tenders";
+import { upsertTenders } from "@/lib/procurement/tender-store";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false }, months: { type: "string", default: "3" } } });
-
-const BATCH = 300;
 
 async function main() {
   const dry = values["dry-run"];
@@ -55,57 +53,7 @@ async function main() {
   const db = getDb();
   const [{ n }] = (await db.execute(sql`select count(*)::int as n from tenders`)).rows as { n: number }[];
   const firstSync = n === 0;
-  let written = 0;
-  for (let i = 0; i < rows.length; i += BATCH) {
-    const batch = rows.slice(i, i + BATCH).map((t) => {
-      // First sync: an award counts as "seen" on its official date; an undated one stays null
-      // (listed by date only), so the feed does not open with thousands of "new" contracts.
-      const seen = !firstSync ? new Date() : t.resultDate ? new Date(`${t.resultDate}T12:00:00+08:00`) : null;
-      return {
-        key: t.key,
-        code: t.code,
-        title: t.title,
-        orgName: t.orgName,
-        orgRegister: t.orgRegister,
-        governor: t.governor,
-        budgetMnt: t.budgetMnt,
-        contractMnt: t.contractMnt,
-        method: t.method,
-        winner: t.winner,
-        awarded: t.awarded,
-        unitSuspect: t.unitSuspect,
-        resultDate: t.resultDate,
-        firstSeenAt: seen ?? new Date(),
-        awardedSeenAt: t.awarded ? seen : null,
-      };
-    });
-    await db
-      .insert(tenders)
-      .values(batch)
-      .onConflictDoUpdate({
-        target: tenders.key,
-        set: {
-          title: sql`excluded.title`,
-          orgName: sql`excluded.org_name`,
-          governor: sql`excluded.governor`,
-          budgetMnt: sql`coalesce(excluded.budget_mnt, ${tenders.budgetMnt})`,
-          contractMnt: sql`coalesce(excluded.contract_mnt, ${tenders.contractMnt})`,
-          method: sql`coalesce(excluded.method, ${tenders.method})`,
-          // A later filing that says "-" keeps the stored winner of an awarded lot.
-          winner: sql`case when ${tenders.awarded} and not excluded.awarded then ${tenders.winner} else coalesce(excluded.winner, ${tenders.winner}) end`,
-          awarded: sql`${tenders.awarded} or excluded.awarded`,
-          // From the MERGED budget and contract (the same rule as unitSuspect() in tenders.ts): the
-          // incoming flag was computed without the stored side, so a stored thousands-of-₮ budget
-          // next to a new ₮ contract read as a clean 95 900 % over-budget award.
-          unitSuspect: sql`coalesce(excluded.budget_mnt, ${tenders.budgetMnt}) < ${MIN_PLAIN_MNT} or coalesce(excluded.contract_mnt, ${tenders.contractMnt}) < ${MIN_PLAIN_MNT} or (coalesce(excluded.budget_mnt, ${tenders.budgetMnt}) is not null and coalesce(excluded.contract_mnt, ${tenders.contractMnt}) is not null and greatest(coalesce(excluded.budget_mnt, ${tenders.budgetMnt}), coalesce(excluded.contract_mnt, ${tenders.contractMnt}))::numeric / nullif(least(coalesce(excluded.budget_mnt, ${tenders.budgetMnt}), coalesce(excluded.contract_mnt, ${tenders.contractMnt})), 0) >= ${UNIT_RATIO})`,
-          resultDate: sql`coalesce(excluded.result_date, ${tenders.resultDate})`,
-          // Set once, when a stored lot first turns awarded; later syncs never move it.
-          awardedSeenAt: sql`case when excluded.awarded and not ${tenders.awarded} then now() else ${tenders.awardedSeenAt} end`,
-          updatedAt: sql`now()`,
-        },
-      });
-    written += batch.length;
-  }
+  const written = await upsertTenders(db, rows, firstSync);
   await db
     .insert(appSettings)
     .values({ key: "tenders_synced_at", value: new Date().toISOString() })
