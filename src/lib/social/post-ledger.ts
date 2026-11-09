@@ -22,7 +22,7 @@ import { socialPosts } from "@/db/schema";
 import { errorLine } from "@/lib/log-safe";
 import { UnknownOutcomeError } from "@/lib/social/outcome";
 
-export type PostKind = "digest" | "article" | "quiz" | "weekly" | "video" | "wquiz" | "wquiz_ans";
+export type PostKind = "digest" | "article" | "quiz" | "weekly" | "video" | "wquiz" | "wquiz_ans" | "announce";
 
 /**
  * Kinds whose refusal is retried at most MAX_TRIES times ("failed:n"), not every run: each try
