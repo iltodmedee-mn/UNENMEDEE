@@ -522,6 +522,23 @@ export const siteErrors = pgTable(
 );
 
 /**
+ * Readers' one-tap reactions under a story (`src/lib/reactions.ts`): «Тустай», «Эргэлзээтэй»,
+ * «Залруулга байна». Only counts, no reader data; a row per story and kind, bumped in place.
+ */
+export const articleReactions = pgTable(
+  "article_reactions",
+  {
+    articleId: integer("article_id")
+      .notNull()
+      .references(() => articles.id, { onDelete: "cascade" }),
+    kind: varchar("kind", { length: 16 }).notNull(),
+    count: integer("count").notNull().default(0),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.articleId, t.kind] }), index("article_reactions_updated_idx").on(t.updatedAt)],
+);
+
+/**
  * The finished content of one list page (home feed, a topic) as of the last pipeline run
  * (docs/adr/0001-list-pages-read-snapshots.md). `hash` covers only what makes the page different
  * (its stories and digest editions), so a run that changes nothing rebuilds nothing.
