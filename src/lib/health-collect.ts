@@ -168,7 +168,11 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
 export async function collectSocial(db: DB, now: Date): Promise<Partial<Record<SocialPlatform, SocialSnapshot>>> {
   const unknown = await unknownSince(db, 7, now);
   const out: Partial<Record<SocialPlatform, SocialSnapshot>> = {};
-  for (const p of SOCIAL_PLATFORMS) out[p] = { hoursSinceOk: hoursSince(await lastRealPost(db, p), now), unknown7d: unknown[p] ?? 0 };
+  for (const p of SOCIAL_PLATFORMS) {
+    const [article, digest] = await Promise.all([lastRealPost(db, p, "article"), lastRealPost(db, p, "digest")]);
+    const news = [article, digest].filter((d): d is Date => d !== null).sort((a, b) => b.getTime() - a.getTime())[0] ?? null;
+    out[p] = { hoursSinceOk: hoursSince(await lastRealPost(db, p), now), hoursSinceNewsOk: hoursSince(news, now), unknown7d: unknown[p] ?? 0 };
+  }
   return out;
 }
 
