@@ -29,11 +29,19 @@ export function progressRaw(): string | null {
   }
 }
 
+let persistAsked = false;
+
 export function saveProgress(p: Progress): void {
   try {
     localStorage.setItem(PROGRESS_KEY, JSON.stringify(p));
   } catch {
     /* not kept */
+  }
+  // Ask once a page view that this site's storage is not cleared to free space (Chrome often grants
+  // it; Safari ignores it). The restore code (/amjilt) covers the rest.
+  if (!persistAsked) {
+    persistAsked = true;
+    navigator.storage?.persist?.().catch(() => {});
   }
   window.dispatchEvent(new Event(CHANGE_EVENT));
 }

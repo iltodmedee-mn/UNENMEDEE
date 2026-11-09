@@ -7,6 +7,7 @@ import { PageHeader } from "@/components/iltod/page-header";
 import { TimeAgo } from "@/components/iltod/time-ago";
 import { tldrSentences } from "@/lib/format";
 import { search } from "@/lib/queries";
+import { MpPhoto } from "@/components/officials/mp-photo";
 
 export const metadata: Metadata = {
   title: "Хайлт",
@@ -71,8 +72,7 @@ async function Results({ searchParams }: { searchParams: PageProps<"/search">["s
             {politicians.map((p) => (
               <li key={p.id}>
                 <Link href={`/officials/${p.id}`} className="flex items-center gap-2 rounded-full bg-primary py-1 pr-3 pl-1 text-sm ring-1 ring-line ring-inset hover:bg-primary_hover">
-                  {/* eslint-disable-next-line @next/next/no-img-element -- portraits come from parliament.mn */}
-                  {p.photoUrl ? <img src={p.photoUrl} alt="" className="size-7 rounded-full object-cover" loading="lazy" /> : <span className="size-7 rounded-full bg-secondary" />}
+                  {p.photoUrl ? <MpPhoto src={p.photoUrl} size={28} className="size-7 rounded-full object-cover" /> : <span className="size-7 rounded-full bg-secondary" />}
                   <span className="font-semibold text-primary">{p.fullName}</span>
                   <span className="text-tertiary">{p.party}</span>
                 </Link>

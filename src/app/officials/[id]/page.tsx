@@ -18,6 +18,7 @@ import { declaredCompanies } from "@/lib/officials/companies";
 import { getAttendance, getCompanyTenders, getOfficialCompanies, getPolitician, getPoliticianIds } from "@/lib/queries";
 import { jsonLd, parseRouteId, SITE_NAME } from "@/lib/site";
 import { breadcrumbLd, personLd } from "@/lib/structured-data";
+import { MpPhoto } from "@/components/officials/mp-photo";
 
 export async function generateStaticParams() {
   const ids = await getPoliticianIds();
@@ -145,8 +146,7 @@ async function Profile({ params }: { params: PageProps<"/officials/[id]">["param
         <ArrowLeft className="size-4" /> Бүх гишүүд
       </Link>
       <header className="flex items-center gap-4">
-        {/* eslint-disable-next-line @next/next/no-img-element -- portraits come from parliament.mn */}
-        {p.photoUrl && <img src={p.photoUrl} alt={p.fullName} className="size-20 shrink-0 rounded-full bg-secondary object-cover" />}
+        {p.photoUrl && <MpPhoto src={p.photoUrl} size={80} alt={p.fullName} eager className="size-20 shrink-0 rounded-full bg-secondary object-cover" />}
         <div className="flex min-w-0 flex-col gap-1">
           <h1 className="headline text-[1.75rem] text-primary">{p.fullName}</h1>
           {p.shortName !== p.fullName && <p className="label-mono normal-case text-tertiary">{p.shortName}</p>}

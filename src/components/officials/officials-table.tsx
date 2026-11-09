@@ -7,6 +7,7 @@ import { formatMntShort } from "@/lib/format";
 import { formatPercent, MIN_ASSETS_FOR_JUMP } from "@/lib/officials/flags";
 import type { PoliticianSummary } from "@/lib/queries";
 import { cx } from "@/utils/cx";
+import { MpPhoto } from "@/components/officials/mp-photo";
 
 type Sort = "assets" | "income" | "change" | "name";
 
@@ -107,8 +108,7 @@ export function OfficialsTable({ people }: { people: PoliticianSummary[] }) {
                   prefetch={false}
                   className="grid grid-cols-[40px_1fr_auto] items-center gap-x-3 gap-y-1 py-3 transition hover:bg-primary_hover xl:grid-cols-[40px_1.6fr_1fr_1fr_0.8fr] xl:py-2.5"
                 >
-                  {/* eslint-disable-next-line @next/next/no-img-element -- portraits come from parliament.mn */}
-                  {p.photoUrl ? <img src={p.photoUrl} alt="" loading="lazy" className="row-span-2 size-10 rounded-full bg-secondary object-cover xl:row-span-1" /> : <span className="row-span-2 size-10 rounded-full bg-secondary xl:row-span-1" />}
+                  {p.photoUrl ? <MpPhoto src={p.photoUrl} size={40} className="row-span-2 size-10 rounded-full bg-secondary object-cover xl:row-span-1" /> : <span className="row-span-2 size-10 rounded-full bg-secondary xl:row-span-1" />}
                   <span className="flex min-w-0 flex-col">
                     <span className="truncate font-semibold text-primary">{p.fullName}</span>
                     <span className="label-mono flex flex-wrap items-center gap-x-1.5 truncate text-tertiary">
