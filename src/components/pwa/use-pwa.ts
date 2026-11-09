@@ -4,6 +4,7 @@ import { useCallback, useState, useSyncExternalStore } from "react";
 
 import { sendTestPush, setFollows, subscribePush, unsubscribePush } from "@/app/push-actions";
 import { FOLLOW_KEY, parseFollows } from "@/lib/officials/follow";
+import { track } from "@/lib/track";
 
 /** Chrome/Edge/Samsung fire this when the app can be installed with one tap. */
 interface BeforeInstallPromptEvent extends Event {
@@ -194,6 +195,7 @@ export function usePwa() {
       }
       setSharedSub(sub);
       rememberPush(true);
+      track("Push subscribe", { app: window.matchMedia("(display-mode: standalone)").matches ? "installed" : "browser", new: !existing });
       const follows = parseFollows(localStorage.getItem(FOLLOW_KEY));
       if (follows.length) await setFollows(sub.endpoint, follows);
     } catch {

@@ -254,7 +254,7 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
           {article.hasDeepAnalysis && <DeepBadge />}
         </div>
         <div className="flex flex-wrap gap-2">
-          <a href={safeHttpUrl(article.originalUrl)} target="_blank" rel="noreferrer nofollow" data-progress="source" className={STORY_BUTTON_PRIMARY}>
+          <a href={safeHttpUrl(article.originalUrl)} target="_blank" rel="noreferrer nofollow" data-progress="source" data-track="source" className={STORY_BUTTON_PRIMARY}>
             Эх сурвалж <LinkExternal01 className="size-4" />
           </a>
           <ShareButton path={`/article/${slug}`} title={article.title} text={tldrSentences(article.tldr, 1)[0]} className="w-fit" />

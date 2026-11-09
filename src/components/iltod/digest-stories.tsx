@@ -101,7 +101,7 @@ export function DigestStories({ edition, items, track }: { edition: number; item
                     <Link href={`/article/${it.slug}`} onClick={() => saveTrail(trail)} className={STORY_BUTTON_OUTLINE}>
                       Дэлгэрэнгүй →
                     </Link>
-                    <a href={safeHttpUrl(it.story.originalUrl)} target="_blank" rel="noreferrer" className={STORY_BUTTON_OUTLINE}>
+                    <a href={safeHttpUrl(it.story.originalUrl)} target="_blank" rel="noreferrer" data-track="source" className={STORY_BUTTON_OUTLINE}>
                       Эх сурвалж <ArrowUpRight className="size-4" />
                     </a>
                     {next !== null ? (
