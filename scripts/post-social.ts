@@ -582,7 +582,7 @@ async function main() {
     } catch (err) {
       // A request limit says nothing about the post or the token: the next run tries again.
       if (isRateLimited(err)) {
-        console.log(`::warning::${p.name}: ${errorLine(err, 400)} (request limit: the next run tries again)`);
+        console.log(`::warning::${p.name}: ${errorLine(err, 800)} (request limit: the next run tries again)`);
         continue;
       }
       const hint = err instanceof FacebookError && err.hint ? ` ${err.hint}` : "";
