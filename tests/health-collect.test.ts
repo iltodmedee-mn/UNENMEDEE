@@ -137,6 +137,7 @@ describe("watchdog collectors (PGlite)", () => {
     assert.equal(s.facebook?.unknown7d, 1);
     assert.equal(s.threads?.hoursSinceOk, null);
     assert.equal(s.instagram?.hoursSinceOk, 5);
+    assert.equal(s.facebook?.hoursSinceNewsOk !== undefined, true, "news-only freshness is collected");
     assert.equal(s.instagram?.unknown7d, 0);
   });
 

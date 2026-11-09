@@ -74,6 +74,8 @@ export interface OfficialsSnapshot {
 export interface SocialSnapshot {
   /** Hours since this platform's last post with a real post id (null = none in the table). */
   hoursSinceOk: number | null;
+  /** The same for news stories and digests only: Reels kept hoursSinceOk fresh while Instagram took no image post for two days (Nov 2026). */
+  hoursSinceNewsOk?: number | null;
   /** Rows of the last 7 days whose outcome was unknown (`post_id = 'unknown'`). */
   unknown7d: number;
 }
@@ -262,6 +264,8 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
     const p = s.social?.[platform];
     if (!p) continue;
     if (olderThan(p.hoursSinceOk, 72)) info(`${platform}: ${h(p.hoursSinceOk)} амжилттай пост гараагүй (токен, social алхмын лог шалгах; docs/FACEBOOK.md).`);
+    // Digests go out twice a day, so 30 h without a story or digest is a fault even when videos post.
+    else if (p.hoursSinceNewsOk !== undefined && olderThan(p.hoursSinceNewsOk, 30)) info(`${platform}: мэдээ, тойм ${h(p.hoursSinceNewsOk)} амжилттай гараагүй (видео гарч байж болно). Pipeline-ийн «Post the most important new story» алхмын ::warning:: мөрийг шалгах.`);
     if (p.unknown7d > 0) info(`${platform}: ${p.unknown7d} пост нийтлэгдсэн эсэх нь тодорхойгүй (post_id='unknown'): хуудсаа гараар шалгах.`);
   }
   if (s.tokens) {
@@ -297,7 +301,8 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
   // `npm run pipeline:mark`, the pipeline's first step: GitHub drops scheduled runs, and the
   // Supabase fallback (supabase/pipeline-fallback.sql) starts one after an hour when it has a token.
   if (m?.pipelineAt && daysSince(m.pipelineAt, now) * 24 > PIPELINE_QUIET_H) urgent(`Мэдээний pipeline ${Math.round(daysSince(m.pipelineAt, now) * 24)} цаг эхлээгүй: GitHub хуваарийг алгассан байж магадгүй (docs/PIPELINE-FALLBACK.md).`);
-  if (m?.tendersAt && daysSince(m.tendersAt, now) > 3) info(`Тендерийн үр дүн (/tenders) ${Math.round(daysSince(m.tendersAt, now))} хоног шинэчлэгдээгүй: news-digest → "Sync tender results" алхмыг шалгах (Шилэн дансны API).`);
+  // The sync runs twice a day: 30 h without one means at least two failed runs.
+  if (m?.tendersAt && daysSince(m.tendersAt, now) * 24 > 30) info(`Тендерийн үр дүн (/tenders) ${Math.round(daysSince(m.tendersAt, now) * 24)} цаг шинэчлэгдээгүй: news-digest → "Sync tender results" алхмыг шалгах (Шилэн дансны API).`);
   if (m?.documentsAt && daysSince(m.documentsAt, now) > 3) info(`Тайлан, баримт бичгийн хяналт (/documents) ${Math.round(daysSince(m.documentsAt, now))} хоног ажиллаагүй: news-digest → "Watch report and tender pages" алхмыг шалгах.`);
   if (m?.backupAt && daysSince(m.backupAt, now) > 10) info(`Нөөц хуулбар (backup) ${Math.round(daysSince(m.backupAt, now))} хоног хийгдээгүй (backup workflow).`);
 

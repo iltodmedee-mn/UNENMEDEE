@@ -29,7 +29,7 @@ function healthy(): HealthSnapshot {
     indicators: { mongolbank: 3, budget_nso: 3, shilendans: 3, worldbank_tax: 3, audit_opinions: 3, soe_finance: 3, population: 3, prices_nso: 3, wages_nso: 3, officials_companies: 3, petitions: 3 },
     population: { year: 2025, count: 3_425_162 },
     opendataHours: 3,
-    social: { facebook: { hoursSinceOk: 9, unknown7d: 0 }, threads: { hoursSinceOk: 9, unknown7d: 0 }, telegram: { hoursSinceOk: null, unknown7d: 0 } },
+    social: { facebook: { hoursSinceOk: 9, hoursSinceNewsOk: 9, unknown7d: 0 }, threads: { hoursSinceOk: 9, hoursSinceNewsOk: 9, unknown7d: 0 }, telegram: { hoursSinceOk: null, hoursSinceNewsOk: null, unknown7d: 0 } },
     tokens: { threads: daysAgo(2), instagram: daysAgo(2) },
     maintenance: { pruneAt: null, backupAt: null, pipelineAt: new Date(NOW.getTime() - 40 * 60_000) },
     network: { siteOk: true, siteStatus: "HTTP 200", feedOk: true, siteCertValidTo: daysAgo(-60), securityTxtExpires: daysAgo(-365) },
@@ -81,7 +81,10 @@ describe("watchdog rules", () => {
       ["token not refreshed", (s) => (s.tokens!.threads = daysAgo(20)), /^threads: 60 хоногийн токен 20 хоног.*40 хоногийн дараа/],
       ["prune stopped", (s) => (s.maintenance!.pruneAt = daysAgo(4)), /db:prune/],
       ["backup stopped", (s) => (s.maintenance!.backupAt = daysAgo(11)), /Нөөц хуулбар/],
-      ["tenders not synced", (s) => (s.maintenance!.tendersAt = daysAgo(4)), /Тендерийн үр дүн/],
+      // Nov 7-9 2026: the tender sync failed in every run for two days and the 3-day rule kept quiet.
+      ["tenders not synced", (s) => (s.maintenance!.tendersAt = daysAgo(1.5)), /Тендерийн үр дүн \(\/tenders\) 36 цаг/],
+      // Nov 7-9 2026: Instagram posted Reels but no news or digest for two days.
+      ["news posts silent while videos go out", (s) => (s.social!.facebook!.hoursSinceNewsOk = 31), /^facebook: мэдээ, тойм 31 цаг/],
       ["documents not watched", (s) => (s.maintenance!.documentsAt = daysAgo(4)), /Тайлан, баримт бичгийн/],
       ["pipeline not started for 7 h", (s) => (s.maintenance!.pipelineAt = new Date(NOW.getTime() - 7 * 3_600_000)), /pipeline 7 цаг эхлээгүй/],
       ["site down", (s) => (s.network!.siteOk = false), /нээгдэхгүй/],
