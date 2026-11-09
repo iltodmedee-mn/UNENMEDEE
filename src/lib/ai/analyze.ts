@@ -214,7 +214,8 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
         id: articles.id,
         title: articles.title,
         tldr: articles.tldrSummary,
-        facts: articles.factVsSpin,
+        // Only the facts list: the whole fact_vs_spin (spin notes, scores) was half of each pool row.
+        facts: sql<string[] | null>`${articles.factVsSpin}->'facts'`,
         entities: articles.extractedEntities,
         clusterId: articles.clusterId,
         sourceId: articles.sourceId,
@@ -230,7 +231,7 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
   const toDoc = (r: (typeof pool)[number]): ClusterDoc => ({
     id: r.id,
     title: r.title,
-    summary: `${r.tldr ?? ""} ${(r.facts?.facts ?? []).join(" ")}`,
+    summary: `${r.tldr ?? ""} ${(Array.isArray(r.facts) ? r.facts : []).join(" ")}`,
     entities: r.entities,
     clusterId: r.clusterId,
     at: r.publishedAt,
