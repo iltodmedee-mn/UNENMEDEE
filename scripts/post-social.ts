@@ -8,6 +8,7 @@
  *   npm run social:post -- --mode quiz              # the daily Discord quiz poll (once a day)
  *   npm run social:post -- --mode weekly            # "7 хоногийн ТОП" on Mondays (--any-day to test)
  *   npm run social:post -- --mode video             # the newest generated video (make-video.ts) as a Reel on Facebook, Instagram and Threads
+ *   npm run social:post -- --mode announce          # the newest feature announcement (src/lib/social/announce.ts), once per platform
  *   npm run social:post -- --mode weekly-quiz       # Sunday 19:00 the weekly quiz carousel, the next evening its answers (src/lib/social/weekly-quiz.ts; --any-day posts the quiz now)
  *
  * Facebook needs FB_PAGE_ID (variable) and FB_PAGE_TOKEN (secret). Threads needs THREADS_TOKEN
@@ -47,6 +48,7 @@ import { displayTitle, namesMnt, postable } from "@/lib/story-rules";
 import { topicFor } from "@/lib/topics";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type VideoMeta } from "@/lib/video/posts";
 import { errorDetail, errorLine } from "@/lib/log-safe";
+import { type Announcement, announcementImageUrl, currentAnnouncement } from "@/lib/social/announce";
 import {
   answersCaption,
   answersDue,
@@ -83,6 +85,8 @@ interface Platform {
   name: "facebook" | "threads" | "instagram" | "telegram" | "discord";
   digest(d: DigestForPost): { preview: string; publish(): Promise<string> };
   article(a: ArticleForPost): { preview: string; publish(): Promise<string> };
+  /** A feature announcement with its image (Facebook, Instagram, Threads). */
+  announce?(a: Announcement): { preview: string; publish(): Promise<string> };
   /** Only platforms with native polls (Discord). */
   quiz?(q: Quiz): { preview: string; publish(): Promise<string> };
   /** Text-only platforms (not Instagram, which needs an image). */
@@ -111,6 +115,7 @@ function facebook(pageId: string, token: string): Platform {
     digest: (d) => make(digestPost(d)),
     article: (a) => make(articlePost(a)),
     weekly: (w) => make({ message: weeklyText(w, "plain"), link: `${PRODUCTION_URL}/digest` }),
+    announce: (a) => make({ message: a.facebook, link: a.link, imageUrl: announcementImageUrl(a) }),
     video: (v) => {
       const description = facebookVideoText(v.meta);
       return { preview: `${v.url}\n${description}`, publish: () => publishReel({ pageId, token, videoUrl: v.url, description }) };
@@ -131,6 +136,10 @@ function threads(token: string): Platform {
     digest: (d) => make(threadsDigestPost(d)),
     article: (a) => make(threadsArticlePost(a)),
     weekly: (w) => make({ text: weeklyShortText(w), link: `${PRODUCTION_URL}/digest` }),
+    announce: (a) => {
+      const imageUrl = announcementImageUrl(a);
+      return { preview: `${imageUrl}\n${a.threads}`, publish: () => publishThreads({ token, post: { text: a.threads, link: a.link, imageUrl } }) };
+    },
     video: (v) => {
       const text = threadsVideoText(v.meta);
       return { preview: `${v.url}\n${text}`, publish: () => publishThreads({ token, post: { text, link: v.url, videoUrl: v.url } }) };
@@ -178,6 +187,7 @@ function instagram(token: string): Platform {
     name: "instagram",
     digest: (d) => make(instagramDigestPost(d)),
     article: (a) => make(instagramArticlePost(a)),
+    announce: (a) => make({ imageUrl: announcementImageUrl(a), caption: a.instagram }),
     video: (v) => {
       const caption = instagramVideoCaption(v.meta);
       return { preview: `${v.url}\n${caption}`, publish: () => publishInstagram({ token, post: { videoUrl: v.url, caption } }) };
@@ -235,6 +245,13 @@ async function post(db: Db, p: Platform, kind: PostKind, refId: number, item: { 
   console.log(`  → ${p.name} ${kind} #${refId}: ${item.preview.replace(/\n/g, "\n    ")}`);
   if (dry) return;
   await publishOnce(db, { platform: p.name, kind, refId, publish: item.publish });
+}
+
+/** The newest feature announcement, once per platform (kind `announce`, ref = its yyyymmdd). */
+async function postAnnounce(db: Db, p: Platform) {
+  const a = currentAnnouncement();
+  if (!a || !p.announce) return;
+  await post(db, p, "announce", a.ref, p.announce(a));
 }
 
 async function postDigest(db: Db, p: Platform) {
@@ -497,7 +514,7 @@ async function main() {
   }
   const db = getDb();
   const mode =
-    values.mode === "digest" || values.mode === "quiz" || values.mode === "weekly" || values.mode === "video" || values.mode === "weekly-quiz" ? values.mode : "news";
+    values.mode === "digest" || values.mode === "quiz" || values.mode === "weekly" || values.mode === "video" || values.mode === "weekly-quiz" || values.mode === "announce" ? values.mode : "news";
   const now = new Date();
   let answersFor: WeeklyQuiz | null = null;
   if (mode === "weekly-quiz" && !dry && !values["any-day"] && !isQuizTime(now)) {
@@ -555,6 +572,7 @@ async function main() {
       else if (mode === "quiz") await postQuiz(db, p);
       else if (mode === "weekly" && weekly) await postWeekly(db, p, weekly);
       else if (mode === "video") await postVideo(db, p);
+      else if (mode === "announce") await postAnnounce(db, p);
       else if (mode === "weekly-quiz") {
         if (quiz && p.weeklyQuiz) await post(db, p, "wquiz", quiz.week, p.weeklyQuiz(quiz));
         if (dry && quiz) await postQuizAnswers(db, p, quiz, now);

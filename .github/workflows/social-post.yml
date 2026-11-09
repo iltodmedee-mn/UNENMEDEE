@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: "news = the most important new story, digest = the newest digest edition, quiz = the daily Discord quiz poll, weekly = last week's top list (any day), weekly-quiz = the weekly quiz carousel now"
+        description: "news = the most important new story, digest = the newest digest edition, quiz = the daily Discord quiz poll, weekly = last week's top list (any day), weekly-quiz = the weekly quiz carousel now, announce = the newest feature announcement (src/lib/social/announce.ts) on Facebook, Instagram and Threads"
         required: false
         default: "news"
       dry_run:
@@ -57,5 +57,5 @@ jobs:
           IN_MODE: ${{ inputs.mode }}
           IN_DRY: ${{ inputs.dry_run }}
         run: |
-          case "$IN_MODE" in news|digest|quiz|weekly|weekly-quiz) ;; *) echo "::error::mode must be news, digest, quiz, weekly or weekly-quiz"; exit 1;; esac
+          case "$IN_MODE" in news|digest|quiz|weekly|weekly-quiz|announce) ;; *) echo "::error::mode must be news, digest, quiz, weekly, weekly-quiz or announce"; exit 1;; esac
           if [ "$IN_DRY" = "true" ]; then npm run social:post -- --mode "$IN_MODE" --dry-run; else npm run social:post -- --mode "$IN_MODE" --any-day; fi
