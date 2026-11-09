@@ -54,6 +54,8 @@ export function Reactions({ articleId }: { articleId: number }) {
   const [busy, setBusy] = useState(false);
   const [failed, setFailed] = useState(false);
   const [pressed, setPressed] = useState<EmojiKind | null>(null);
+  // The face this reader just tapped pops once; one restored from an earlier visit does not.
+  const [popped, setPopped] = useState<ReactionKind | null>(null);
   const box = useRef<HTMLElement>(null);
 
   const face = mine.find(isEmoji) ?? null;
@@ -107,6 +109,7 @@ export function Reactions({ articleId }: { articleId: number }) {
       setCounts(v);
       remember(articleId, kind);
       setMine((m) => [...m, kind]);
+      setPopped(kind);
     } catch {
       setFailed(true);
     } finally {
@@ -146,7 +149,7 @@ export function Reactions({ articleId }: { articleId: number }) {
         onPointerUp={onUp}
         onPointerCancel={() => setPressed(null)}
         onContextMenu={(e) => e.preventDefault()}
-        className="flex touch-pan-y items-end justify-between gap-1 pt-6 select-none [-webkit-touch-callout:none]"
+        className="flex touch-pan-y items-end justify-between gap-0.5 pt-8 select-none [-webkit-touch-callout:none] sm:gap-1"
       >
         {EMOJI_KINDS.map((kind) => {
           const chosen = face === kind;
@@ -171,19 +174,23 @@ export function Reactions({ articleId }: { articleId: number }) {
             >
               <span
                 className={cx(
-                  "pointer-events-none absolute -top-8 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary-solid px-2.5 py-1 text-xs font-bold whitespace-nowrap text-white shadow-md transition-opacity",
-                  big ? "opacity-100" : "opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100",
+                  // Above the grown face, inside the row's top padding: never over the heading or the face.
+                  "pointer-events-none absolute -top-10 left-1/2 z-10 -translate-x-1/2 rounded-full bg-primary-solid px-2.5 py-1 text-xs font-bold whitespace-nowrap text-white shadow-md transition-[opacity,translate] duration-150 ease-out motion-reduce:transition-none",
+                  big ? "translate-y-0 opacity-100" : "translate-y-1 opacity-0 group-hover:translate-y-0 group-hover:opacity-100 group-focus-visible:translate-y-0 group-focus-visible:opacity-100",
                 )}
               >
                 {REACTION_LABELS[kind]}
               </span>
-              <ReactionFace
-                kind={kind}
-                className={cx(
-                  "size-11 transition-transform duration-150 ease-out motion-reduce:transition-none sm:size-12 dark:drop-shadow-[0_0_1.5px_rgba(255,255,255,0.6)]",
-                  big ? "-translate-y-2 scale-150" : "group-hover:-translate-y-1 group-hover:scale-110",
-                )}
-              />
+              <span className={cx("flex", popped === kind && chosen && "flame-pop")}>
+                <ReactionFace
+                  kind={kind}
+                  className={cx(
+                    // A slight overshoot (spring-like) so the grow and the slide between faces feel soft.
+                    "size-10 transition-transform duration-200 ease-[cubic-bezier(0.34,1.56,0.64,1)] will-change-transform motion-reduce:transition-none min-[380px]:size-11 sm:size-12 dark:drop-shadow-[0_0_1.5px_rgba(255,255,255,0.6)]",
+                    big ? "-translate-y-1.5 scale-140" : "group-hover:-translate-y-1 group-hover:scale-110",
+                  )}
+                />
+              </span>
               <span className={cx("num-mono min-h-4 text-sm leading-none tabular-nums", chosen ? "font-bold text-brand-secondary" : "text-secondary", !counts && "invisible")}>
                 {counts ? counts[kind] : 0}
               </span>

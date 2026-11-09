@@ -11,10 +11,10 @@ process.env.DATABASE_URL = "pglite:memory";
 
 describe("reaction requests", () => {
   it("accepts only a positive article id and a known kind", () => {
-    assert.deepEqual(parseReaction('{"id":42,"kind":"wow"}'), { articleId: 42, kind: "wow" });
+    assert.deepEqual(parseReaction('{"id":42,"kind":"clap"}'), { articleId: 42, kind: "clap" });
     assert.deepEqual(parseReaction('{"id":42,"kind":"correction"}'), { articleId: 42, kind: "correction" });
-    // No 💩, and the first draft's kinds are gone.
-    for (const bad of ['{"id":42,"kind":"poop"}', '{"id":42,"kind":"useful"}', '{"id":-1,"kind":"love"}', '{"id":"42","kind":"love"}', '{"id":1.5,"kind":"love"}', "nope", "[]", `{"id":1,"kind":"love","x":"${"y".repeat(300)}"}`]) {
+    // No 💩, and the earlier drafts' kinds are gone.
+    for (const bad of ['{"id":42,"kind":"poop"}', '{"id":42,"kind":"useful"}', '{"id":42,"kind":"love"}', '{"id":-1,"kind":"clap"}', '{"id":"42","kind":"clap"}', '{"id":1.5,"kind":"clap"}', "nope", "[]", `{"id":1,"kind":"clap","x":"${"y".repeat(300)}"}`]) {
       assert.equal(parseReaction(bad), null, bad);
     }
     assert.equal(parseArticleId("123"), 123);
@@ -43,9 +43,9 @@ describe("reaction counts (PGlite)", () => {
 
   it("counts each tap per kind and answers all three counts", async () => {
     assert.deepEqual(await reactionCounts(db, id), emptyCounts());
-    await addReaction(db, id, "love");
-    await addReaction(db, id, "love");
-    assert.deepEqual(await addReaction(db, id, "correction"), { ...emptyCounts(), love: 2, correction: 1 });
+    await addReaction(db, id, "clap");
+    await addReaction(db, id, "clap");
+    assert.deepEqual(await addReaction(db, id, "correction"), { ...emptyCounts(), clap: 2, correction: 1 });
   });
 
   it("refuses a story that does not exist (nothing is stored)", async () => {

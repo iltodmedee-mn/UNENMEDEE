@@ -2,7 +2,7 @@ import type { EmojiKind } from "@/lib/reaction-kinds";
 
 /**
  * The site's own reaction faces (Nov 2026, the owner approved the mockup): flat, the signal yellow
- * with a dark ink outline; the heart in the site's red, the angry face in the streak orange. Inline
+ * with a dark ink outline; «Мундаг» is a pair of clapping hands, «Ичмээр» the streak orange. Inline
  * SVG, no image requests. In dark mode a faint light halo keeps the ink outline off the background.
  */
 const INK = "#1a1500";
@@ -27,11 +27,21 @@ const FACES: Record<EmojiKind, React.ReactNode> = {
       <path d="M15.5 24.5q-3 5 0 7.2q3-2.2 0-7.2z" fill="#22B5C9" stroke={INK} strokeWidth="1.6" strokeLinejoin="round" />
     </Face>
   ),
-  love: (
-    <>
-      <path d="M24 41S6 30.5 6 18.5C6 12.4 10.6 8 16 8c3.6 0 6.5 2 8 4.7C25.5 10 28.4 8 32 8c5.4 0 10 4.4 10 10.5C42 30.5 24 41 24 41z" fill="#F0453A" stroke={INK} strokeWidth="2.6" strokeLinejoin="round" />
-      <path d="M13 17q1-4 5-4.6" fill="none" stroke="#fff" strokeWidth="2.4" strokeLinecap="round" opacity=".7" />
-    </>
+  // «Мундаг»: two clapping hands with three spark lines, the same yellow and ink as the faces.
+  clap: (
+    <g stroke={INK} strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 7.5l3 3.5M15 4.5l1 4.5M5 13l4 1.5" fill="none" />
+      <path
+        transform="rotate(-24 22 28)"
+        d="M14 44c-4-3-5-9-4-15l1.5-12.5c.3-2.2 3.6-2.2 3.8.1L16 26l.6-13c.1-2.3 3.5-2.4 3.8-.1L21 25l.9-14c.2-2.3 3.6-2.2 3.8.1L26 25.5l1.2-11.2c.3-2.2 3.6-2 3.7.2l.2 14.5c.1 7-2.5 13-8.3 15.6z"
+        fill={YELLOW}
+      />
+      <path
+        transform="rotate(16 30 27)"
+        d="M24 45c-4-3-5-9-4-15l1.5-12.5c.3-2.2 3.6-2.2 3.8.1L26 27l.6-13c.1-2.3 3.5-2.4 3.8-.1L31 26l.9-14c.2-2.3 3.6-2.2 3.8.1L36 26.5l1.2-11.2c.3-2.2 3.6-2 3.7.2l.2 14.5c.1 7-2.5 13-8.3 15.6z"
+        fill="#FFC300"
+      />
+    </g>
   ),
   haha: (
     <Face>
