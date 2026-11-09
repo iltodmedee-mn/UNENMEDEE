@@ -117,7 +117,11 @@ export function Reactions({ articleId }: { articleId: number }) {
   // Touch: hold, slide, lift. The pointer capture is released so moving onto the next face follows the finger.
   const onDown = (e: ReactPointerEvent<HTMLDivElement>) => {
     if (e.pointerType === "mouse" || face) return;
-    (e.target as Element).releasePointerCapture?.(e.pointerId);
+    try {
+      (e.target as Element).releasePointerCapture?.(e.pointerId);
+    } catch {
+      /* no capture to release (some browsers): sliding then stays on the first face */
+    }
     setPressed(kindAt(e.clientX, e.clientY));
   };
   const onMove = (e: ReactPointerEvent<HTMLDivElement>) => {
@@ -132,7 +136,7 @@ export function Reactions({ articleId }: { articleId: number }) {
   };
 
   return (
-    <section ref={box} aria-label="Энэ мэдээнд өгөх хариу үйлдэл" className="flex flex-col gap-4 rounded-2xl bg-primary p-4 ring-1 ring-line sm:p-5">
+    <section ref={box} aria-label="Энэ мэдээнд өгөх хариу үйлдэл" className="flex flex-col gap-2 rounded-2xl bg-primary p-4 ring-1 ring-line sm:p-5">
       <h2 className="font-display text-lg leading-tight font-bold text-primary sm:text-xl">Энэ мэдээ танд ямар санагдав?</h2>
       <div
         role="group"
@@ -142,7 +146,7 @@ export function Reactions({ articleId }: { articleId: number }) {
         onPointerUp={onUp}
         onPointerCancel={() => setPressed(null)}
         onContextMenu={(e) => e.preventDefault()}
-        className="flex touch-pan-y items-end justify-between gap-1 pt-9 select-none [-webkit-touch-callout:none]"
+        className="flex touch-pan-y items-end justify-between gap-1 pt-6 select-none [-webkit-touch-callout:none]"
       >
         {EMOJI_KINDS.map((kind) => {
           const chosen = face === kind;
