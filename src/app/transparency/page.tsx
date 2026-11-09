@@ -126,12 +126,20 @@ async function Dashboard() {
     // Nobody entered this month's income: no bar (the table says "бүртгээгүй"), never a $0 bar.
     income: l.adRevenueUsd === null && l.donationsUsd === null ? null : (l.adRevenueUsd ?? 0) + (l.donationsUsd ?? 0),
   }));
+  const latest = data.ledger[0] ?? null;
   const paidSeries = data.paidProviders.map((key) => ({ key, name: PROVIDER_SHORT[key] ?? key }));
   const paidNames = paidSeries.map((s) => s.name).join(", ");
   return (
     <div className="flex flex-col gap-6">
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <Tile icon={Server03} label="Серверийн зардал" value="$0.00" hint="Vercel Hobby + Supabase Free + үнэгүй автомат ажлын сервер" />
+        {/* The newest month entered in /admin (data.ledger is newest first), never a fixed figure:
+            "$0.00 · Vercel Hobby" stayed up after the move to Vercel Pro (Nov 2026). */}
+        <Tile
+          icon={Server03}
+          label={latest ? `Серверийн зардал · ${latest.month}` : "Серверийн зардал"}
+          value={latest ? formatUsd(latest.infraCostUsd) : "бүртгээгүй"}
+          hint={latest?.notes || "Vercel, Supabase, домэйн: сарын төлбөр, /admin-аас бүртгэнэ"}
+        />
         <Tile icon={CpuChip01} label="Нийт AI зардал" value={formatUsd(data.totals.costUsd)} hint={`Сүүлийн ${LOG_KEEP_MONTHS} сард ${formatNumber(data.totals.calls)} дуудлага · ${formatNumber(data.totals.tokens)} токен`} />
         <Tile icon={Database01} label="Уншсан төрийн хуудас" value={formatNumber(stats.articles)} hint={`${formatNumber(stats.analyzed)} нь AI-аар шүүгдсэн`} />
         <Tile
