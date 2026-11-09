@@ -165,7 +165,7 @@ describe("carousel publishing", () => {
       return Response.json({ id: "m1" });
     }) as unknown as typeof fetch;
     assert.equal(await publishInstagramCarousel({ token: "T", imageUrls: urls, caption: "cap", fetchImpl: f, sleep: async () => {} }), "m1");
-    assert.deepEqual(calls, ["POST media item", "POST media item", "GET i1", "GET i2", "POST media CAROUSEL", "GET p1", "POST media_publish"]);
+    assert.deepEqual(calls, ["GET media", "POST media item", "POST media item", "GET i1", "GET i2", "POST media CAROUSEL", "GET p1", "POST media_publish"]);
     await assert.rejects(publishInstagramCarousel({ token: "T", imageUrls: urls.slice(0, 1), caption: "c", fetchImpl: f }), /2–10 images/);
   });
 

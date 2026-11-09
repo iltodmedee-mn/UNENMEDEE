@@ -238,10 +238,11 @@ describe("publishing a video", () => {
   });
 
   it("Instagram: a REELS container with the video URL, shared to the feed", async () => {
-    const { calls, f } = recorder([() => ({ id: "c1" }), () => ({ status_code: "IN_PROGRESS" }), () => ({ status_code: "FINISHED" }), () => ({ id: "m1" })]);
+    // The first call looks for a post with the same caption (none here).
+    const { calls, f } = recorder([() => ({ data: [] }), () => ({ id: "c1" }), () => ({ status_code: "IN_PROGRESS" }), () => ({ status_code: "FINISHED" }), () => ({ id: "m1" })]);
     const id = await publishInstagram({ token: "t", post: { videoUrl: "https://iltodmedee.mn/reel?v=3", caption: "c" }, fetchImpl: f, sleep: noSleep });
     assert.equal(id, "m1");
-    const body = new URLSearchParams(String(calls[0].init?.body));
+    const body = new URLSearchParams(String(calls[1].init?.body));
     assert.equal(body.get("media_type"), "REELS");
     assert.equal(body.get("video_url"), "https://iltodmedee.mn/reel?v=3");
     assert.equal(body.get("share_to_feed"), "true");

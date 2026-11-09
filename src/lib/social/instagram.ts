@@ -91,10 +91,10 @@ class InstagramError extends Error {
 const notReady = (err: unknown) => err instanceof InstagramError && err.code === MEDIA_NOT_READY;
 
 /** Which call refused: the log must tell a refused create from a refused publish. */
-function stepOf(url: string): string {
+function stepOf(url: string, method = "GET"): string {
   const path = url.split("?")[0];
   if (path.endsWith("/media_publish")) return "publish";
-  if (path.endsWith("/media")) return "create";
+  if (path.endsWith("/media")) return method === "POST" ? "create" : "check";
   if (path.endsWith("/refresh_access_token")) return "refresh";
   return "status";
 }
@@ -119,7 +119,7 @@ async function call(fetchImpl: Fetch, url: string, init?: RequestInit): Promise<
   const json = (await readJsonBody(res)) as Record<string, unknown> & { error?: { message?: string; code?: number } };
   if (!res.ok || json.error) {
     const code = json.error?.code;
-    const head = `Instagram ${res.status}: (${stepOf(url)}) ${json.error?.message ?? "request failed"} (code ${code ?? "?"})`.slice(0, 300);
+    const head = `Instagram ${res.status}: (${stepOf(url, init?.method)}) ${json.error?.message ?? "request failed"} (code ${code ?? "?"})`.slice(0, 300);
     throw new InstagramError(head + (code !== undefined && LIMIT_CODES.has(code) ? usageNote(res) : ""), code);
   }
   return json;
@@ -130,6 +130,23 @@ export async function refreshInstagramToken(token: string, fetchImpl: Fetch = fe
   const json = await call(fetchImpl, `${INSTAGRAM_API}/refresh_access_token?${new URLSearchParams({ grant_type: "ig_refresh_token", access_token: token })}`);
   if (typeof json.access_token !== "string") throw new Error("Instagram refresh returned no token");
   return json.access_token;
+}
+
+const captionKey = (caption: string) => caption.replace(/\s+/g, " ").trim().slice(0, 300);
+
+/**
+ * The id of a recent post on the account with this caption, or null. Nov 7-9 2026: media_publish
+ * answered "Application request limit reached (code 4)" AFTER publishing, the ledger read that as
+ * "not posted", and each hourly run posted the same digest or story again. Asking first makes a
+ * retry find the live post (its id goes to the ledger) instead of publishing a copy. A failed
+ * check throws: no post without knowing it is not already there.
+ */
+export async function findPostedCaption(f: Fetch, base: string, token: string, caption: string): Promise<string | null> {
+  const json = await call(f, `${base}/me/media?${new URLSearchParams({ fields: "id,caption", limit: "25", access_token: token })}`);
+  const data = Array.isArray(json.data) ? (json.data as { id?: unknown; caption?: unknown }[]) : [];
+  const key = captionKey(caption);
+  const hit = data.find((m) => typeof m.id === "string" && typeof m.caption === "string" && captionKey(m.caption) === key);
+  return hit ? String(hit.id) : null;
 }
 
 /**
@@ -144,6 +161,8 @@ export async function publishInstagram(opts: { token: string; post: InstagramPos
   const media: Record<string, string> = opts.post.videoUrl
     ? { media_type: "REELS", video_url: opts.post.videoUrl, share_to_feed: "true" }
     : { image_url: opts.post.imageUrl ?? "" };
+  const posted = await findPostedCaption(f, base, token, opts.post.caption);
+  if (posted) return posted;
   const created = await call(f, `${base}/me/media`, {
     method: "POST",
     body: new URLSearchParams({ ...media, caption: opts.post.caption, access_token: token }),
@@ -195,6 +214,8 @@ export async function publishInstagramCarousel(opts: { token: string; imageUrls:
   const base = `${INSTAGRAM_API}/${INSTAGRAM_VERSION}`;
   const token = opts.token;
   if (opts.imageUrls.length < 2 || opts.imageUrls.length > CAROUSEL_MAX) throw new Error(`Instagram carousel needs 2–${CAROUSEL_MAX} images, got ${opts.imageUrls.length}`);
+  const posted = await findPostedCaption(f, base, token, opts.caption);
+  if (posted) return posted;
   const children: string[] = [];
   for (const imageUrl of opts.imageUrls) {
     const item = await call(f, `${base}/me/media`, { method: "POST", body: new URLSearchParams({ image_url: imageUrl, is_carousel_item: "true", access_token: token }) });
