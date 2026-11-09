@@ -50,6 +50,12 @@ const nextConfig: NextConfig = {
   // AVIF first: the logo mark (the only next/image) was a 7 KB WebP at 2x, flagged by Lighthouse.
   images: {
     formats: ["image/avif", "image/webp"],
+    // MP photos from parliament.mn (~45 KB JPEGs shown at 28–80 px): optimized once, kept 30 days.
+    remotePatterns: [
+      { protocol: "https", hostname: "parliament.mn", pathname: "/uploads/**" },
+      { protocol: "https", hostname: "www.parliament.mn", pathname: "/uploads/**" },
+    ],
+    minimumCacheTTL: 2_592_000,
   },
   turbopack: {
     rules: {

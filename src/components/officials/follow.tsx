@@ -11,6 +11,7 @@ import { AREA_KEY, FOLLOW_KEY, MAX_FOLLOWS, parseFollows } from "@/lib/officials
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
 import type { PoliticianSummary } from "@/lib/queries";
 import { cx } from "@/utils/cx";
+import { MpPhoto } from "@/components/officials/mp-photo";
 
 /** Followed MP ids in localStorage; mirrored to the push subscription when there is one. */
 function useFollows() {
@@ -107,8 +108,7 @@ export function MyMps({ people }: { people: PoliticianSummary[] }) {
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {mine.map((p) => (
               <li key={p.id} className="flex min-w-0 items-center gap-3 rounded-2xl bg-secondary p-3">
-                {/* eslint-disable-next-line @next/next/no-img-element -- portraits come from parliament.mn */}
-                {p.photoUrl && <img src={p.photoUrl} alt="" loading="lazy" className="size-12 shrink-0 rounded-full object-cover" />}
+                {p.photoUrl && <MpPhoto src={p.photoUrl} size={48} className="size-12 shrink-0 rounded-full object-cover" />}
                 <div className="flex min-w-0 flex-1 flex-col">
                   <Link href={`/officials/${p.id}`} prefetch={false} className="truncate font-semibold text-primary hover:underline">
                     {p.fullName}
