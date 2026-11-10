@@ -61,4 +61,14 @@ describe("writeSnapshots (PGlite, demo data)", () => {
     assert.ok(changed.includes("snap-feed-all"), `home rebuilt: ${changed.join(", ")}`);
     assert.ok(!(await home()).some((s) => s.id === top.id), "the withdrawn story is gone from the snapshot");
   });
+
+  it("a failed purge is asked again: forgetting the hash makes the next run report the page as changed", async () => {
+    const { forgetHashes, writeSnapshots } = await import("@/lib/snapshot-writer");
+    assert.deepEqual(await writeSnapshots(), [], "settled");
+    // The purge of the home page and one topic failed: the next run must purge exactly those again.
+    assert.equal(await forgetHashes(["snap-feed-all", "snap-feed-budget", "clusters", "snap-feed-nope"]), 2);
+    assert.deepEqual((await writeSnapshots()).sort(), ["snap-feed-all", "snap-feed-budget"]);
+    assert.deepEqual(await writeSnapshots(), []);
+    assert.equal(await forgetHashes([]), 0);
+  });
 });

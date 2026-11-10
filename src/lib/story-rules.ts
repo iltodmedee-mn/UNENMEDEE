@@ -1,7 +1,7 @@
 import { and, eq, isNotNull, sql, type SQL } from "drizzle-orm";
 
 import { articles, sources } from "@/db/schema";
-import { FEED_MIN_IMPORTANCE, INDEXED_DOMAINS, isThinArticle } from "@/lib/seo";
+import { FEED_MIN_IMPORTANCE, INDEXED_DOMAINS, isThinArticle, THIN_BELOW } from "@/lib/seo";
 import { AI_TOPIC_KEYS, TOPICS, topicFor } from "@/lib/topics";
 import type { ExtractedEntities, ScrapeMeta, SourceCategory } from "@/lib/types";
 
@@ -103,7 +103,7 @@ export const feedVisible: SQL = sql`coalesce(${articles.importanceScore}, 100) >
 export const isFeedVisible = (s: Pick<StoryFacts, "importanceScore">): boolean => s.importanceScore === null || s.importanceScore >= FEED_MIN_IMPORTANCE;
 
 /** SQL twin of `!isThinArticle(...)` (src/lib/seo.ts): offered to search engines and the sitemaps. */
-export const indexable: SQL = sql`(${feedVisible}
+export const indexable: SQL = sql`(coalesce(${articles.importanceScore}, 100) >= ${THIN_BELOW}
   or ${articles.clusterId} is not null
   or ${namesMnt}
   or ${sources.domain} in (${sql.join(INDEXED_DOMAINS.map((d) => sql`${d}`), sql`, `)}))`;

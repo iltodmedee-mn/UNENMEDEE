@@ -117,6 +117,22 @@ describe("db-sink storage rules (PGlite)", () => {
     assert.match(String(backfill.at), /^2026-08-20/);
   });
 
+  it("opendata.gov.mn: a dataset listed again under a new id within a week is not a new story", async () => {
+    const { createDbSink, RELIST_DAYS } = await import("@/lib/scraper/db-sink");
+    const id = Number((await rows(sql`insert into sources (name, domain, url_pattern, category) values ('Нээлттэй өгөгдөл', 'opendata.gov.mn', 'https://opendata.gov.mn', 'ministry') returning id`))[0].id);
+    const src = { id, domain: "opendata.gov.mn", name: "Нээлттэй өгөгдөл", urlPattern: "https://opendata.gov.mn" };
+    const item = (n: number, day: string) => ({ url: `https://opendata.gov.mn/dataview/${n}`, title: "Иргэний улсын бүртгэлийн нээлттэй өгөгдөл", text: `Нээлттэй өгөгдлийн багц: Иргэний улсын бүртгэл. Сүүлд шинэчлэгдсэн: ${day}. `.repeat(6), publishedAt: new Date() });
+    const sink = createDbSink(db);
+    assert.equal(await sink.save(src, item(8489, "2026-10-27")), "inserted");
+    // The real case: the next day's listing, a new id and a new "last updated" line.
+    assert.equal(await sink.save(src, item(8495, "2026-10-28")), "duplicate");
+    assert.equal((await sink.filterNewUrls(["https://opendata.gov.mn/dataview/8495"])).size, 0, "remembered, not read again");
+    // Another dataset is its own story, and the same one again after the window.
+    assert.equal(await sink.save(src, { ...item(8496, "2026-10-28"), title: "Нэрийн болон хаягийн сан", text: "Нээлттэй өгөгдлийн багц: Нэрийн болон хаягийн сан. ".repeat(8) }), "inserted");
+    await db.execute(sql`update articles set created_at = now() - make_interval(days => ${RELIST_DAYS + 1}) where source_id = ${id}`);
+    assert.equal(await sink.save(src, item(8530, "2026-11-04")), "inserted");
+  });
+
   it("which domains repeat titles by nature", async () => {
     const { repeatsTitles } = await import("@/lib/scraper/db-sink");
     for (const d of ["legalinfo.mn", "opendata.gov.mn", "parliament.mn", "zasag.mn", "police.gov.mn", "mof.gov.mn"]) assert.equal(repeatsTitles(d), true, d);

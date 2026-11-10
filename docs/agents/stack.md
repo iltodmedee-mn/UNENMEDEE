@@ -24,3 +24,4 @@ Rules for this area, moved from `CLAUDE.md` with its section numbers. Keep each 
 - **Scraping Engine:** Node.js scripts in `/scripts` using `crawlee`, `cheerio`, `@mozilla/readability`, `jsdom`. Library code in `src/lib/scraper`.
 - **AI SDK:** `openai` package with custom `baseURL` for Groq, Mistral, Requesty, NVIDIA NIM, OpenRouter, Z.ai, DeepSeek, xAI Grok and Ollama; Gemini uses its native `generateContent` API via `fetch` (`src/lib/ai/gemini.ts`). Library code in `src/lib/ai`.
 - **Admin Editor:** Tiptap (`@tiptap/react`, `@tiptap/starter-kit`).
+- Demo (`npm run demo`) needs Node 24 (`next dev`). Known dev-only fault (Nov 2026): after a write from a route handler (a reaction POST) the next `generateStaticParams` read can fail with "Failed query" on PGlite (the dev server reads it from another worker); restart the demo with `rm -rf .demo-db`. Production (Postgres) is not affected.

@@ -35,8 +35,9 @@ export async function POST(request: Request) {
   try {
     const counts = await addReaction(getDb(), tap.articleId, tap.kind);
     return Response.json(counts, { headers: { "cache-control": "no-store" } });
-  } catch {
-    // A story that does not exist (foreign key) or a database hiccup: nothing to count.
-    return Response.json({ error: "not counted" }, { status: 404 });
+  } catch (err) {
+    // A story that does not exist (foreign key 23503) is the caller's mistake; anything else is ours.
+    const code = (err as { cause?: { code?: string }; code?: string } | null)?.cause?.code ?? (err as { code?: string } | null)?.code;
+    return Response.json({ error: "not counted" }, { status: code === "23503" ? 404 : 503, headers: { "cache-control": "no-store" } });
   }
 }

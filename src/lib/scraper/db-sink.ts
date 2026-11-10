@@ -23,6 +23,10 @@ export function repeatsTitles(domain: string): boolean {
   return domain === "opendata.gov.mn" || Object.hasOwn(API_ADAPTERS, domain);
 }
 
+/** A source that lists one dataset again under a new id, and how long a same-named item counts as that dataset. */
+export const RELISTING_DOMAIN = "opendata.gov.mn";
+export const RELIST_DAYS = 7;
+
 export interface SinkOptions {
   /** Dated items older than this many days are stored unpublished (a backfill passes its window; it also marks a backfill). */
   maxAgeDays?: number;
@@ -71,6 +75,19 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
         db.select({ url: seenUrls.originalUrl }).from(seenUrls).where(eq(seenUrls.contentHash, hash)).limit(1),
       ]);
       if (dup.length || deletedDup.length) return "duplicate";
+      // opendata.gov.mn lists the same registry datasets again every day under a new id, with only
+      // the "last updated" line changed (6 datasets × 6 days in Oct-Nov 2026): one story a week.
+      if (source.domain === RELISTING_DOMAIN) {
+        const relisted = await db
+          .select({ id: articles.id })
+          .from(articles)
+          .where(and(eq(articles.sourceId, source.id), eq(articles.title, unshoutTitle(item.title).slice(0, 500)), gte(articles.createdAt, new Date(Date.now() - RELIST_DAYS * 86_400_000))))
+          .limit(1);
+        if (relisted.length) {
+          await db.insert(seenUrls).values({ originalUrl: item.url, contentHash: hash, sourceId: source.id }).onConflictDoNothing();
+          return "duplicate";
+        }
+      }
       let title = item.title;
       let siteTitle = isGenericTitle(title, [source.name]);
       if (!siteTitle && !repeatsTitles(source.domain)) {

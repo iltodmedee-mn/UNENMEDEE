@@ -53,9 +53,10 @@ export function ReadMeter({ id, topic, publishedAt, law = false, place = null, m
       ? new IntersectionObserver(
           ([entry]) => {
             window.clearTimeout(factTimer);
-            if (entry.isIntersecting) factTimer = window.setTimeout(() => applyProgress((p) => recordFact(p, { id, now: Date.now() })), FACT_SECONDS * 1000);
+            // Half of the panel, or (a panel taller than the screen) half of the screen.
+            if (entry.intersectionRatio >= 0.5 || entry.intersectionRect.height >= window.innerHeight * 0.5) factTimer = window.setTimeout(() => applyProgress((p) => recordFact(p, { id, now: Date.now() })), FACT_SECONDS * 1000);
           },
-          { threshold: 0.5 },
+          { threshold: [0.1, 0.25, 0.5] },
         )
       : null;
     if (facts) observer?.observe(facts);
