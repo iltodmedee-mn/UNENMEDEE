@@ -1,3 +1,5 @@
+import { inArray } from "drizzle-orm";
+
 import { getDb } from "@/db";
 import { feedSnapshots } from "@/db/schema";
 import { FEED_FILTERS, type FeedPageData, loadDigests, loadFeed, loadSiteStats } from "@/lib/queries";
@@ -32,4 +34,18 @@ export async function writeSnapshots(now = new Date()): Promise<string[]> {
     if (before.get(key) !== hash) changed.push(snapshotTag(key));
   }
   return changed;
+}
+
+/**
+ * Forgets the stored hash of the snapshots behind these cache tags, so the next run sees them as
+ * changed and purges them again. Called when the purge after a write failed: the new hash was
+ * already stored, the next run would find "nothing changed", and the page (cached for a day,
+ * refreshed only by a purge) kept the old list, a withdrawn story included, until its content
+ * changed again.
+ */
+export async function forgetHashes(tags: string[]): Promise<number> {
+  const keys = FEED_FILTERS.map(feedKey).filter((key) => tags.includes(snapshotTag(key)));
+  if (keys.length === 0) return 0;
+  const rows = await getDb().update(feedSnapshots).set({ hash: "" }).where(inArray(feedSnapshots.key, keys)).returning({ key: feedSnapshots.key });
+  return rows.length;
 }

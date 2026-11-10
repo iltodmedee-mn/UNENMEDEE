@@ -14,7 +14,7 @@ import { parseArgs } from "node:util";
 import { closeDb, hasDatabase } from "@/db";
 import { errorLine } from "@/lib/log-safe";
 import { requestPurge } from "@/lib/purge-request";
-import { writeSnapshots } from "@/lib/snapshot-writer";
+import { forgetHashes, writeSnapshots } from "@/lib/snapshot-writer";
 
 async function main() {
   const { values } = parseArgs({ options: { also: { type: "string" } } });
@@ -22,7 +22,13 @@ async function main() {
   const changed = await writeSnapshots();
   console.log(`🗂 snapshots written; ${changed.length} list page(s) changed${changed.length ? `: ${changed.join(", ")}` : ""}`);
   const also = values.also ? values.also.split(",").map((t) => t.trim()).filter(Boolean) : [];
-  await requestPurge([...changed, "clusters", ...also]);
+  // A purge that failed (the site answered an error, or did not answer) is asked again by the next
+  // run: without this the changed pages kept their old list for up to a day.
+  const purged = await requestPurge([...changed, "clusters", ...also]).catch((err: unknown) => {
+    console.log(`::warning::cache purge failed: ${errorLine(err)}`);
+    return false;
+  });
+  if (!purged && changed.length) console.log(`↻ ${await forgetHashes(changed)} list page(s) will be purged again by the next run.`);
 }
 
 main()

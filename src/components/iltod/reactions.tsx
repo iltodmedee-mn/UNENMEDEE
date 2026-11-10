@@ -194,7 +194,8 @@ export function Reactions({ articleId }: { articleId: number }) {
                 />
               </span>
               <span className={cx("num-mono min-h-4 text-sm leading-none tabular-nums", chosen ? "font-bold text-brand-secondary" : "text-secondary", !counts && "invisible")}>
-                {counts ? counts[kind] : 0}
+                {/* The CDN answer can be a minute older than this reader's own tap (after a reload). */}
+                {counts ? Math.max(counts[kind], chosen ? 1 : 0) : 0}
               </span>
               <span aria-hidden className={cx("h-0.5 w-6 rounded-full", chosen ? "bg-brand-solid" : "bg-transparent")} />
             </button>
