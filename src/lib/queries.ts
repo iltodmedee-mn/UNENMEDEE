@@ -7,7 +7,7 @@ import { shiftDate, ubDateKey, ubDayBounds } from "@/lib/archive";
 import { activeBlacklist } from "@/lib/opendata-mn/highlights";
 import { type BuyerSign, buyerSigns, type BuyerStats, isNonCompetitive, nationalShares, type NationalShares } from "@/lib/procurement/signs";
 import { NO_AWARD_SQL } from "@/lib/procurement/tenders";
-import { computeCompanyMatches, computeCompanyOwners, readCompanyMatches } from "@/lib/procurement/company-matches";
+import { type CompanyOwners, readCompanyMatches } from "@/lib/procurement/company-matches";
 import { tenderAwarded, tenderFirstOfSame, tenderThisYear } from "@/lib/procurement/tender-sql";
 import { DEFAULT_DONATION, type Donation, DONATION_KEY, parseDonation } from "@/lib/donation";
 import type { DonationsSummary } from "@/lib/donations";
@@ -1239,7 +1239,10 @@ async function loadHiddenYears(): Promise<HiddenYears> {
 /** Active members with their latest declared income and assets (from ХАСХОМ). */
 export async function getPoliticians(): Promise<PoliticianSummary[]> {
   "use cache";
-  cacheLife("hours");
+  // Declarations change yearly and the roster weekly, like getPolitician. "hours" re-read every
+  // member and ~470 filings (~70 KB) each hour /officials and each of the 21 place pages were
+  // visited: ~600 reads, ~40 MB of egress in 16 h (Nov 10 2026).
+  cacheLife("days");
   cacheTag("officials");
   return safe("getPoliticians", [], async () => {
     const db = getDb();
@@ -1800,12 +1803,13 @@ export async function getCompanyTenders(): Promise<Record<string, CompanyTenders
   cacheTag("officials");
   return safe("getCompanyTenders", {}, async () => {
     const db = getDb();
-    // One small stored row (company-matches.ts), worked out at each tenders / companies sync; the
-    // live match reads all ~3 700 winner names and every member's latest filing, and runs only
-    // before the first sync stored it.
+    // One small stored row (company-matches.ts), worked out at each tenders / companies sync. There
+    // is no live fallback: it read all ~3 700 winner names and every member's latest filing on every
+    // member page of every deploy (Nov 9 2026: ~135 MB of Supabase egress in a day, while the row
+    // was missing). Until a sync stores the row, no member shows tender wins.
     const stored = await readCompanyMatches(db);
-    const matched = stored?.matches ?? (await computeCompanyMatches(db));
-    if (matched.size === 0) return {};
+    if (!stored || stored.matches.size === 0) return {};
+    const matched = stored.matches;
     const cells = [...new Set([...matched.values()].flat())];
     const [rows, owners] = await Promise.all([
       db
@@ -1813,7 +1817,7 @@ export async function getCompanyTenders(): Promise<Record<string, CompanyTenders
         .from(tenders)
         .where(and(tenderAwarded, tenderFirstOfSame, inArray(tenders.winner, cells)))
         .orderBy(sql`${tenders.resultDate} desc nulls last`, desc(tenders.id)),
-      stored?.owners ? Promise.resolve(stored.owners) : computeCompanyOwners(db),
+      Promise.resolve(stored.owners ?? new Map<string, CompanyOwners>()),
     ]);
     const out: Record<string, CompanyTenders> = {};
     for (const [key, cellList] of matched) {

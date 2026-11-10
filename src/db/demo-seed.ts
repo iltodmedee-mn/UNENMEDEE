@@ -22,6 +22,7 @@ import { parseZasagFeed } from "@/lib/scraper/adapters/zasag";
 import { extractArticle } from "@/lib/scraper/extractor";
 import { unshoutTitle } from "@/lib/scraper/titles";
 import { documentLinks, parseAuditRegister } from "@/lib/documents/watch";
+import { storeCompanyMatches } from "@/lib/procurement/company-matches";
 import { parseTenders } from "@/lib/procurement/tenders";
 import { parseSoeReport } from "@/lib/soe/shilendans";
 import { SOURCE_SEEDS } from "@/lib/sources";
@@ -180,6 +181,8 @@ export async function seedDemo(db: DB, fixtures = "tests/fixtures", now = new Da
     await db.insert(tenders).values(lots.map((t) => ({ ...t, firstSeenAt: now, awardedSeenAt: t.awarded ? now : null }))).onConflictDoNothing();
     await db.insert(appSettings).values({ key: "tenders_synced_at", value: now.toISOString() }).onConflictDoNothing();
   }
+  // The members' company matches, as tenders:sync stores them (the pages never match live).
+  await storeCompanyMatches(db, now);
 
   // /documents: the real audit.mn register rows and the mimr.gov.mn tender page of the parser tests.
   const audits = parseAuditRegister(read("audit-register.html"));
