@@ -4,6 +4,7 @@ import { after } from "next/server";
 import { getDb, hasDatabase } from "@/db";
 import { appSettings } from "@/db/schema";
 import { getDigests, search } from "@/lib/queries";
+import { recordSiteError } from "@/lib/site-errors";
 import { INSTAGRAM_SETTINGS_KEY } from "@/lib/social/instagram";
 import {
   classify,
@@ -90,6 +91,18 @@ async function replyTo(text: string): Promise<string> {
 
 const alreadyAnswered = seenOnce();
 
+/**
+ * A reply that failed, or a Meta delivery whose signature matched neither secret, goes to
+ * `site_errors` (the watchdog reports it; Nov 2026: an Instagram DM got no answer and nothing said
+ * why). The signature line is written at most once per 10 minutes per instance, so an unsigned
+ * caller cannot turn each request into a database write.
+ */
+let lastSignatureNote = 0;
+async function note(err: unknown): Promise<void> {
+  if (!hasDatabase()) return;
+  await recordSiteError(getDb(), { method: "POST", path: "/api/messenger", err }).catch(() => {});
+}
+
 export async function POST(req: Request) {
   const raw = Buffer.from(await req.arrayBuffer());
   const s = await settings();
@@ -97,7 +110,14 @@ export async function POST(req: Request) {
   if (!s) return new Response("forbidden", { status: 403 });
   if (!validSignature(raw, signature, s.appSecret)) {
     const igSecret = await instagramAppSecret(s);
-    if (!igSecret || !validSignature(raw, signature, igSecret)) return new Response("forbidden", { status: 403 });
+    if (!igSecret || !validSignature(raw, signature, igSecret)) {
+      const object = /"object"\s*:\s*"(page|instagram)"/.exec(raw.subarray(0, 200).toString("utf8"))?.[1];
+      if (object && Date.now() - lastSignatureNote > 10 * 60_000) {
+        lastSignatureNote = Date.now();
+        after(() => note(new Error(`${object} webhook: signature matched neither the app secret nor the Instagram app secret${igSecret ? "" : " (no Instagram app secret set)"}`)));
+      }
+      return new Response("forbidden", { status: 403 });
+    }
   }
   let body: unknown;
   try {
@@ -116,7 +136,11 @@ export async function POST(req: Request) {
         await sendText({ pageToken: token, channel: m.channel, recipientId: m.senderId, text: await replyTo(m.text) });
       }),
     );
-    for (const r of results) if (r.status === "rejected") console.error("[messenger]", r.reason instanceof Error ? r.reason.message : r.reason);
+    for (const [i, r] of results.entries()) {
+      if (r.status !== "rejected") continue;
+      console.error("[messenger]", r.reason instanceof Error ? r.reason.message : r.reason);
+      await note(new Error(`${messages[i].channel} reply failed: ${r.reason instanceof Error ? r.reason.message : String(r.reason)}`));
+    }
   });
   return new Response("EVENT_RECEIVED");
 }
