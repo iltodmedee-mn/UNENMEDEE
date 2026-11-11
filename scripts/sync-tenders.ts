@@ -23,6 +23,8 @@ import { formatMntShort } from "@/lib/format";
 import { errorDetail, oneLine } from "@/lib/log-safe";
 import { fetchTenders } from "@/lib/procurement/fetch";
 import { storeMoneyMap } from "@/lib/money-map/build";
+import { requestPurge } from "@/lib/purge-request";
+import { errorLine } from "@/lib/log-safe";
 import { storeCompanyMatches } from "@/lib/procurement/company-matches";
 import { upsertTenders } from "@/lib/procurement/tender-store";
 
@@ -61,6 +63,9 @@ async function main() {
   // The «Миний ₮» map: this year's lots by aimag and sum, one stored row (src/lib/money-map).
   const placed = await storeMoneyMap(db);
   console.log(`🗺 ${placed} lots on the money map.`);
+  // The pages read these rows through an hour-long cache: purge them so a sync shows at once (Nov 11
+  // 2026: /money stayed empty for an hour after the first map was stored).
+  await requestPurge(["indicator-money_map", "indicator-tender_company_matches"]).catch((err: unknown) => console.log(`::warning::cache purge failed: ${errorLine(err)}`));
   await db
     .insert(appSettings)
     .values({ key: "tenders_synced_at", value: new Date().toISOString() })

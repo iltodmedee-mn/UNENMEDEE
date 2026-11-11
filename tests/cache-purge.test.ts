@@ -25,6 +25,7 @@ test("only known tags are purged; the default is the list pages, not every artic
   assert.deepEqual(allowedTags(undefined), RUN_TAGS);
   assert.ok(!RUN_TAGS.includes("articles"));
   assert.deepEqual(allowedTags(["feed", "officials", "articles", "feed"]), ["feed", "articles"]);
+  assert.deepEqual(allowedTags(["indicator-money_map", "indicator-x;drop", "indicators"]), ["indicator-money_map"]);
 });
 
 test("snapshot tags pass, anything else shaped like one does not", () => {
