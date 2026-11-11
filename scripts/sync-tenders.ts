@@ -22,6 +22,7 @@ import { appSettings } from "@/db/schema";
 import { formatMntShort } from "@/lib/format";
 import { errorDetail, oneLine } from "@/lib/log-safe";
 import { fetchTenders } from "@/lib/procurement/fetch";
+import { storeMoneyMap } from "@/lib/money-map/build";
 import { storeCompanyMatches } from "@/lib/procurement/company-matches";
 import { upsertTenders } from "@/lib/procurement/tender-store";
 
@@ -57,6 +58,9 @@ async function main() {
   const written = await upsertTenders(db, rows, firstSync);
   // The members' companies among the winners, stored once for the pages (company-matches.ts).
   const matched = await storeCompanyMatches(db);
+  // The «Миний ₮» map: this year's lots by aimag and sum, one stored row (src/lib/money-map).
+  const placed = await storeMoneyMap(db);
+  console.log(`🗺 ${placed} lots on the money map.`);
   await db
     .insert(appSettings)
     .values({ key: "tenders_synced_at", value: new Date().toISOString() })

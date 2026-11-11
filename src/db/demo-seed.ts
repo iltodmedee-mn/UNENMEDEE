@@ -22,6 +22,7 @@ import { parseZasagFeed } from "@/lib/scraper/adapters/zasag";
 import { extractArticle } from "@/lib/scraper/extractor";
 import { unshoutTitle } from "@/lib/scraper/titles";
 import { documentLinks, parseAuditRegister } from "@/lib/documents/watch";
+import { storeMoneyMap } from "@/lib/money-map/build";
 import { storeCompanyMatches } from "@/lib/procurement/company-matches";
 import { parseTenders } from "@/lib/procurement/tenders";
 import { parseSoeReport } from "@/lib/soe/shilendans";
@@ -183,6 +184,7 @@ export async function seedDemo(db: DB, fixtures = "tests/fixtures", now = new Da
   }
   // The members' company matches, as tenders:sync stores them (the pages never match live).
   await storeCompanyMatches(db, now);
+  await storeMoneyMap(db, now);
 
   // /documents: the real audit.mn register rows and the mimr.gov.mn tender page of the parser tests.
   const audits = parseAuditRegister(read("audit-register.html"));

@@ -76,6 +76,7 @@ export const NAV_GROUPS: NavGroup[] = [
       { href: "/tax", label: "Миний татвар", desc: "Цалингийн татвар тооцоолуур", icon: Calculator },
       { href: "/prices", label: "Үнэ", desc: "Мах, бензин 15 жилээр", icon: ShoppingCart01 },
       { href: "/tenders", label: "Тендер", desc: "Хэн, юуг, хэдээр", icon: Briefcase01 },
+      { href: "/money", label: "Миний ₮", desc: "Мөнгө аймаг, сумаар газрын зураг дээр", icon: Briefcase01 },
       { href: "/documents", label: "Тайлан, баримт", desc: "Аудит, тендерийн баримт", icon: File06 },
       { href: "/data", label: "Өгөгдөл", desc: "Ханш, инфляц, нээлттэй өгөгдөл", icon: LineChartUp02 },
     ],
