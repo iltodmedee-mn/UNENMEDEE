@@ -25,7 +25,7 @@ describe("npm run demo (PGlite + fixtures)", () => {
     assert.ok(result && result.articles >= 8, `articles: ${result?.articles}`);
     assert.ok(result.politicians >= 1);
     const [{ n }] = await db.select({ n: count() }).from(indicatorSnapshots);
-    assert.equal(n, 10, "8 data snapshots, the petitions page and the stored tender matches");
+    assert.equal(n, 11, "8 data snapshots, the petitions page, the stored tender matches and the money map");
     const [m] = await db.select({ key: indicatorSnapshots.key }).from(indicatorSnapshots).where(sql`${indicatorSnapshots.key} = 'tender_company_matches'`);
     assert.ok(m, "the demo stores the matches the pages read (they never match live)");
     const [{ p }] = await db.select({ p: count() }).from(politicians);
