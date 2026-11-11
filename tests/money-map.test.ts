@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { buildMoneyMap } from "@/lib/money-map/build";
+import { categoryOf } from "@/lib/money-map/categories";
 import { aimagOf, ALL_PLACES, AIMAGS, centreOf, placeIn, placeKey } from "@/lib/money-map/regions";
 
 describe("money map places", () => {
@@ -49,7 +50,7 @@ describe("buildMoneyMap", () => {
   });
 
   it("sums by aimag and place, keeps national lots apart, skips empty amounts, biggest first", () => {
-    const m = buildMoneyMap(
+    const { map: m, items } = buildMoneyMap(
       [
         lot({ governor: "Өмнөговь", orgName: "Өмнөговь аймгийн Даланзадгад хотын захирагчийн ажлын алба", contractMnt: 5e9 }),
         lot({ governor: "Өмнөговь", orgName: "Өмнөговь аймгийн Боловсролын газар", contractMnt: 2e9 }),
@@ -67,5 +68,19 @@ describe("buildMoneyMap", () => {
     // The aimag-only lot sits on the aimag centre (Dalanzadgad), so that point holds both.
     assert.equal(m.points.filter((p) => p.aimag === "Өмнөговь").length, 1);
     assert.equal(m.points[0].count, 2);
+    // Items sit in their own row, keyed by point id, biggest first; the map row has none.
+    assert.deepEqual(items[m.points[0].id].map((i) => i.m), [5e9, 2e9]);
+    assert.ok(!("items" in m.points[0]));
+    assert.equal(m.aimags[0].cat, "infrastructure", "titled «Барилга»");
+  });
+
+  it("what a tender buys, from its title; the specific rule wins", () => {
+    assert.equal(categoryOf("Цогтцэций сумын төвийн цэвэрлэх байгууламжийг шинээр байгуулах"), "environment");
+    assert.equal(categoryOf("Баяндалай сумын ерөнхий боловсролын сургууль болон дотуур байрны барилгын их засвар"), "education");
+    assert.equal(categoryOf("Мандал-Овоо сумын эрүүл мэндийн төвийн барилгын өргөтгөл"), "health");
+    assert.equal(categoryOf("Даланзадгад–Ханбогд авто зам"), "infrastructure");
+    assert.equal(categoryOf("Түлш, шатахуун, тослох материал нийлүүлэгчийг сонгон шалгаруулах"), "economy");
+    assert.equal(categoryOf("Сумын ЭМТ-ийн тоног төхөөрөмж"), "health");
+    assert.equal(categoryOf("Зөвлөх үйлчилгээ"), "other");
   });
 });
