@@ -122,6 +122,8 @@ export interface IntegritySnapshot {
   hoursSinceSnapshot?: number | null;
   /** Sites whose pages answer but give the extractor no text (weekly check, "domain (empty/read)"). */
   unreadableSources?: string[];
+  /** Hosts the last weekly check newly found with a certificate that fails verification (tls-exempt.ts). */
+  tlsNewlyBroken?: string[];
 }
 
 export interface HealthSnapshot {
@@ -236,6 +238,7 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
     if (g.egressMbPerDay != null && g.egressMbPerDay > EGRESS_MB_PER_DAY_WARN) info(`Supabase egress өдөрт ≈${g.egressMbPerDay} MB (тооцоолол): үнэгүй 5 GB-д багтахын тулд өдөрт ${EGRESS_MB_PER_DAY_WARN} MB-аас бага байх ёстой. Хэтэрвэл Supabase төслийг хязгаарлана; extensions.pg_stat_statements-ээс хамгийн их мөр буцаасан query-г олж засна (docs/agents/stack.md, Supabase egress).`);
     if (g.hoursSinceSnapshot != null && g.hoursSinceSnapshot > 2) info(`Нүүр болон сэдвийн хуудсуудын snapshot ${Math.round(g.hoursSinceSnapshot)} цаг шинэчлэгдээгүй: хуудсууд хуучин мэдээг харуулсаар байна. Pipeline-ийн «snapshots:write» алхмын логийг шалгана.`);
     if (g.unreadableSources?.length) info(`Долоо хоногийн шалгалт: эдгээр сайтын хуудас нээгдэж байгаа ч текст уншигдахгүй байна (хоосон/уншсан): ${g.unreadableSources.join(", ")}. Сайтын бүтэц өөрчлөгдсөн байж магадгүй тул тэндээс шинэ мэдээ ирэхгүй болно; адаптерыг шалгана.`);
+    if (g.tlsNewlyBroken?.length) info(`Долоо хоногийн шалгалт: эдгээр сайтын TLS сертификат шалгалт давахаа больсон тул сертификат шалгахгүйгээр уншиж байна: ${g.tlsNewlyBroken.join(", ")}. Сайт өөрөө сертификатаа сунгаагүй бол хэвийн; танихгүй сайт байвал эх сурвалжийн хаягийг шалгаарай.`);
     if (g.fallbackDispatchStatus && g.fallbackDispatchStatus >= 300) info(`Pipeline-ийн нөөц хуваарь GitHub-аас ${g.fallbackDispatchStatus} хариу авсан: токен эсвэл хаяг буруу тул GitHub run-ыг алгасвал pipeline эхлэхгүй. docs/PIPELINE-FALLBACK.md-ийн дагуу токеныг шинэчил.`);
     if (g.undatedBursts?.length) info(`${g.undatedBursts.join(", ")}: сүүлийн 24 цагт огноогүй 3+ мэдээ нийтлэгдсэн. Ихэвчлэн хуучин архивын хуудас шинэ мэдээ мэт уншигдсан байдаг: хуудасны огноог extractor уншиж байгаа эсэхийг шалгаад maintenance.yml → refetch-dates ажиллуул.`);
     if (g.silentSources.length) info(`${g.silentSources.length} эх сурвалжаас сүүлийн 14 хоногт шинэ огноотой 10+ мэдээ ирсэн ч нэг нь ч нийтлэгдээгүй (${g.silentSources.slice(0, 5).join(", ")}): JavaScript хуудас эсвэл буруу шүүлтүүр байж магадгүй.`);

@@ -14,11 +14,15 @@ import "dotenv/config";
 import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
+import { eq } from "drizzle-orm";
+
 import { closeDb, getDb, hasDatabase } from "@/db";
+import { appSettings } from "@/db/schema";
 import { API_ADAPTERS, groupByApiHost } from "@/lib/scraper/adapters";
 import { crawlSources, type ArticleSink } from "@/lib/scraper/crawl";
 import { createDbSink, loadDueSources, recordSourceResults } from "@/lib/scraper/db-sink";
 import { SourceRun } from "@/lib/scraper/source-run";
+import { parseTlsReport, TLS_BROKEN_KEY } from "@/lib/scraper/tls-exempt";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "@/lib/scraper/types";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { contentHash } from "@/lib/text";
@@ -125,6 +129,8 @@ async function main() {
   const started = Date.now();
   let sourceRefs: SourceRef[];
   let sink: ArticleSink;
+  // Without a database (a dry run) nothing is exempt: a site with a broken certificate fails.
+  let tlsBrokenHosts: ReadonlySet<string> = new Set();
 
   if (dryRun || !hasDatabase()) {
     if (!dryRun) {
@@ -141,6 +147,9 @@ async function main() {
     const due = await loadDueSources(db, domains);
     sourceRefs = due.map((s) => ({ id: s.id, domain: s.domain, name: s.name, urlPattern: s.urlPattern }));
     sink = createDbSink(db, { maxAgeDays: backfillDays || undefined });
+    const [tlsRow] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, TLS_BROKEN_KEY));
+    tlsBrokenHosts = new Set(parseTlsReport(tlsRow?.value)?.hosts ?? []);
+    if (tlsBrokenHosts.size) console.log(`🔓 ${tlsBrokenHosts.size} host(s) read without a certificate check (weekly re-check): ${[...tlsBrokenHosts].join(", ")}`);
     console.log(
       `🔎 Scraping ${sourceRefs.length} due source(s); limit ${perSourceLimit}/source; budget ${budgetMs / 60000} min${since ? `; backfill since ${since.toISOString().slice(0, 10)}` : ""}.`,
     );
@@ -173,6 +182,7 @@ async function main() {
         concurrency,
         since,
         browser: !values["no-browser"],
+        tlsBrokenHosts,
         onProgress: (m) => console.log(m),
       })),
     );
