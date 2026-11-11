@@ -108,14 +108,18 @@ export function createBudgetGuard(load: () => Promise<UsageSnapshot>, config: Bu
   let snapshot: UsageSnapshot | null = null;
   let loadedAt = 0;
   let pending: Promise<UsageSnapshot> | null = null;
-  // Calls the database will never contain, for the current UTC day; added on top of every reload.
+  // Calls the database will never contain (a 429, a timeout, a paid answer whose usage-log insert
+  // failed), for the current UTC day; added on top of every reload so their calls and USD are not
+  // forgotten a minute later.
   let extraDay = "";
   let extra: Partial<Record<AIProvider, number>> = {};
+  let extraUsd = 0;
   const rollDay = () => {
     const day = new Date().toISOString().slice(0, 10);
     if (day !== extraDay) {
       extraDay = day;
       extra = {};
+      extraUsd = 0;
     }
   };
   const current = async () => {
@@ -126,7 +130,7 @@ export function createBudgetGuard(load: () => Promise<UsageSnapshot>, config: Bu
       const dayCalls = { ...fresh.dayCalls };
       rollDay();
       for (const [p, n] of Object.entries(extra) as [AIProvider, number][]) dayCalls[p] = (dayCalls[p] ?? 0) + n;
-      snapshot = { ...fresh, dayCalls };
+      snapshot = { ...fresh, monthUsd: fresh.monthUsd + extraUsd, dayUsd: fresh.dayUsd + extraUsd, dayCalls };
       loadedAt = Date.now();
     }
     return snapshot;
@@ -137,7 +141,10 @@ export function createBudgetGuard(load: () => Promise<UsageSnapshot>, config: Bu
     },
     record(provider, costUsd, unlogged = false) {
       rollDay();
-      if (unlogged) extra[provider] = (extra[provider] ?? 0) + 1;
+      if (unlogged) {
+        extra[provider] = (extra[provider] ?? 0) + 1;
+        extraUsd += costUsd;
+      }
       if (!snapshot) return;
       snapshot.monthUsd += costUsd;
       snapshot.dayUsd += costUsd;

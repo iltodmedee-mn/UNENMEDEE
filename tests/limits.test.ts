@@ -34,6 +34,16 @@ describe("budget guard across reloads", () => {
     t.mock.timers.tick(14 * 3600_000);
     assert.equal((await guard.check("grok")).ok, true);
   });
+
+  it("keeps the USD of a paid call whose usage-log insert failed when the snapshot reloads", async (t) => {
+    t.mock.timers.enable({ apis: ["Date"], now: Date.parse("2026-11-07T10:00:00Z") });
+    const c = budgetConfig({ AI_MONTHLY_BUDGET_USD: "3", AI_DAILY_BUDGET_USD: "0.3" });
+    const guard = createBudgetGuard(async () => usage(), c);
+    await guard.check("grok");
+    guard.record("grok", 0.31, true); // answered and paid, but not in ai_usage_logs
+    t.mock.timers.tick(61_000);
+    assert.equal((await guard.check("grok")).ok, false, "the daily USD cap still counts it after a reload");
+  });
 });
 
 describe("budget limits", () => {
@@ -257,6 +267,28 @@ describe("Requesty gateway (mock server)", () => {
     const body = mock.calls[0].body as { max_tokens: number };
     assert.equal(body.max_tokens, 1_500 + 3_000, "reasoning headroom added");
     assert.equal(checkAllowance("requesty", usage({ monthUsd: 3 }), cfg).ok, false);
+  });
+
+  it("a failing usage-log insert after an unusable reply still lets the next provider answer", async () => {
+    const bad = await startMockLLM(() => ({ content: "not json", promptTokens: 10, completionTokens: 10 }));
+    const KEYS2 = ["ZAI_API_KEY", "ZAI_BASE_URL", "ZAI_MODEL", "ZAI_RPM"];
+    Object.assign(process.env, { ZAI_API_KEY: "test", ZAI_BASE_URL: bad.baseURL, ZAI_MODEL: "mock-zai", ZAI_RPM: "0" });
+    try {
+      const out = await callAIWithFallback({
+        tier: "tier1",
+        purpose: "tier1",
+        chain: ["zai", "requesty"],
+        messages: [{ role: "user", content: "x" }],
+        schema: Tier1Schema,
+        log: async (r) => {
+          if (!r.success) throw new Error("usage log insert failed");
+        },
+      });
+      assert.equal(out.provider, "requesty");
+    } finally {
+      await bad.close();
+      for (const k of KEYS2) delete process.env[k];
+    }
   });
 });
 

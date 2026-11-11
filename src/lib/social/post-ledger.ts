@@ -74,7 +74,9 @@ export async function publishOnce(db: DB, req: PublishRequest): Promise<PublishR
     if (tries > 0 && tries < MAX_TRIES) {
       [row] = await db
         .update(socialPosts)
-        .set({ postId: null })
+        // created_at is the post's time (postedAt, lastRealPost, the weekly quiz answer): a retry
+        // that succeeds days after the first refusal is dated now, not at the first try.
+        .set({ postId: null, createdAt: new Date() })
         .where(and(rowOf(platform, kind, refId), eq(socialPosts.postId, `failed:${tries}`)))
         .returning({ id: socialPosts.id });
     }
