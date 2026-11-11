@@ -491,8 +491,13 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
         }
         if (promptTokens || completionTokens) {
           const costUsd = reportedCost ?? estimateCostUsd(p.provider, promptTokens, completionTokens, p.model);
-          await log({ provider: p.provider, model: p.model, purpose: opts.purpose, articleId: opts.articleId, promptTokens, completionTokens, estimatedCostUsd: costUsd, success: false });
-          budget.record(p.provider, costUsd);
+          // A failing usage-log insert (a database blip) must not end the fallback chain: the
+          // call is still counted, in memory, until the next UTC day.
+          const logged = await log({ provider: p.provider, model: p.model, purpose: opts.purpose, articleId: opts.articleId, promptTokens, completionTokens, estimatedCostUsd: costUsd, success: false }).then(
+            () => true,
+            (logErr: unknown) => (console.warn(`[ai] ${p.provider}/${p.model} usage log failed: ${oneLine(errorMessage(logErr), 160)}`), false),
+          );
+          budget.record(p.provider, costUsd, !logged);
         } else {
           // A 429 or a timeout is still a request against the account's quota (OpenRouter: 50 a
           // day): counted in memory for the daily cap, not in ai_usage_logs (no tokens, no cost).
@@ -524,13 +529,16 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
       // The answer is valid and paid for: a failing usage-log insert (a database blip) must neither
       // trip the provider nor throw the answer away.
       const { data, costUsd } = success;
+      let logged = true;
       try {
         await log({ provider: p.provider, model: p.model, purpose: opts.purpose, articleId: opts.articleId, promptTokens, completionTokens, estimatedCostUsd: costUsd, success: true });
       } catch (logErr) {
+        logged = false;
         console.warn(`[ai] ${p.provider}/${p.model} answered but the usage log failed: ${oneLine(errorMessage(logErr), 160)}`);
       }
       try {
-        budget.record(p.provider, costUsd);
+        // Not in ai_usage_logs: kept in memory so the next reload does not forget its USD.
+        budget.record(p.provider, costUsd, !logged);
       } catch (recordErr) {
         console.warn(`[ai] ${p.provider}/${p.model} budget record failed: ${oneLine(errorMessage(recordErr), 160)}`);
       }

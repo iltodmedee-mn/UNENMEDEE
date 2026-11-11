@@ -110,6 +110,14 @@ describe("platform post ledger (PGlite)", () => {
     assert.equal(await postId("facebook", "wquiz", 202645), "album-1");
   });
 
+  it("a retry that succeeds days later is dated when it was posted, not when it was first tried", async () => {
+    quiet();
+    await insertRow("facebook", "wquiz", 202646, "failed:1", 3 * 86_400_000);
+    assert.equal(await go("facebook", "wquiz", 202646, fake("album-2")), "posted");
+    const at = await postedAt(db, "facebook", "wquiz", 202646);
+    assert.ok(at && Date.now() - at.getTime() < 60_000, `postedAt ${at?.toISOString()} is the retry's time`);
+  });
+
   it("an UnknownOutcomeError keeps the row as unknown with a ::warning:: and is never retried", async () => {
     quiet();
     const f = fake(new UnknownOutcomeError("publish answer lost: timeout"));
