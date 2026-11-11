@@ -35,9 +35,12 @@ export function nonceValid(stored: string | null | undefined, given: unknown, no
 /** Tags one request may purge (23 list pages and a few named tags fit easily). */
 export const MAX_TAGS = 64;
 
-/** The requested tags that are allowed (the named ones and snapshot tags); unknown names are dropped. */
+/** One stored indicator's tag (getIndicator in queries.ts): a sync that rewrote that row may purge it. */
+export const INDICATOR_TAG = /^indicator-[a-z0-9_]{1,40}$/;
+
+/** The requested tags that are allowed (the named ones, snapshot and indicator tags); unknown names are dropped. */
 export function allowedTags(raw: unknown): string[] {
   if (!Array.isArray(raw)) return [...RUN_TAGS];
-  const ok = raw.filter((t): t is string => typeof t === "string" && ((PURGE_TAGS as readonly string[]).includes(t) || SNAPSHOT_TAG.test(t)));
+  const ok = raw.filter((t): t is string => typeof t === "string" && ((PURGE_TAGS as readonly string[]).includes(t) || SNAPSHOT_TAG.test(t) || INDICATOR_TAG.test(t)));
   return [...new Set(ok)].slice(0, MAX_TAGS);
 }
