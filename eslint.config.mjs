@@ -19,7 +19,7 @@ const eslintConfig = defineConfig([
       "@typescript-eslint/no-unused-vars": "off",
     },
   },
-  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "storage/**", "drizzle/**"]),
+  globalIgnores([".next/**", "out/**", "build/**", "next-env.d.ts", "storage/**", "drizzle/**", "public/maplibre-gl-worker.mjs"]),
 ]);
 
 export default eslintConfig;

@@ -65,7 +65,7 @@ async function main() {
   console.log(`🗺 ${placed} lots on the money map.`);
   // The pages read these rows through an hour-long cache: purge them so a sync shows at once (Nov 11
   // 2026: /money stayed empty for an hour after the first map was stored).
-  await requestPurge(["indicator-money_map", "indicator-tender_company_matches"]).catch((err: unknown) => console.log(`::warning::cache purge failed: ${errorLine(err)}`));
+  await requestPurge(["indicator-money_map", "indicator-money_map_items", "indicator-tender_company_matches"]).catch((err: unknown) => console.log(`::warning::cache purge failed: ${errorLine(err)}`));
   await db
     .insert(appSettings)
     .values({ key: "tenders_synced_at", value: new Date().toISOString() })
