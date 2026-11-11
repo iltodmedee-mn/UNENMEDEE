@@ -79,9 +79,9 @@ export function MoneyMapView({ map }: { map: MoneyMap }) {
         };
         await m.once("load");
         if (gone) return;
-        for (const l of m.getStyle().layers) {
-          if (l.type === "symbol" && l.layout?.["text-field"]) m.setLayoutProperty(l.id, "text-field", ["coalesce", ["get", "name:mn"], ["get", "name"]]);
-        }
+        // The base map's own names are OpenStreetMap's local ones (Chinese, Russian, Kazakh, the
+        // Mongolian script next to Cyrillic): hidden, so the only names are ours, in Cyrillic.
+        for (const l of m.getStyle().layers) if (l.type === "symbol") m.setLayoutProperty(l.id, "visibility", "none");
         // The six category icons, drawn dark on the coloured circles.
         await Promise.all(
           CATEGORIES.map(async (c) => {
