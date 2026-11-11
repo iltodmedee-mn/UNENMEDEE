@@ -24,7 +24,7 @@ export function MoneyMapView({ map }: { map: MoneyMap }) {
     let gone = false;
     let instance: { remove(): void } | null = null;
     import("maplibre-gl")
-      .then(({ default: ml }) => {
+      .then((ml) => {
         if (gone || !box.current) return;
         const cl = document.documentElement.classList;
         const dark = cl.contains("dark-mode") || (!cl.contains("light-mode") && window.matchMedia("(prefers-color-scheme: dark)").matches);
