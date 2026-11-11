@@ -21,5 +21,6 @@ const seed = spawnSync(npx, ["tsx", "scripts/seed-demo.ts"], { stdio: "inherit",
 if (seed.status !== 0) process.exit(seed.status ?? 1);
 
 console.log("\n▶ http://localhost:3000  (Ctrl+C to stop)\n");
+spawnSync(process.execPath, ["scripts/copy-map-worker.mjs"], { stdio: "inherit" });
 const dev = spawn(npx, ["next", "dev", ...process.argv.slice(2)], { stdio: "inherit", env, shell: process.platform === "win32" });
 dev.on("exit", (code) => process.exit(code ?? 0));

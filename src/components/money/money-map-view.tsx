@@ -26,6 +26,8 @@ export function MoneyMapView({ map }: { map: MoneyMap }) {
     import("maplibre-gl")
       .then((ml) => {
         if (gone || !box.current) return;
+        // MapLibre 6 loads its worker by URL; scripts/copy-map-worker.mjs puts it in public/.
+        ml.setWorkerUrl(`/maplibre-gl-worker.mjs?v=${ml.getVersion()}`);
         const cl = document.documentElement.classList;
         const dark = cl.contains("dark-mode") || (!cl.contains("light-mode") && window.matchMedia("(prefers-color-scheme: dark)").matches);
         const m = new ml.Map({ container: box.current, style: dark ? STYLE.dark : STYLE.light, bounds: [87.7, 41.5, 119.9, 52.2], fitBoundsOptions: { padding: 8 }, attributionControl: false, cooperativeGestures: true });
