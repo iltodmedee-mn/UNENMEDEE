@@ -35,9 +35,9 @@ jobs:
       github.repository_owner == 'iltodmedee-mn' && (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@gemini') &&
           github.event.issue.pull_request == null &&
-          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.comment.author_association)) ||
+          contains(fromJSON('["OWNER","MEMBER"]'), github.event.comment.author_association)) ||
         (github.event_name == 'issues' && contains(github.event.issue.body, '@gemini') &&
-          contains(fromJSON('["OWNER","MEMBER","COLLABORATOR"]'), github.event.issue.author_association))
+          contains(fromJSON('["OWNER","MEMBER"]'), github.event.issue.author_association))
       )
     runs-on: ubuntu-latest
     timeout-minutes: 45

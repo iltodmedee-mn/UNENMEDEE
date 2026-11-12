@@ -30,6 +30,7 @@ import { htmlFragmentToText } from "@/lib/scraper/extractor";
 import { API_MAX_BYTES, politeFetch, readJsonLimited, readTextLimited } from "@/lib/scraper/http";
 import { isWordPress, sameSite, wordPressApiBase, wordPressPostId, wordPressPostsUrl } from "@/lib/scraper/links";
 import { decide, EXTRACTION_KEY, extractionBroken, type ExtractionTally, type FetchResult, MIN_FRESH_CHARS, type SourceDiff, type SourceStatus } from "@/lib/scraper/recheck";
+import { certValid, nextTlsReport, parseTlsReport, TLS_BROKEN_KEY } from "@/lib/scraper/tls-exempt";
 import { errorDetail, errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
@@ -233,6 +234,35 @@ async function main() {
   if (!dry) {
     const value = JSON.stringify({ at: new Date().toISOString(), broken });
     await db.insert(appSettings).values({ key: EXTRACTION_KEY, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
+  }
+
+  // The weekly certificate check (tls-exempt.ts): one verified handshake per source host. Only
+  // the hosts that fail it are read without the check by the crawler, until they are repaired.
+  const hosts = new Set<string>([...byHost.keys()].map((h) => h.split(":")[0].toLowerCase()));
+  for (const s of await db.select({ domain: sources.domain, urlPattern: sources.urlPattern }).from(sources)) {
+    hosts.add(s.domain.toLowerCase());
+    hosts.add(`www.${s.domain.toLowerCase()}`);
+    try {
+      const u = new URL(s.urlPattern);
+      if (u.protocol === "https:") hosts.add(u.hostname.toLowerCase());
+    } catch {
+      /* not a URL: the domain itself is checked */
+    }
+  }
+  const verdicts = new Map<string, boolean | null>();
+  const pending = [...hosts];
+  await Promise.all(
+    Array.from({ length: 8 }, async () => {
+      for (let h = pending.shift(); h; h = pending.shift()) verdicts.set(h, await certValid(h));
+    }),
+  );
+  const [tlsRow] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, TLS_BROKEN_KEY));
+  const tls = nextTlsReport(parseTlsReport(tlsRow?.value), verdicts, new Date());
+  for (const h of tls.added) console.log(`::warning::${h}: the TLS certificate fails verification; the crawler reads this host without the check until it is repaired`);
+  console.log(`🔓 certificates: ${hosts.size} host(s) asked, ${[...verdicts.values()].filter((v) => v === true).length} valid, ${tls.hosts.length} read without the check${tls.hosts.length ? ` (${tls.hosts.join(", ")})` : ""}`);
+  if (!dry) {
+    const value = JSON.stringify(tls);
+    await db.insert(appSettings).values({ key: TLS_BROKEN_KEY, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
   }
 }
 

@@ -27,8 +27,16 @@ Useful details: the URL or file, steps to reproduce, and what an attacker could 
 - No API key, database password or private key is stored in this repository.
   AI provider keys and `DATABASE_URL` live only in GitHub Actions secrets and Vercel
   environment variables; `.env*` files are git-ignored (only `.env.example` is committed).
-- Workflows run with read-only `GITHUB_TOKEN` permissions, actions are pinned to commit
+- Workflows default to a read-only `GITHUB_TOKEN`. Five hold a write scope, each for one job:
+  `gemini.yml` (contents, pull requests, issues, actions: it pushes a branch and opens a PR for a
+  fix an organisation member asked for in an issue, never merges, and the model itself gets no
+  token), `dependabot-automerge.yml` (contents, pull requests: Dependabot's own PRs only),
+  `keepalive.yml` (actions: re-enables a workflow GitHub paused), `watchdog.yml` and the last job
+  of `autonomous-news-pipeline.yml` (issues: the health issue). Actions are pinned to commit
   SHAs, and Dependabot proposes updates weekly.
+- The crawler verifies every site's TLS certificate, except the hosts the weekly re-check found
+  with a certificate that fails verification (`app_settings.tls_broken_hosts`, several `.gov.mn`
+  sites serve expired or incomplete chains). The watchdog names a host when it joins that list.
 - The weekly database backup (`backup.yml`, `docs/BACKUP.md`) is encrypted with `age` to the
   owner's public key before it leaves the job; the private key never touches GitHub. Artifacts of
   a public repository are downloadable by any signed-in user, so nothing else is uploaded, and the
@@ -69,7 +77,7 @@ Useful details: the URL or file, steps to reproduce, and what an attacker could 
   and a CSP with `base-uri`, `object-src 'none'`, `frame-ancestors 'none'` and `form-action`.
   There is no `script-src`: Next.js needs inline scripts, and nonces would make every static page
   dynamic.
-- **Supply chain.** Actions pinned to commit SHAs, read-only `GITHUB_TOKEN`, Dependabot with a
+- **Supply chain.** Actions pinned to commit SHAs, a read-only `GITHUB_TOKEN` by default (the five workflows with a write scope are listed above), Dependabot with a
   7-day cooldown, dependency review and CodeQL on PRs, and a `main` ruleset (PR + green CI). Forks
   never run the scheduled workflows (`if: github.repository_owner == 'iltodmedee-mn'`).
 

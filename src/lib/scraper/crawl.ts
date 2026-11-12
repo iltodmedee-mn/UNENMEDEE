@@ -7,6 +7,7 @@ import { findFeedUrl, harvestArticleLinks, harvestSectionLinks, isWordPress, par
 import { oneLine } from "@/lib/log-safe";
 
 import { assertPublicHostLiteral, guardGotOptions, isPublicHost } from "./net-guard";
+import { applyTlsPolicy, certChecker, certValid, tlsExempt } from "./tls-exempt";
 import { getRobots, MAX_CRAWL_DELAY_MS, MIN_DOMAIN_DELAY_MS, type RobotsPolicy, USER_AGENT } from "./robots";
 import { isGenericTitle, looksLikeNavigation } from "./titles";
 import { SourceRun } from "./source-run";
@@ -33,6 +34,8 @@ export interface CrawlOptions {
   since?: Date;
   /** Second pass with headless Chromium for JavaScript-rendered sites. Default true. */
   browser?: boolean;
+  /** Hosts read without checking their certificate (`app_settings.tls_broken_hosts`, tls-exempt.ts). Every other host is verified. */
+  tlsBrokenHosts?: ReadonlySet<string>;
   onProgress?: (msg: string) => void;
 }
 
@@ -68,21 +71,27 @@ interface SourceState {
 const BODY_MIME_TYPES = ["application/json", "application/rss+xml", "application/atom+xml", "application/xml", "text/xml"];
 const BLOCKED_RESOURCES = new Set(["image", "media", "font", "stylesheet"]);
 
+/** The hosts this run may read without a certificate check (set by crawlSources from its options). */
+let tlsBroken: ReadonlySet<string> = new Set();
+
 /**
- * robots.txt fetched with the same TLS stance as the pages themselves (many .gov.mn certificates
- * are broken; the page crawl ignores that), so a bad certificate does not read as "unreachable".
+ * robots.txt fetched with the same TLS stance as the pages themselves (tls-exempt.ts: verified,
+ * except the hosts the weekly re-check found with a broken certificate), so a listed site's bad
+ * certificate does not read as "unreachable".
  */
 const robotsFetch = (async (url: string) => {
   assertPublicHostLiteral(url);
   const res = await gotScraping(
-    guardGotOptions({
-      url,
-      headers: { "user-agent": USER_AGENT },
-      https: { rejectUnauthorized: false },
-      timeout: { request: 15_000 },
-      throwHttpErrors: false,
-      useHeaderGenerator: false,
-    }),
+    applyTlsPolicy(
+      guardGotOptions({
+        url,
+        headers: { "user-agent": USER_AGENT },
+        timeout: { request: 15_000 },
+        throwHttpErrors: false,
+        useHeaderGenerator: false,
+      }),
+      tlsBroken,
+    ),
   );
   return new Response(res.statusCode === 204 || res.statusCode === 304 ? null : res.body, {
     status: res.statusCode,
@@ -173,6 +182,14 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   const progress = opts.onProgress ?? (() => {});
   const deadline = Date.now() + opts.budgetMs;
   const browserEnabled = opts.browser ?? process.env.SCRAPER_BROWSER !== "0";
+  tlsBroken = opts.tlsBrokenHosts ?? new Set();
+  const checkCert = certChecker();
+  /** Browser pass: an https host is either listed (read unverified) or has just passed a verified handshake. */
+  const certTrusted = async (url: string): Promise<boolean> => {
+    const u = new URL(url);
+    if (u.protocol !== "https:" || tlsExempt(u, tlsBroken)) return true;
+    return (await (u.port && u.port !== "443" ? certValid(u.hostname, { port: Number(u.port) }) : checkCert(u.hostname))) === true;
+  };
   const states = new Map<number, SourceState>(
     sources.map((s) => [
       s.id,
@@ -352,6 +369,8 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
       const c: CheerioCrawler = new CheerioCrawler(
         {
           ...common,
+          // Crawlee's switch is crawler-wide and is applied after the hooks, so it stays "off" here
+          // and applyTlsPolicy (below) turns verification on for every host that is not listed.
           ignoreSslErrors: true,
           // A 404/410 page is not an article (Crawlee hands other 4xx bodies to the handler).
           additionalHttpErrorStatusCodes: [404, 410, 451],
@@ -361,6 +380,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
               // Public addresses only, redirects included (net-guard.ts).
               assertPublicHostLiteral(request.url);
               guardGotOptions(gotOptions);
+              applyTlsPolicy(gotOptions, tlsBroken);
               await politeWait(request.url);
               gotOptions.headers = { ...gotOptions.headers, "user-agent": USER_AGENT, "accept-language": "mn,en;q=0.8" };
             },
@@ -389,6 +409,9 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
           },
           preNavigationHooks: [
             async ({ page, request }) => {
+              // Chromium's certificate switch is browser-wide (the listed hosts need it), so every
+              // other host must pass one verified handshake first; its sub-requests likewise.
+              if (!(await certTrusted(request.url))) throw new Error(`TLS certificate not valid for ${new URL(request.url).hostname} (not in tls_broken_hosts)`);
               await politeWait(request.url);
               // Heavy resources are skipped; a page's scripts must not reach a private address either.
               await page.route("**/*", async (route) => {
@@ -396,6 +419,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
                 if (BLOCKED_RESOURCES.has(req.resourceType())) return route.abort();
                 const { protocol, hostname } = new URL(req.url());
                 if ((protocol === "http:" || protocol === "https:") && !(await isPublicHost(hostname))) return route.abort("addressunreachable");
+                if (!(await certTrusted(req.url()))) return route.abort("failed");
                 return route.continue();
               });
             },

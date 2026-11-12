@@ -19,6 +19,7 @@ import { OUTLETS } from "@/lib/press/outlets";
 import { MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { sourceHealth } from "@/lib/scraper/db-sink";
 import { EXTRACTION_KEY, parseExtractionReport } from "@/lib/scraper/recheck";
+import { parseTlsReport, TLS_BROKEN_KEY } from "@/lib/scraper/tls-exempt";
 import { lastRealPost, unknownSince } from "@/lib/social/post-ledger";
 import { aiSummarized, dated, published, undated } from "@/lib/story-rules";
 
@@ -149,6 +150,9 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
   const [extractionRow] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, EXTRACTION_KEY));
   const extraction = parseExtractionReport(extractionRow?.value);
   const extractionFresh = extraction && now.getTime() - Date.parse(extraction.at) < 15 * DAY_MS;
+  // The weekly certificate check: hosts that joined the unverified list, named for 8 days.
+  const [tlsRow] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, TLS_BROKEN_KEY));
+  const tls = parseTlsReport(tlsRow?.value);
   // List pages read snapshots (docs/adr/0001-list-pages-read-snapshots.md): the newest write time.
   const [snap] = await db.select({ at: sql<string | null>`max(${feedSnapshots.builtAt})::text` }).from(feedSnapshots);
   return {
@@ -160,6 +164,7 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
     siteErrors: errors,
     fallbackDispatchStatus: dispatch,
     hoursSinceSnapshot: snap?.at ? hoursSince(snap.at, now) : null,
+    tlsNewlyBroken: tls && now.getTime() - Date.parse(tls.at) < 8 * DAY_MS ? tls.added : [],
     unreadableSources: extractionFresh ? extraction.broken.map((b) => `${b.domain} (${b.empty}/${b.read})`) : [],
   };
 }

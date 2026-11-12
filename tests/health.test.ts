@@ -214,12 +214,14 @@ describe("data integrity and phone layout rules", () => {
           siteErrors: [{ route: "GET /tax", message: "TypeError: bad", count: 4 }],
           fallbackDispatchStatus: 403,
           unreadableSources: ["mof.gov.mn (5/5)"],
+          tlsNewlyBroken: ["new.gov.mn"],
         },
       },
       CONFIG,
       NOW,
     );
-    assert.equal(out.length, 3);
+    assert.equal(out.length, 4);
+    assert.ok(out.some((l) => /TLS сертификат.*new\.gov\.mn/.test(l)));
     assert.ok(out.some((l) => /GET \/tax \(4×\): TypeError: bad/.test(l)));
     assert.ok(out.some((l) => /403.*PIPELINE-FALLBACK/.test(l)));
     assert.ok(out.some((l) => /mof\.gov\.mn \(5\/5\)/.test(l)));

@@ -58,6 +58,14 @@ describe("workflows read one configuration", () => {
     }
   });
 
+  it("SECURITY.md names every workflow whose token holds a write scope", () => {
+    const security = readFileSync(new URL("../SECURITY.md", import.meta.url), "utf8");
+    for (const file of readdirSync(DIR).filter((f) => f.endsWith(".yml"))) {
+      if (!/^\s+[a-z-]+:\s*write\s*$/m.test(read(file))) continue;
+      assert.ok(security.includes(`\`${file}\``), `${file} holds a write permission but SECURITY.md does not name it`);
+    }
+  });
+
   it("every manual dry_run input is a boolean read through inputs.dry_run", () => {
     for (const file of readdirSync(DIR).filter((f) => f.endsWith(".yml"))) {
       const text = read(file);
