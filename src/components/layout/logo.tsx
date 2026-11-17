@@ -10,7 +10,7 @@ import { cx } from "@/utils/cx";
 export function Logo({ className, withDomain = false }: { className?: string; withDomain?: boolean }) {
   return (
     <span className={cx("flex items-center gap-2.5", className)}>
-      <Image src="/brand/mark.png" alt="" width={52} height={32} priority className="h-7 w-auto sm:h-8" />
+      <Image src="/brand/mark.png" alt="" width={52} height={32} preload className="h-7 w-auto sm:h-8" />
       <span className="flex flex-col leading-none">
         {/* Two lines on phones (the header also holds 4 buttons), one line from `sm` up. */}
         <span className="flex flex-col font-display text-[0.9rem] font-extrabold tracking-[-0.02em] text-primary uppercase sm:flex-row sm:gap-1.5 sm:text-[1.05rem]">

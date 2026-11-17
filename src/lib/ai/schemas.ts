@@ -91,8 +91,8 @@ export const Tier1Schema = z
     impact: v.impact ?? null,
     risk_flag: v.risk_score >= RISK_FLAG_THRESHOLD,
   }))
-  .refine((v) => v.tldr_summary.length >= 20, { message: "tldr_summary is empty" })
-  .refine((v) => !LEAKED_KEYS.test(v.tldr_summary), { message: "tldr_summary holds the rest of the JSON reply" })
+  .refine((v) => v.tldr_summary.length >= 20, { error: "tldr_summary is empty" })
+  .refine((v) => !LEAKED_KEYS.test(v.tldr_summary), { error: "tldr_summary holds the rest of the JSON reply" })
   // Cyrillic only (script.ts): a transliterated reply fails, so the repair retry or the next provider writes it.
   .refine((v) => !isLatinText([v.tldr_summary, ...v.facts, v.spin_detected, v.risk_reason].join(" ")), {
     message: "the reply is written in Latin letters, not Mongolian Cyrillic",
