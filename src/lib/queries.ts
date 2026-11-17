@@ -1300,13 +1300,26 @@ export async function getPoliticianIds(): Promise<number[]> {
   });
 }
 
-/** Every member's short name, former ones included: links and mentions refuse a name two members ever shared. */
-export async function getPoliticianNames(): Promise<{ id: number; shortName: string; isActive: boolean }[]> {
+/**
+ * The members whose short name is one of these, former ones included: links and mentions refuse a
+ * name two members ever shared (links.ts attributable), so every row with the name must come back.
+ * Only the names a page shows are asked for (Nov 2026: the whole 126-row roster on every article
+ * page, re-read by each new server instance, was a quarter of the database egress).
+ */
+export async function getPoliticianNames(names: string[]): Promise<{ id: number; shortName: string; isActive: boolean }[]> {
+  const wanted = [...new Set(names.map((n) => n.trim()).filter((n) => n.length > 0 && n.length <= 80))].sort().slice(0, 40);
+  if (wanted.length === 0) return [];
+  return politicianNamesFor(wanted);
+}
+
+async function politicianNamesFor(wanted: string[]): Promise<{ id: number; shortName: string; isActive: boolean }[]> {
   "use cache";
-  // The roster changes weekly (officials:sync) and it is on every article page: a day is enough.
+  // The roster changes weekly (officials:sync): a day is enough.
   cacheLife("days");
   cacheTag("officials");
-  return safe("getPoliticianNames", [], () => getDb().select({ id: politicians.id, shortName: politicians.shortName, isActive: politicians.isActive }).from(politicians));
+  return safe("getPoliticianNames", [], () =>
+    getDb().select({ id: politicians.id, shortName: politicians.shortName, isActive: politicians.isActive }).from(politicians).where(inArray(politicians.shortName, wanted)),
+  );
 }
 
 export interface PoliticianDetail {

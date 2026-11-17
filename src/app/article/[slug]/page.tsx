@@ -173,7 +173,7 @@ async function ArticleView({ params }: { params: PageProps<"/article/[slug]">["p
   const place = article.sourceCategory === "local" ? placeOfDomain(article.sourceDomain) : undefined;
   const topic = topicFor(article.sourceDomain, article.sourceCategory, article.topic);
   // Named people link to their MP profile when the short name is one active member's.
-  const people = article.entities.people.length ? linkPeople(article.entities.people, await getPoliticianNames()) : [];
+  const people = article.entities.people.length ? linkPeople(article.entities.people, await getPoliticianNames(article.entities.people)) : [];
 
   const dateUnknown = article.scrapeMeta?.date_unknown === true;
   const day = !dateUnknown && article.publishedAt ? ubDateKey(new Date(article.publishedAt).getTime()) : null;
