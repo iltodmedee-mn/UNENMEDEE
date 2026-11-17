@@ -12,10 +12,10 @@ import "dotenv/config";
 import "@/lib/runtime-banner";
 import { parseArgs } from "node:util";
 
-import { and, gte, inArray, lt, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lt, sql } from "drizzle-orm";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
-import { articles, pressItems, pressLinks } from "@/db/schema";
+import { appSettings, articles, pressItems, pressLinks } from "@/db/schema";
 import { aiSummarized } from "@/lib/story-rules";
 import { OUTLETS, parseNewsMn, parseRssItems, type FeedItem } from "@/lib/press/feeds";
 import { matchPress, PRESS_AFTER_DAYS, type GovDoc, type PressDoc } from "@/lib/press/match";
@@ -28,6 +28,8 @@ const DRY = values["dry-run"];
 const PRESS_KEEP_DAYS = 45;
 /** Government stories of this many days are matched each run. */
 const MATCH_DAYS = 7;
+const MATCHED_KEY = "press_matched_at";
+const REMATCH_H = 6;
 
 async function readOutlet(o: (typeof OUTLETS)[number]): Promise<FeedItem[]> {
   const res = await politeFetch(o.feed, { timeoutMs: 30_000, headers: { accept: o.kind === "rss" ? "application/rss+xml, application/xml" : "application/json" } });
@@ -56,11 +58,21 @@ async function main() {
     return;
   }
   const db = getDb();
+  let added = 0;
   if (!DRY && fetched.length) {
     const rows = fetched.map(({ outlet, item }) => ({ outlet, title: item.title.slice(0, 500), url: item.url, publishedAt: item.publishedAt }));
     for (let i = 0; i < rows.length; i += 200) {
-      await db.insert(pressItems).values(rows.slice(i, i + 200)).onConflictDoNothing({ target: pressItems.url });
+      added += (await db.insert(pressItems).values(rows.slice(i, i + 200)).onConflictDoNothing({ target: pressItems.url }).returning({ id: pressItems.id })).length;
     }
+  }
+  // The match re-reads 12 days of headlines and stories: only when new headlines came in, or every
+  // REMATCH_H hours for stories that got their summary since (Nov 2026: 7 % of the database egress
+  // came from re-matching the same rows every run).
+  const [last] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, MATCHED_KEY));
+  const lastAt = last ? Date.parse(last.value) : NaN;
+  if (!DRY && added === 0 && Number.isFinite(lastAt) && Date.now() - lastAt < REMATCH_H * 3_600_000) {
+    console.log(`🔗 No new press headline; the last match ran ${((Date.now() - lastAt) / 3_600_000).toFixed(1)} h ago: skipped.`);
+    return;
   }
 
   const since = new Date(Date.now() - (MATCH_DAYS + PRESS_AFTER_DAYS) * 86_400_000);
@@ -88,6 +100,10 @@ async function main() {
       .values(matches.slice(i, i + 500).map((m) => ({ articleId: m.articleId, pressItemId: m.pressId, score: m.score })))
       .onConflictDoNothing();
   }
+  await db
+    .insert(appSettings)
+    .values({ key: MATCHED_KEY, value: new Date().toISOString() })
+    .onConflictDoUpdate({ target: appSettings.key, set: { value: new Date().toISOString(), updatedAt: new Date() } });
   const old = await db.delete(pressItems).where(lt(pressItems.foundAt, new Date(Date.now() - PRESS_KEEP_DAYS * 86_400_000))).returning({ id: pressItems.id });
   if (old.length) console.log(`🧹 ${old.length} press headlines older than ${PRESS_KEEP_DAYS} days deleted.`);
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(pressItems);

@@ -57,20 +57,43 @@ async function main() {
   const db = getDb();
   const [{ n }] = (await db.execute(sql`select count(*)::int as n from tenders`)).rows as { n: number }[];
   const firstSync = n === 0;
+  const before = await tenderFingerprint(db);
   const written = await upsertTenders(db, rows, firstSync);
-  // The members' companies among the winners, stored once for the pages (company-matches.ts).
-  const matched = await storeCompanyMatches(db);
-  // The «Миний ₮» map: this year's lots by aimag and sum, one stored row (src/lib/money-map).
-  const placed = await storeMoneyMap(db);
-  console.log(`🗺 ${placed} lots on the money map.`);
-  // The pages read these rows through an hour-long cache: purge them so a sync shows at once (Nov 11
-  // 2026: /money stayed empty for an hour after the first map was stored).
-  await requestPurge(["indicator-money_map", "indicator-money_map_items", "indicator-tender_company_matches"]).catch((err: unknown) => console.log(`::warning::cache purge failed: ${errorLine(err)}`));
+  // The company matches and the money map are rebuilt from every awarded lot: only when a lot was
+  // added or changed (Nov 2026: the rebuild re-read ~11 000 rows twice a day for nothing, 9 % of
+  // the database egress). A missing stored row is rebuilt anyway.
+  const changed = before !== (await tenderFingerprint(db)) || !(await storedRowsPresent(db));
+  let matched: number | string = "unchanged";
+  if (changed) {
+    // The members' companies among the winners, stored once for the pages (company-matches.ts).
+    matched = await storeCompanyMatches(db);
+    // The «Миний ₮» map: this year's lots by aimag and sum, one stored row (src/lib/money-map).
+    const placed = await storeMoneyMap(db);
+    console.log(`🗺 ${placed} lots on the money map.`);
+    // The pages read these rows through an hour-long cache: purge them so a sync shows at once (Nov 11
+    // 2026: /money stayed empty for an hour after the first map was stored).
+    await requestPurge(["indicator-money_map", "indicator-money_map_items", "indicator-tender_company_matches"]).catch((err: unknown) => console.log(`::warning::cache purge failed: ${errorLine(err)}`));
+  } else {
+    console.log("🗺 No lot added or changed: the company matches and the money map stay as stored.");
+  }
   await db
     .insert(appSettings)
     .values({ key: "tenders_synced_at", value: new Date().toISOString() })
     .onConflictDoUpdate({ target: appSettings.key, set: { value: new Date().toISOString() } });
   console.log(`✓ ${written} rows upserted${firstSync ? " (first sync: dated by the official result date)" : ""}${failed ? `, ${failed} call(s) failed` : ""}; ${matched} declared companies among the winners.`);
+}
+
+/** One row: a digest of every column the matches and the map read, so "nothing changed" is exact. */
+async function tenderFingerprint(db: ReturnType<typeof getDb>): Promise<string> {
+  const r = await db.execute(
+    sql`select count(*)::text || ':' || coalesce(md5(string_agg(concat_ws('|', key, awarded, winner, contract_mnt, org_name, governor, title, result_date, unit_suspect), ',' order by key)), '') as f from tenders`,
+  );
+  return String((r.rows as { f: string }[])[0]?.f ?? "");
+}
+
+async function storedRowsPresent(db: ReturnType<typeof getDb>): Promise<boolean> {
+  const r = await db.execute(sql`select count(*)::int as n from indicator_snapshots where key in ('money_map', 'money_map_items', 'tender_company_matches')`);
+  return Number((r.rows as { n: number }[])[0]?.n ?? 0) === 3;
 }
 
 main()

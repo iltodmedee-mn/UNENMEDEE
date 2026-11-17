@@ -98,7 +98,7 @@ export default async function ProjectPage({ params }: PageProps<"/projects/[slug
   const spent = officialSpent(p);
   const latest = latestBudget(p);
   const latestSum = latest.reduce((a, b) => a + b.amount, 0);
-  const people = p.people.length ? linkPeople(p.people.map((x) => x.name), await getPoliticianNames()) : [];
+  const people = p.people.length ? linkPeople(p.people.map((x) => x.name), await getPoliticianNames(p.people.map((x) => x.name))) : [];
   const mega = p.links.megaIndex !== undefined ? PROGRAMME.megaProjects[p.links.megaIndex] : undefined;
   const official = safeHttpUrl(p.links.official);
   const events = [...p.events].sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
