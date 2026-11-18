@@ -54,7 +54,6 @@
   },
   "dependencies": {
     "@mozilla/readability": "^0.6.0",
-    "@react-stately/utils": "^3.12.1",
     "@tiptap/pm": "^3.33.0",
     "@tiptap/react": "^3.33.0",
     "@tiptap/starter-kit": "^3.33.0",

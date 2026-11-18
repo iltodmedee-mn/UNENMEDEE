@@ -5,7 +5,7 @@ import { politeFetch } from "@/lib/scraper/http";
 /** World Bank WDI: tax revenue, % of GDP, Mongolia (comparison series for /budget). */
 export const WB_TAX_URL = "https://api.worldbank.org/v2/country/MNG/indicator/GC.TAX.TOTL.GD.ZS?format=json&per_page=100&date=1990:2030";
 
-const Response = z.tuple([z.object({ lastupdated: z.string().nullish() }).passthrough(), z.array(z.object({ date: z.string(), value: z.number().nullable() })).nullable()]);
+const Response = z.tuple([z.looseObject({ lastupdated: z.string().nullish() }), z.array(z.object({ date: z.string(), value: z.number().nullable() })).nullable()]);
 
 export interface TaxShareSnapshot {
   lastUpdated: string | null;

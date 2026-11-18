@@ -30,6 +30,8 @@ const PRESS_KEEP_DAYS = 45;
 const MATCH_DAYS = 7;
 const MATCHED_KEY = "press_matched_at";
 const REMATCH_H = 6;
+/** New headlines arrive in most runs (27 of 48 hours, Nov 2026): the match still runs at most this often. */
+const MIN_MATCH_H = 3;
 
 async function readOutlet(o: (typeof OUTLETS)[number]): Promise<FeedItem[]> {
   const res = await politeFetch(o.feed, { timeoutMs: 30_000, headers: { accept: o.kind === "rss" ? "application/rss+xml, application/xml" : "application/json" } });
@@ -70,8 +72,9 @@ async function main() {
   // came from re-matching the same rows every run).
   const [last] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, MATCHED_KEY));
   const lastAt = last ? Date.parse(last.value) : NaN;
-  if (!DRY && added === 0 && Number.isFinite(lastAt) && Date.now() - lastAt < REMATCH_H * 3_600_000) {
-    console.log(`🔗 No new press headline; the last match ran ${((Date.now() - lastAt) / 3_600_000).toFixed(1)} h ago: skipped.`);
+  const sinceH = (Date.now() - lastAt) / 3_600_000;
+  if (!DRY && Number.isFinite(lastAt) && sinceH < (added === 0 ? REMATCH_H : MIN_MATCH_H)) {
+    console.log(`🔗 ${added} new press headline(s); the last match ran ${sinceH.toFixed(1)} h ago: skipped until ${added === 0 ? REMATCH_H : MIN_MATCH_H} h.`);
     return;
   }
 

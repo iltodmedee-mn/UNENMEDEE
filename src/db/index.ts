@@ -77,8 +77,10 @@ export function getDb(): DB {
     max: Number(process.env.DB_POOL_MAX ?? 3),
     idleTimeoutMillis: 10_000,
     connectionTimeoutMillis: 10_000,
-    // Client-side cap: a stuck query errors instead of holding a connection forever.
-    query_timeout: 20_000,
+    // Client-side cap: a stuck query errors instead of holding a connection forever. On Vercel the
+    // pages give up after 10 s (queries.ts QUERY_TIMEOUT_MS), so a connection is freed 2 s later, not
+    // 10 s later with only three in the pool; scripts keep 20 s for their larger reads.
+    query_timeout: process.env.VERCEL ? 12_000 : 20_000,
   });
   // An idle client losing its connection must not crash the process.
   pool.on("error", (err) => console.error("[db] idle client error:", err.message));
