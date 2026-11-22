@@ -295,12 +295,20 @@ let spreadTurn = 0;
  * so its 1,000 free calls a day sat unused while articles waited behind Groq's rate limit.
  */
 export function spreadFree(chain: AIProvider[], turn = spreadTurn++): AIProvider[] {
-  const head: AIProvider[] = [];
-  let i = 0;
-  while (i < chain.length && SPREAD.includes(chain[i])) head.push(chain[i++]);
-  if (head.length < 2) return chain;
-  const k = turn % head.length;
-  return [...head.slice(k), ...head.slice(0, k), ...chain.slice(i)];
+  // The free providers in the chain's free part (before the first paid or last-resort one), rotated
+  // across their own positions. A free Gemini key sits second in tier 1 ("groq, gemini, nvidia…"):
+  // stopping at the first non-SPREAD provider left Groq alone at the head and nothing rotated
+  // (Nov 2026 audit B-10). Gemini keeps its place.
+  const end = chain.findIndex((p) => !SPREAD.includes(p) && p !== "gemini");
+  const freePart = end === -1 ? chain.length : end;
+  const at: number[] = [];
+  for (let i = 0; i < freePart; i++) if (SPREAD.includes(chain[i])) at.push(i);
+  if (at.length < 2) return chain;
+  const k = turn % at.length;
+  const order = at.map((_, j) => chain[at[(j + k) % at.length]]);
+  const out = [...chain];
+  at.forEach((pos, j) => (out[pos] = order[j]));
+  return out;
 }
 
 /** The chain written in AI_TIER1_CHAIN / AI_TIER2_CHAIN, or null when unset or without a known provider. */

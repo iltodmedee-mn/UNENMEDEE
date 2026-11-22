@@ -751,7 +751,8 @@ export interface SitemapArticle {
  */
 export async function getSitemapSlugs(limit = 45_000): Promise<{ slug: string; lastModified: Date }[]> {
   "use cache";
-  cacheLife("hours");
+  // Up to 45 000 rows: read every 6 h, not every hour (audit P-5).
+  cacheLife("slow");
   cacheTag("articles");
   return safe("getSitemapSlugs", [], () =>
     getDb()
@@ -1397,7 +1398,8 @@ export async function getPolitician(id: number): Promise<PoliticianDetail | null
 /** A stored snapshot from an official data API (see scripts/sync-*.ts), or null. */
 export async function getIndicator<T>(key: string): Promise<{ data: T; asOf: string | null; updatedAt: Date } | null> {
   "use cache";
-  cacheLife("hours");
+  // Synced every 12 h to 7 days; "hours" kept / and ~8 data pages hourly (audit P-3/P-7).
+  cacheLife("slow");
   cacheTag("indicators", `indicator-${key}`);
   return safe(`getIndicator(${key})`, null, async () => {
     const [row] = await getDb().select().from(indicatorSnapshots).where(eq(indicatorSnapshots.key, key)).limit(1);
@@ -1445,7 +1447,8 @@ export async function getDonation(): Promise<Donation> {
  */
 export async function getDonations(limit = 100): Promise<DonationsSummary> {
   "use cache";
-  cacheLife("hours");
+  // Changed only by admin actions, which purge "donations" at once (audit P-7).
+  cacheLife("days");
   cacheTag("donations");
   const empty: DonationsSummary = { rows: [], count: 0, totalMnt: 0, monthMnt: 0 };
   return safe("getDonations", empty, async () => {
@@ -1549,7 +1552,8 @@ export async function getAttendance(): Promise<{ highlight: AttendanceHighlight;
 /** /laws: newest legal acts registered on legalinfo.mn (laws, resolutions, orders) with their AI summaries. */
 export async function getLegalActs(limit = 40): Promise<ArticleListItem[]> {
   "use cache";
-  cacheLife("hours");
+  // legalinfo.mn acts arrive with the pipeline like any story (audit P-7).
+  cacheLife("news");
   cacheTag("articles", "feed");
   return safe("getLegalActs", [], async () => {
     const rows = await getDb()
@@ -1575,7 +1579,8 @@ export interface WeekNumbers {
 /** "📊 Энэ 7 хоногт" on /digest: plain counts over the last 7 days. */
 export async function getWeekNumbers(): Promise<WeekNumbers | null> {
   "use cache";
-  cacheLife("hours");
+  // The week's counts on /digest: the feed's lifetime is enough (audit P-7).
+  cacheLife("news");
   cacheTag("articles");
   return safe("getWeekNumbers", null, async () => {
     const since = sql`now() - interval '7 days'`;
@@ -1609,7 +1614,8 @@ export interface SourceChangeItem {
 /** Articles whose source page changed or disappeared after we stored them (/changes), newest first. */
 export async function getSourceChanges(limit = 100): Promise<SourceChangeItem[]> {
   "use cache";
-  cacheLife("hours");
+  // Written by the weekly source re-check (audit P-7).
+  cacheLife("days");
   cacheTag("articles");
   return safe("getSourceChanges", [], async () => {
     const rows = await getDb()
@@ -1837,6 +1843,9 @@ export async function getCompanyTenders(): Promise<Record<string, CompanyTenders
   cacheLife("days");
   cacheTag("tenders");
   cacheTag("officials");
+  // The tag tenders:sync purges after a rebuild: it named this tag before any cache carried it, so
+  // a member's tender links stayed a day old after each sync (Nov 2026 audit B-13).
+  cacheTag("indicator-tender_company_matches");
   return safe("getCompanyTenders", {}, async () => {
     const db = getDb();
     // One small stored row (company-matches.ts), worked out at each tenders / companies sync. There

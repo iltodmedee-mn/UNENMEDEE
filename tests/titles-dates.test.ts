@@ -297,3 +297,9 @@ describe("firstSentenceTitle skips our own lines", () => {
     assert.equal(firstSentenceTitle(text), "Журам шинэчлэн батлах тухай шийдвэр гарлаа");
   });
 });
+
+it("a day the month does not have is no date (audit B-9)", async () => {
+  const { dateFromText } = await import("@/lib/scraper/extractor");
+  assert.equal(dateFromText("2026.02.31"), null);
+  assert.ok(dateFromText("2026.02.28"));
+});

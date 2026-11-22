@@ -120,6 +120,8 @@ describe("budget limits", () => {
     assert.deepEqual(spreadFree(chain, 3).slice(0, 4), ["openrouter", ...free.slice(0, 3)]);
     assert.deepEqual(spreadFree(chain, 1).slice(4), ["zai", "gemini", "deepseek", "ollama"], "Z.ai is the free overflow, not in the rotation");
     assert.deepEqual(spreadFree(["grok", "groq"], 1), ["grok", "groq"], "a paid head is not rotated");
+    const withFreeGemini = chainFor("tier1", { GEMINI_FREE_TIER: "true" });
+    assert.deepEqual(spreadFree(withFreeGemini, 1).slice(0, 5), ["nvidia", "gemini", "requesty", "openrouter", "groq"], "a free Gemini keeps its place, the others still rotate (audit B-10)");
   });
 });
 
