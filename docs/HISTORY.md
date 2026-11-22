@@ -55,3 +55,47 @@ What each audit and incident changed and why, one bullet per PR, newest last. Th
 - Back to Vercel's Git deploys (Nov 22 2026): the usage of the last 30 days was over Hobby's limits (ISR writes 926K / 200K, Fast Origin Transfer 22.6 / 10 GB, Active CPU 7h35m / 4h, CDN requests 1.18M / 1M), so the owner returned to Pro the same day. #326 and #327 are reverted: `deploy.yml` is gone and `vercel.json` again builds `main` only through `ignoreCommand`. The lesson stays: a Hobby move needs the Usage page checked against every Hobby limit first, and `vercel pull` never returns values marked Sensitive.
 - Fewer timed re-renders (Nov 22 2026, back on Pro after usage of 926 K ISR writes, 22.6 GB Fast Origin Transfer and 7 h 35 min Active CPU in 30 days): the `news` lifetime goes from 30 min to 3 h, because the snapshot purge after each run already brings a new story to the home and topic feeds at once; the ~100 source hubs, which no run purges, move from 1 h to a new `slow` profile (6 h); the archive day list on every feed page moves from `hours` to `news`, and search from `news` to `hours`. Place feeds and source hubs now show a new story up to 3 h and 6 h late.
 - Usage notes in one place (Nov 22 2026, the owner: write every measurement down): `docs/USAGE.md` holds the Vercel 30-day usage against Hobby's limits, the Supabase egress measurements since Nov 8, the Hobby attempt and its lessons, the options studied (Cloudflare Pages, VPS) and a table of earlier analyses. README no longer says the hosting is free (Vercel is on Pro); CLAUDE.md §1 says every change must lower usage toward Hobby.
+- Forensic audit (Nov 22 2026, an outside report with 53 findings at 645419e; each one re-checked in the code before a fix). Fixed in this PR:
+  - Security:
+    - gemini.yml runs the model's code in a read-only job and pushes from a fresh runner (S-1).
+    - GROK_API_KEY is blanked during npm ci (S-2).
+    - The browser pass checks every request of a page, redirect hops included, before using its text (S-3).
+    - certValid never dials a private IP literal, and got resets TLS on each redirect (S-4).
+    - discover-sources refuses non-government redirect targets (S-5).
+    - Push keys must lie on the P-256 curve (S-6).
+    - /ig-image and /api/react redirect cache-busting queries (S-7).
+    - Only a live session can sign everyone out (S-8).
+    - Discord refuses replays older than 5 min and escapes the /aimag echo (S-9).
+    - Raw error objects are never logged, with a guard test (S-10).
+    - Scraped titles cannot break out of watchdog code fences (S-11).
+  - Cost:
+    - "clusters" is purged only after a cluster changed (P-1).
+    - Member pages read attendance daily and are no longer all prerendered (P-2).
+    - Indicator, data-age, laws, changes, donations, week numbers and the sitemap use lifetimes that match their data (P-3, P-5, P-7).
+    - Place pages read a 4-column member list (P-4).
+    - The duplicate "local" feed is gone (P-8).
+    - send-push reads only the named members, and only when someone follows one (P-9).
+  - Facts and correctness:
+    - Dataset listings stay off the feed (B-1).
+    - A billing error no longer parks articles, and one provider's repair counts once (B-2).
+    - Donation cents no longer multiply amounts by 100 (B-3).
+    - bnd.ub.gov.mn is Багануур (B-4).
+    - Shouted full names in petitions, a name and a dismissal on different video cards, and the daily quiz are now caught by the no-accusation checks (B-5).
+    - "оны 1 250.5 тэрбум" is read as one amount (B-6).
+    - 31 February is not a date (B-9).
+    - Free providers rotate around a free Gemini (B-10).
+    - The quiz caption follows the stored quiz (B-11).
+    - A Reel whose status poll times out is not posted twice (B-12).
+    - Member tender links carry the tag tenders:sync purges (B-13).
+  - Data and operations:
+    - Backups include reactions and are one consistent snapshot, and restore reports a corrupt file (D-1).
+    - Retention adds only published AI summaries to the public counter and survives a null digest item (D-2).
+    - The AI sample logs its usage (R-1).
+    - A request limit no longer uses up a video's three tries (R-3).
+    - The stuck-deploy check compares with the newest deployable commit (R-4).
+    - One failing snapshot no longer loses the others' purge (R-6).
+  - Not changed, after checking:
+    - T-1: the clock is already pinned in that file.
+    - D-2's "unscored rows": deleting unscored stories at two years is deliberate (tests/retention.test.ts).
+    - B-5's petition example: that title was already caught.
+    - The weekly quiz already ran the check.
