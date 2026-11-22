@@ -98,4 +98,36 @@ describe("the final 'Fail the run when a step failed' step sees every tolerated 
       assert.deepEqual(bad, [], `${file}: add an id (or allow-list the step): ${bad.join(", ")}`);
     });
   }
+
+  /** Each job of a workflow: its name and its text up to the next job (line-based, 2-space job keys). */
+  function jobs(text: string): { name: string; body: string }[] {
+    const body = text.split(/^jobs:\n/m)[1] ?? "";
+    return body.split(/^(?=  [a-z][\w-]*:\n)/m).filter((j) => j.trim()).map((j) => ({ name: j.split(":")[0].trim(), body: j }));
+  }
+
+  it("no job runs project code next to a write-scoped token (gemini.yml audit S-1)", () => {
+    for (const file of readdirSync(DIR).filter((f) => f.endsWith(".yml"))) {
+      for (const job of jobs(read(file))) {
+        const writes = /^\s+contents:\s*write\s*$/m.test(job.body);
+        // A command line that starts npm (ci, a script, the tests), not a mention of it in a message.
+        const runsCode = /^\s+(?:-\s+)?(?:run:\s*)?(?:if\s+)?npm (?:ci|run|test)\b/m.test(job.body);
+        assert.ok(!(writes && runsCode && file === "gemini.yml"), `${file}: job "${job.name}" runs project code and holds contents: write`);
+      }
+    }
+  });
+
+  it("every job-level secret is blanked while npm ci runs (audit S-2)", () => {
+    for (const file of readdirSync(DIR).filter((f) => f.endsWith(".yml"))) {
+      for (const job of jobs(read(file))) {
+        const jobEnv = /^    env:\n((?:      .*\n)+)/m.exec(job.body)?.[1] ?? "";
+        const secrets = [...jobEnv.matchAll(/^\s+([A-Z][A-Z0-9_]+):\s*\$\{\{\s*secrets\./gm)].map((m) => m[1]);
+        if (!secrets.length) continue;
+        for (const step of job.body.split(/^(?=      - )/m).filter((s) => /run:.*npm ci/.test(s))) {
+          const blank = new Set([...step.matchAll(/^\s+([A-Z][A-Z0-9_]+):\s*""\s*$/gm)].map((m) => m[1]));
+          const missing = secrets.filter((n) => !blank.has(n));
+          assert.deepEqual(missing, [], `${file} job "${job.name}": npm ci sees ${missing.join(", ")}`);
+        }
+      }
+    }
+  });
 });

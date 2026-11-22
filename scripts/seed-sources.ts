@@ -9,6 +9,7 @@ import { sql } from "drizzle-orm";
 import { closeDb, getDb } from "@/db";
 import { sources } from "@/db/schema";
 import { SOURCE_SEEDS } from "@/lib/sources";
+import { errorDetail } from "@/lib/log-safe";
 
 async function main() {
   const db = getDb();
@@ -31,7 +32,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error("✗ Seeding failed:", err);
+    console.error("✗ Seeding failed:", errorDetail(err));
     process.exitCode = 1;
   })
   .finally(closeDb);

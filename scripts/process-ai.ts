@@ -62,8 +62,15 @@ const SAMPLE = {
 };
 
 async function runSample() {
-  console.log("🧪 Sample analysis (no database). Usage is printed, not stored.\n");
-  const out = await analyzeArticle(SAMPLE, { log: consoleUsageLogger, forceDeep: values.deep });
+  // With a database (maintenance.yml "ai-sample") the calls are paid ones too, so they are logged
+  // to ai_usage_logs like every other call (CLAUDE.md rule 4, Nov 2026 audit R-1).
+  const stored = hasDatabase() ? dbUsageLogger(getDb()) : null;
+  console.log(`🧪 Sample analysis. Usage is printed${stored ? " and stored in ai_usage_logs" : ", not stored (no database)"}.\n`);
+  const log: typeof consoleUsageLogger = async (r) => {
+    await consoleUsageLogger(r);
+    if (stored) await stored(r).catch((err: unknown) => console.log(`::warning::usage not logged: ${errorDetail(err, 300)}`));
+  };
+  const out = await analyzeArticle(SAMPLE, { log, forceDeep: values.deep });
   console.log(`\nTier 1 via ${out.tier1Provider}:`);
   console.log(JSON.stringify(out.tier1, null, 2));
   if (out.tier2) {

@@ -23,7 +23,7 @@ import { mentionAlerts } from "@/lib/officials/follow-alerts";
 import { selectPushCandidates } from "@/lib/push/news-selection";
 import { digestPayload, newsPayload, type PushPayload } from "@/lib/push/core";
 import { sendToAll, sendToEndpoint } from "@/lib/push/server";
-import { oneLine } from "@/lib/log-safe";
+import { errorDetail, oneLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -66,11 +66,17 @@ async function sendMentionAlerts(dryRun: boolean) {
     .orderBy(sql`${articles.importanceScore} desc nulls last`)
     .limit(200);
   if (!rows.length) return;
-  const [pols, subs] = await Promise.all([
-    // Every member, former ones included: a short name shared across terms is never attributed.
-    db.select({ id: politicians.id, shortName: politicians.shortName, isActive: politicians.isActive }).from(politicians),
-    db.select({ endpoint: pushSubscriptions.endpoint, follows: pushSubscriptions.followPoliticians }).from(pushSubscriptions).where(sql`cardinality(${pushSubscriptions.followPoliticians}) > 0`),
-  ]);
+  const subs = await db
+    .select({ endpoint: pushSubscriptions.endpoint, follows: pushSubscriptions.followPoliticians })
+    .from(pushSubscriptions)
+    .where(sql`cardinality(${pushSubscriptions.followPoliticians}) > 0`);
+  // Only the members these articles name, former ones included (a short name shared across terms is
+  // never attributed), and only when someone follows a member: the whole roster on every run was
+  // the second-largest Supabase read (Nov 2026 audit P-9, docs/USAGE.md).
+  const names = subs.length ? [...new Set(rows.flatMap((r) => r.people).filter((n): n is string => typeof n === "string" && n.length > 0))] : [];
+  const pols = names.length
+    ? await db.select({ id: politicians.id, shortName: politicians.shortName, isActive: politicians.isActive }).from(politicians).where(inArray(politicians.shortName, names))
+    : [];
   const alerts = mentionAlerts(rows, pols, subs);
   for (const a of alerts) console.log(`  → mention: ${oneLine(a.payload.title)} | ${oneLine(a.payload.body)}`);
   if (dryRun) return;
@@ -117,7 +123,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error("✗ Push failed:", err);
+    console.error("✗ Push failed:", errorDetail(err));
     process.exitCode = 1;
   })
   .finally(closeDb);

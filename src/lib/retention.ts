@@ -84,18 +84,24 @@ const oldStoryWhere = sql`is_published and edited_at is null and cluster_id is n
   and coalesce(published_at, created_at) < now() - make_interval(days => ${OLD_STORY_DAYS})
   and coalesce(importance_score, 0) < ${OLD_STORY_MAX_IMPORTANCE}
   and source_id not in (select id from sources where domain = 'legalinfo.mn')
-  and id not in (select (item->>'articleId')::int from digests, jsonb_array_elements(items) as item where item ? 'articleId')`;
+  and not exists (select 1 from digests, jsonb_array_elements(items) as item where item->>'articleId' = articles.id::text)`;
+// NOT EXISTS, because one digest item with a null id made "id not in (...)" match nothing, so the
+// 420 MB guard deleted no row at all (Nov 2026 audit D-2). An unscored story two years old still
+// counts as minor here on purpose (tests/retention.test.ts "old-null").
+
+/** The public "AI-аар шүүгдсэн" count (story-rules aiSummarized), as SQL over the articles row. */
+const AI_SUMMARIZED_ROW = sql`(is_published and tldr_summary is not null and summary_fallback = false)`;
 
 export interface Deleted {
   rows: number;
-  /** Of those, rows that had an AI summary (the public "analysed" counter keeps counting them). */
+  /** Of those, rows the public "analysed" counter counted (published, AI-written): it keeps counting them. */
   analyzed: number;
 }
 
 /** Deletes matching articles in batches, recording each URL and hash in seen_urls first (one statement). */
 async function deleteRemembering(db: DB, where: ReturnType<typeof sql>, dryRun: boolean): Promise<Deleted> {
   if (dryRun) {
-    const [r] = await run(db, sql`select count(*)::int as n, count(tldr_summary)::int as a from articles where ${where}`);
+    const [r] = await run(db, sql`select count(*)::int as n, count(*) filter (where ${AI_SUMMARIZED_ROW})::int as a from articles where ${where}`);
     return { rows: Number(r?.n ?? 0), analyzed: Number(r?.a ?? 0) };
   }
   let analyzed = 0;
@@ -104,7 +110,7 @@ async function deleteRemembering(db: DB, where: ReturnType<typeof sql>, dryRun: 
       db,
       sql`with doomed as (select id, original_url, content_hash, source_id from articles where ${where} order by id limit ${BATCH}),
         remembered as (insert into seen_urls (original_url, content_hash, source_id) select original_url, content_hash, source_id from doomed on conflict (original_url) do nothing)
-        delete from articles where id in (select id from doomed) returning tldr_summary is not null as analyzed`,
+        delete from articles where id in (select id from doomed) returning ${AI_SUMMARIZED_ROW} as analyzed`,
     );
     analyzed += deleted.filter((r) => r.analyzed === true).length;
     return deleted.length;

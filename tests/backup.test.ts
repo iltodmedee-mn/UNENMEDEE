@@ -129,3 +129,17 @@ describe("database backup and restore", () => {
     assert.equal(r.value, "2026-10-28T20:11:00.000Z");
   });
 });
+
+describe("backup coverage (audit D-1)", () => {
+  it("backs up every table except the ones it documents as rebuilt", async () => {
+    const { getTableName, is } = await import("drizzle-orm");
+    const { PgTable } = await import("drizzle-orm/pg-core");
+    const schema = await import("@/db/schema");
+    const { BACKUP_TABLES, tableName } = await import("@/lib/backup");
+    // Rebuilt by a sync, a log, or re-made on the next run (src/lib/backup.ts says why for each).
+    const SKIPPED = new Set(["ai_usage_logs", "open_datasets", "press_items", "press_links", "videos", "site_errors", "feed_snapshots"]);
+    const all = Object.values(schema).filter((v) => is(v, PgTable)).map((t) => getTableName(t as InstanceType<typeof PgTable>));
+    const backed = new Set(BACKUP_TABLES.map(tableName));
+    assert.deepEqual(all.filter((n) => !backed.has(n) && !SKIPPED.has(n)), []);
+  });
+});

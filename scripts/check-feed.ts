@@ -32,11 +32,22 @@ async function liveCommit(): Promise<string | null> {
   }
 }
 
-/** When the checked-out commit (main in the pipeline) was committed, or null outside a checkout. */
-function commitTime(): Date | null {
+/**
+ * The newest commit on the checked-out branch that changes the site, and when it was committed.
+ * Vercel skips a build when a main commit only touches docs, tests, scripts, workflows, .claude or
+ * Markdown (vercel.json ignoreCommand, the same list as DEPLOY_EXCLUDES), so the live site rightly
+ * stays on the commit before it: comparing with GITHUB_SHA raised a false "stuck deploy" alarm an
+ * hour after every such merge (Nov 2026 audit R-4). Null when unknown (no checkout, or a shallow one
+ * whose only commit changes nothing deployable): then no alarm.
+ */
+const DEPLOY_EXCLUDES = ["docs", "tests", "scripts", ".github", ".claude", "*.md"];
+
+function deployableHead(): { sha: string; at: Date } | null {
   try {
-    const s = Number(execFileSync("git", ["log", "-1", "--format=%ct"], { encoding: "utf8" }).trim());
-    return Number.isFinite(s) && s > 0 ? new Date(s * 1000) : null;
+    const out = execFileSync("git", ["log", "-1", "--format=%H %ct", "--", ".", ...DEPLOY_EXCLUDES.map((p) => `:(exclude)${p}`)], { encoding: "utf8" }).trim();
+    const [sha, ct] = out.split(" ");
+    const s = Number(ct);
+    return /^[0-9a-f]{40}$/.test(sha ?? "") && Number.isFinite(s) && s > 0 ? { sha, at: new Date(s * 1000) } : null;
   } catch {
     return null;
   }
@@ -65,7 +76,8 @@ async function main() {
     .orderBy(desc(articles.publishedAt), desc(articles.id))
     .limit(40);
   const problems = feedProblems(rows, new Date());
-  const stuck = deployProblem({ live: await liveCommit(), main: process.env.GITHUB_SHA ?? null, mainAt: commitTime(), now: new Date() });
+  const head = deployableHead();
+  const stuck = deployProblem({ live: await liveCommit(), main: head?.sha ?? null, mainAt: head?.at ?? null, now: new Date() });
   if (stuck) problems.push(stuck);
   writeFileSync(out, feedReport(problems, PRODUCTION_URL));
   for (const p of problems) console.log(`::warning::feed-check ${p.rule}: ${p.ids.join(", ")}`);

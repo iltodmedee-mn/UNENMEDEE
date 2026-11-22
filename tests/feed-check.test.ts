@@ -80,3 +80,14 @@ describe("stuck deployment", () => {
     assert.ok(!feedReport([p], "https://x").includes("\n  \n"));
   });
 });
+
+it("feed:check skips the same paths as Vercel's ignoreCommand (audit R-4)", async () => {
+  const { readFileSync } = await import("node:fs");
+  const script = readFileSync(new URL("../scripts/check-feed.ts", import.meta.url), "utf8");
+  const list = /const DEPLOY_EXCLUDES = (\[[^\]]*\]);/.exec(script)?.[1];
+  assert.ok(list, "DEPLOY_EXCLUDES not found in scripts/check-feed.ts");
+  const excludes = JSON.parse(list) as string[];
+  const vercel = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8")) as { ignoreCommand: string };
+  const ignored = [...vercel.ignoreCommand.matchAll(/:\(exclude\)([^']+)'/g)].map((m) => m[1]);
+  assert.deepEqual(excludes, ignored);
+});

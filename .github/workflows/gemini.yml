@@ -10,10 +10,12 @@
 # https://aistudio.google.com made in a Google Cloud project WITHOUT billing (then it is free).
 # Do not reuse the pipeline's GEMINI_API_KEY: that project is billed.
 #
-# Safety: the step that runs Gemini and the step that runs the changed code get no GitHub token
-# (checkout keeps no credentials), Gemini may only read/edit files and run the project's checks,
-# and the change is published from a fresh clone, so nothing Gemini wrote (a git hook, .git/config)
-# runs next to the token. A change under .github/workflows cannot be pushed with this token.
+# Safety: three jobs on three runners. "fix" runs Gemini and the project's checks on the code it
+# wrote with a read-only token and no credentials; it only hands a patch over as an artifact.
+# "publish" never runs project code: a fresh runner downloads the patch, applies it to a fresh
+# clone (global and system git config ignored) and pushes with the write token. Anything the
+# changed code wrote in "fix" (~/.gitconfig, $GITHUB_ENV, $GITHUB_PATH, a hook) dies with that
+# runner (Nov 2026 audit S-1). A change under .github/workflows cannot be pushed with this token.
 name: Gemini
 
 on:
@@ -30,7 +32,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  fix:
+  start:
     if: >-
       github.repository_owner == 'iltodmedee-mn' && (
         (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@gemini') &&
@@ -40,13 +42,44 @@ jobs:
           contains(fromJSON('["OWNER","MEMBER"]'), github.event.issue.author_association))
       )
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 5
     permissions:
-      contents: write
-      pull-requests: write
       issues: write
-      # Starts ci.yml on the new branch: a pull request opened with this token runs no workflows.
-      actions: write
+    outputs:
+      ok: ${{ steps.cred.outputs.ok }}
+    steps:
+      - name: Check that the Gemini key is set
+        id: cred
+        env:
+          HAS_KEY: ${{ secrets.GEMINI_AGENT_API_KEY != '' }}
+        run: |
+          if [ "$HAS_KEY" = "true" ]; then
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::notice::@gemini is not set up: add the GEMINI_AGENT_API_KEY repository secret (docs/RUNBOOK.md §5)."
+          fi
+
+      - name: Say that the work started
+        env:
+          GH_TOKEN: ${{ github.token }}
+          NUMBER: ${{ github.event.issue.number }}
+        run: |
+          gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "🤖 Gemini ажиллаж эхэллээ (5–30 минут). Явц: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+
+  fix:
+    needs: start
+    if: needs.start.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    # Read-only: this job runs code Gemini wrote (npm run check).
+    permissions:
+      contents: read
+    outputs:
+      changed: ${{ steps.verify.outputs.changed }}
+      check: ${{ steps.verify.outputs.check }}
+      ran: ${{ steps.verify.outcome == 'success' && 'success' || 'failure' }}
+      summary: ${{ steps.gemini3.outputs.summary || steps.gemini.outputs.summary }}
+      error: ${{ steps.gemini3.outputs.error || steps.gemini.outputs.error }}
     env:
       NUMBER: ${{ github.event.issue.number }}
       # Shared by the Gemini attempts below.
@@ -80,44 +113,22 @@ jobs:
         changed (files) and whether `npm run check` passed. If the problem cannot be fixed in
         code (a secret, a payment, an outside website), say so and change nothing.
     steps:
-      - name: Check that the Gemini key is set
-        id: cred
-        env:
-          HAS_KEY: ${{ secrets.GEMINI_AGENT_API_KEY != '' }}
-        run: |
-          if [ "$HAS_KEY" = "true" ]; then
-            echo "ok=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "::notice::@gemini is not set up: add the GEMINI_AGENT_API_KEY repository secret (docs/RUNBOOK.md §5)."
-          fi
-
-      - name: Say that the work started
-        if: steps.cred.outputs.ok == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "🤖 Gemini ажиллаж эхэллээ (5–30 минут). Явц: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
-
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        if: steps.cred.outputs.ok == 'true'
         with:
           ref: main
           persist-credentials: false
 
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        if: steps.cred.outputs.ok == 'true'
         with:
           node-version: 24
           cache: npm
 
       - name: Install dependencies
-        if: steps.cred.outputs.ok == 'true'
         run: npm ci
 
       # The request reaches Gemini as a file, never through the shell: only the issue's own title
       # and text and the comment that called it (other people's comments are left out).
       - name: Write the request
-        if: steps.cred.outputs.ok == 'true'
         env:
           TITLE: ${{ github.event.issue.title }}
           BODY: ${{ github.event.issue.body }}
@@ -136,7 +147,6 @@ jobs:
       # (gemini-3.5-flash as a middle step still called 3.8-flash through the CLI: dropped.)
       # GEMINI_AGENT_MODEL (repository variable) replaces the first model.
       - name: Run Gemini
-        if: steps.cred.outputs.ok == 'true'
         id: gemini
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0.1.22
@@ -151,11 +161,11 @@ jobs:
 
       # A failed attempt (usually that model's free daily quota) may have left half an edit.
       - name: Undo the failed attempt
-        if: steps.cred.outputs.ok == 'true' && steps.gemini.outcome == 'failure'
+        if: steps.gemini.outcome == 'failure'
         run: git reset -q --hard && git clean -fdq -e .gemini-request.md -e .gemini
 
       - name: Run Gemini (Flash-Lite)
-        if: steps.cred.outputs.ok == 'true' && steps.gemini.outcome == 'failure'
+        if: steps.gemini.outcome == 'failure'
         id: gemini3
         continue-on-error: true
         uses: google-github-actions/run-gemini-cli@f77273f4c914e4bf38440cf36a0369cb64a37489 # v0.1.22
@@ -171,31 +181,71 @@ jobs:
       # Still without any token: the change is turned into a patch and the project's checks run
       # on the code Gemini wrote.
       - name: Collect the change and run the checks
-        if: >-
-          steps.cred.outputs.ok == 'true' &&
-          (steps.gemini.outcome == 'success' || steps.gemini3.outcome == 'success')
+        if: steps.gemini.outcome == 'success' || steps.gemini3.outcome == 'success'
         id: verify
         run: |
           # The action's own files (settings, commands, telemetry) are not part of the change.
           rm -rf .gemini-request.md .gemini gemini-artifacts
           git add -A
-          git diff --cached --binary > "$RUNNER_TEMP/change.patch"
-          if [ ! -s "$RUNNER_TEMP/change.patch" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0; fi
+          mkdir -p "$RUNNER_TEMP/out"
+          git diff --cached --binary > "$RUNNER_TEMP/out/change.patch"
+          if [ ! -s "$RUNNER_TEMP/out/change.patch" ]; then echo "changed=false" >> "$GITHUB_OUTPUT"; exit 0; fi
           echo "changed=true" >> "$GITHUB_OUTPUT"
-          git diff --cached --stat | tail -20 > "$RUNNER_TEMP/stat.txt"
+          git diff --cached --stat | tail -20 > "$RUNNER_TEMP/out/stat.txt"
           if npm run check > "$RUNNER_TEMP/check.log" 2>&1; then echo "check=pass" >> "$GITHUB_OUTPUT"; else echo "check=fail" >> "$GITHUB_OUTPUT"; fi
 
-      # A fresh clone of main (no file Gemini touched, no hook), the patch applied, committed and
-      # pushed to a new branch, and a pull request opened. The push is its own step: a refused
-      # push (the token may not push .github/workflows, a protected pattern) must not leave the
-      # issue without a word, so the report step below also runs when it failed.
+      # Only the patch and its stat leave this runner.
+      - name: Hand the change over
+        if: steps.verify.outputs.changed == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: gemini-change
+          path: ${{ runner.temp }}/out/
+          retention-days: 3
+
+      # The attempts are continue-on-error, so the run is turned red here when none of them worked.
+      - name: Fail when no model could run
+        if: steps.verify.outcome != 'success'
+        run: |
+          echo "::error::Every Gemini model failed (free daily quota or an API error); see the attempts above."
+          exit 1
+
+  # A fresh runner that never runs project code: it only applies the patch to a fresh clone of main
+  # and pushes it, then reports on the issue.
+  publish:
+    needs: [start, fix]
+    if: always() && needs.start.outputs.ok == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+      # Starts ci.yml on the new branch: a pull request opened with this token runs no workflows.
+      actions: write
+    env:
+      NUMBER: ${{ github.event.issue.number }}
+      # Git reads no global or system config here, whatever an earlier step could have written.
+      GIT_CONFIG_GLOBAL: /dev/null
+      GIT_CONFIG_NOSYSTEM: "1"
+    steps:
+      - name: Take the change
+        if: needs.fix.outputs.changed == 'true'
+        uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: gemini-change
+          path: ${{ runner.temp }}/in
+
+      # A fresh clone of main, the patch applied, committed and pushed to a new branch. The push is
+      # its own step: a refused push (the token may not push .github/workflows, a protected
+      # pattern) must not leave the issue without a word, so the report step below also runs.
       - name: Push the branch
         id: push
         continue-on-error: true
-        if: steps.cred.outputs.ok == 'true' && steps.verify.outputs.changed == 'true'
+        if: needs.fix.outputs.changed == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          CHECK: ${{ steps.verify.outputs.check }}
+          CHECK: ${{ needs.fix.outputs.check }}
           TITLE: ${{ github.event.issue.title }}
         run: |
           set -euo pipefail
@@ -207,25 +257,25 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           branch="gemini/issue-${NUMBER}-${GITHUB_RUN_ID}"
           git checkout -q -b "$branch"
-          git apply --index "$RUNNER_TEMP/change.patch"
+          git apply --index "$RUNNER_TEMP/in/change.patch"
           git commit -q -m "Gemini: #${NUMBER} ${TITLE:0:60}" -m "Requested in #${NUMBER}; npm run check: ${CHECK}."
           git push -q origin "HEAD:$branch"
           echo "branch=$branch" >> "$GITHUB_OUTPUT"
 
       - name: Open the pull request
-        if: steps.cred.outputs.ok == 'true' && steps.verify.outputs.changed == 'true' && steps.push.outcome == 'success'
+        if: needs.fix.outputs.changed == 'true' && steps.push.outcome == 'success'
         env:
           GH_TOKEN: ${{ github.token }}
-          CHECK: ${{ steps.verify.outputs.check }}
+          CHECK: ${{ needs.fix.outputs.check }}
           TITLE: ${{ github.event.issue.title }}
-          SUMMARY: ${{ steps.gemini3.outputs.summary || steps.gemini.outputs.summary }}
+          SUMMARY: ${{ needs.fix.outputs.summary }}
           BRANCH: ${{ steps.push.outputs.branch }}
         run: |
           set -euo pipefail
           branch="$BRANCH"
           summary="$(printf '%s' "$SUMMARY" | head -c 3000)"
           if [ "$CHECK" = "pass" ]; then status="✅ \`npm run check\` давсан"; else status="❌ \`npm run check\` унасан: PR draft хэвээр. Хаагаад энэ issue дээр алдааг нь бичиж \`@gemini\` дахин дуудаарай"; fi
-          stat="$(cat "$RUNNER_TEMP/stat.txt")"
+          stat="$(cat "$RUNNER_TEMP/in/stat.txt")"
           draft=""; if [ "$CHECK" != "pass" ]; then draft="--draft"; fi
           body="$(printf 'Gemini-ийн засвар (#%s-ээс).\n\n%s\n\n```\n%s\n```\n\n%s\n\nCI ногоон болмогц **Squash and merge**. Буруу бол PR-ийг хаана.' "$NUMBER" "$status" "$stat" "$summary")"
           # A push with this token starts no workflow, so CI is started by hand on the branch.
@@ -242,22 +292,15 @@ jobs:
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$(printf '🤖 Gemini дууслаа: %s\n%s\n\n%s' "$link" "$status" "$summary")"
 
       - name: Report when nothing changed or the run failed
-        if: always() && steps.cred.outputs.ok == 'true' && (steps.verify.outputs.changed != 'true' || steps.push.outcome == 'failure')
+        if: always() && (needs.fix.outputs.changed != 'true' || steps.push.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
-          SUMMARY: ${{ steps.gemini3.outputs.summary || steps.gemini.outputs.summary }}
-          ERROR: ${{ steps.gemini3.outputs.error || steps.gemini.outputs.error }}
-          OUTCOME: ${{ steps.verify.outcome == 'success' && 'success' || 'failure' }}
+          SUMMARY: ${{ needs.fix.outputs.summary }}
+          ERROR: ${{ needs.fix.outputs.error }}
+          OUTCOME: ${{ needs.fix.outputs.ran || 'failure' }}
           PUSH: ${{ steps.push.outcome }}
         run: |
           text="$(printf '%s\n%s' "$SUMMARY" "$ERROR" | head -c 3000)"
           if [ "$PUSH" = "failure" ]; then head="🤖 Gemini засвар бэлдсэн ч салбарыг push хийж чадсангүй (токен .github/workflows-д бичих эрхгүй эсвэл хамгаалалттай). Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           elif [ "$OUTCOME" = "success" ]; then head="🤖 Gemini код өөрчлөөгүй."; else head="🤖 Gemini ажиллаж чадсангүй (үнэгүй хязгаар дууссан эсвэл алдаа). Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$(printf '%s\n\n%s' "$head" "$text")"
-
-      # The attempts are continue-on-error, so the run is turned red here when none of them worked.
-      - name: Fail when no model could run
-        if: steps.cred.outputs.ok == 'true' && steps.verify.outcome != 'success'
-        run: |
-          echo "::error::Every Gemini model failed (free daily quota or an API error); see the attempts above."
-          exit 1

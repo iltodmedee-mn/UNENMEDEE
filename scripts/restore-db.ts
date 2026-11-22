@@ -50,7 +50,19 @@ async function main() {
   console.error(`${dryRun ? "Dry run against" : "Restoring into"} ${target}…`);
   const input = createReadStream(values.file);
   const stream = values.file.endsWith(".gz") ? input.pipe(createGunzip()) : input;
-  const counts = await importLines(getDb(), createInterface({ input: stream, crlfDelay: Infinity }), {
+  const rl = createInterface({ input: stream, crlfDelay: Infinity });
+  // A missing or corrupt file (bad gzip) emits "error" on the stream, which readline does not pass
+  // on: the process died on an unhandled error event instead of a clear message (audit D-1).
+  let streamError: unknown = null;
+  for (const s of [input, stream]) s.on("error", (err) => { streamError ??= err; rl.close(); });
+  async function* checkedLines(): AsyncGenerator<string> {
+    for await (const line of rl) {
+      if (streamError) throw streamError;
+      yield line;
+    }
+    if (streamError) throw streamError;
+  }
+  const counts = await importLines(getDb(), checkedLines(), {
     dryRun,
     only: values.table ? values.table.split(",").map((s) => s.trim()).filter(Boolean) : undefined,
   });
