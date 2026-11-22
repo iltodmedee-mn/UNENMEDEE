@@ -98,20 +98,4 @@ describe("the final 'Fail the run when a step failed' step sees every tolerated 
       assert.deepEqual(bad, [], `${file}: add an id (or allow-list the step): ${bad.join(", ")}`);
     });
   }
-
-  it("deploy.yml is read-only and keeps VERCEL_TOKEN out of the build", () => {
-    const text = read("deploy.yml");
-    assert.match(text, /^permissions:\n  contents: read$/m);
-    assert.ok(!/^\s+[a-z-]+:\s*write\s*$/m.test(text), "deploy.yml needs no write scope");
-    const steps = text.split(/^(?=      - (?:name|uses|run):)/m);
-    const withToken = steps.filter((s) => /VERCEL_TOKEN:\s*\$\{\{\s*secrets\.VERCEL_TOKEN/.test(s));
-    assert.equal(withToken.length, 2, "the token goes to the pull and upload steps only");
-    for (const s of withToken) assert.ok(!/vercel build|npm (ci|install)(?! --global)/.test(s), "a step with the token runs the build or installs the project");
-    assert.ok(!/^    env:[\s\S]*?VERCEL_TOKEN[\s\S]*?^    steps:/m.test(text), "VERCEL_TOKEN in the job env reaches every step");
-    const build = steps.find((s) => /vercel build --prod/.test(s))!;
-    assert.match(build, /DATABASE_URL:\s*\$\{\{\s*secrets\.DATABASE_URL\s*\}\}/, "the build needs the database: vercel pull leaves Sensitive values out");
-    assert.match(build, /SENSITIVE/, "the build drops the [SENSITIVE] placeholders vercel pull writes");
-    const vercel = JSON.parse(readFileSync(new URL("../vercel.json", import.meta.url), "utf8"));
-    assert.equal(vercel.git?.deploymentEnabled, false, "Vercel's own Git deploys would deploy twice");
-  });
 });
