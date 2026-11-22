@@ -363,7 +363,7 @@ flowchart TB
 - **Хэнийг ч буруутгахгүй.** Улстөрчид, төсвийн мэдээлэлд зөвхөн албан ёсны бүртгэлийг эх сурвалжийн холбоостой харуулна. AI-д хүнийг гэмт хэрэгт буруутгахыг хориглосон.
 - **Эрсдэлийн оноо = AI-ийн үнэлгээ, баримт биш.** Яаж гардгийг [/method](https://iltodmedee.mn/method) хуудсанд AI-ийн зааврын хамт бүтнээр нь нийтэлсэн.
 - **Зар сурталчилгаагүй, хувь хүнийг мөрдөхгүй.** Уншсан мэдээ, дагасан гишүүн зөвхөн таны төхөөрөмжид хадгалагдана. Хандалтыг зөвхөн нэргүй нийт тоогоор (Vercel Web Analytics, cookie-гүй) хэмждэг.
-- **0₮ дэд бүтэц.** Vercel Hobby, Supabase Free, GitHub Actions. Төлбөртэй AI сард $3-оос хэтрэхгүй.
+- **Бага зардал.** Supabase Free, GitHub Actions үнэгүй. Vercel 2026-11-ээс Pro ($20/сар): хэрэглээ Hobby-ийн хязгаараас хэтэрсэн, буулгаж Hobby-д буцах ажил явж байна ([docs/USAGE.md](docs/USAGE.md)). Төлбөртэй AI сард $3-оос хэтрэхгүй.
 
 ## 04 — AI түлхүүр яаж хадгалагддаг вэ
 
@@ -501,6 +501,7 @@ Vercel (Next.js 16, Cache Components) reads Supabase and renders the public site
 
 ### Honest limits
 
+- Hosting is not free right now: Vercel runs on Pro ($20/month) since November 2026, because the last 30 days were over Hobby's limits (926 K ISR writes against 200 K, 22.6 GB Fast Origin Transfer against 10 GB, 7 h 35 min Active CPU against 4 h). The measurements, the cuts made so far and the plan back to Hobby are in [docs/USAGE.md](docs/USAGE.md).
 - Free GitHub Actions minutes require a public repository; a pipeline every 30 minutes needs far more than a private repo's free quota.
 - Some sites block cloud IPs or sit behind a Cloudflare browser challenge (tender.gov.mn, president.mn), and a few cannot be reached from outside Mongolia at all (mof.gov.mn, ulaanbaatar.mn, customs.gov.mn). Where a body posts the same news on the www.gov.mn portal we read it there; otherwise they fail gracefully and back off. We never try to get around Cloudflare.
 - About a third of the stories are minor notices (trainings, events, dataset listings). They stay on the site but are `noindex` and out of the sitemaps, so search engines see the substantial ones.

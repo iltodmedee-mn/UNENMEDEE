@@ -5,7 +5,7 @@
 ## 1. Mission & Core Philosophy
 We are building a 100% transparent, open-source investigative news and public data monitoring platform for Mongolia, designed for **young readers** (fast, visual, mobile-first).
 - **Anti-Brainwash Principle:** Separate hard verifiable facts (numbers, dates, laws, tender amounts, entities) from political PR spin.
-- **Zero-Cost Infrastructure:** Must run strictly within free tiers (Vercel Hobby, Supabase Free 500MB PostgreSQL + pgvector, GitHub Actions for cron scraping on a public repo).
+- **Zero-Cost Infrastructure:** Must run strictly within free tiers (Vercel Hobby, Supabase Free 500MB PostgreSQL + pgvector, GitHub Actions for cron scraping on a public repo). Vercel is on Pro since Nov 2026 because usage went over Hobby's limits; every change must lower usage toward Hobby, never raise it (`docs/USAGE.md`).
 - **Dual-LLM Intelligence:** a bulk tier for extraction/summarization and a deep tier for high-risk items. Free tiers go first (Groq, NVIDIA NIM, Requesty's free Gemma, OpenRouter `:free` taking turns, then Z.ai GLM Flash; Google Gemini free with a no-billing key, otherwise its cheapest model inside the USD budget); paid DeepSeek / xAI Grok are optional and capped by a USD budget; local Ollama is the last fallback.
 
 ## 2. Where the details live
@@ -20,6 +20,7 @@ The rules for each area live in `docs/agents/`, with this file's old section num
 - `docs/agents/ops.md` (§8, 8b, 8c, 9): admin, workflows, retention, backups, watchdog, the shared modules (story rules, post ledger, source run, claims), repository security. Read before touching a workflow, `/admin`, the watchdog or a script's error handling.
 - `docs/HISTORY.md`: what each audit and incident changed, and why. Read when a rule's reason is unclear.
 - `docs/CONFIG.md`: every setting, where it is set and which one wins.
+- `docs/USAGE.md`: Vercel and Supabase usage against the plan limits, measured; what drives it and the cuts made. Read before changing cache lifetimes, prerendering or deploy frequency.
 
 ## 4. Strict Scraping & Engineering Rules
 1. Always check `robots.txt` and enforce a minimum 8-10 second delay between requests to the same `.gov.mn` domain.

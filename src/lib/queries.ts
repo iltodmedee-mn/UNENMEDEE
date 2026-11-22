@@ -396,7 +396,7 @@ export interface ArchiveDay {
 /** Days of the last `days` with published stories, newest first (/archive, sitemap, feed footers). */
 export async function getArchiveDays(days = 60): Promise<ArchiveDay[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("news"); // on every feed page (ArchiveLinks): "hours" kept them all hourly
   cacheTag("articles", "feed");
   return safe("getArchiveDays", [], async () => {
     const rows = await getDb()
@@ -425,7 +425,7 @@ export interface SourceHub {
 /** One source's page (/source/<domain>): the source and its newest published stories. */
 export async function getSourceHub(domain: string, limit = 40): Promise<{ source: SourceHub; stories: ArticleListItem[] } | null> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("slow");
   cacheTag("articles"); // not "feed": ~130 hubs re-rendered on every run (Vercel Hobby limit, Nov 8 2026)
   const seed = SOURCE_SEEDS.find((s) => s.domain === domain);
   const fallback = seed ? { source: { name: seed.name, domain: seed.domain, category: seed.category, isActive: true }, stories: [] } : null;
@@ -447,7 +447,7 @@ export async function getSourceHub(domain: string, limit = 40): Promise<{ source
 /** Sources with at least one published story, for the sitemap and prerendering. */
 export async function getSourceHubDomains(): Promise<{ domain: string; lastModified: Date }[]> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("slow");
   cacheTag("articles");
   return safe("getSourceHubDomains", [], () =>
     getDb()
@@ -1477,7 +1477,7 @@ export interface SearchResults {
 /** /search: published articles (title + AI summary, prefix match) and MPs by name. */
 export async function search(q: string): Promise<SearchResults> {
   "use cache";
-  cacheLife("news");
+  cacheLife("hours"); // per query, rendered only when searched: stays fresher than the feeds
   cacheTag("articles", "officials");
   const query = toPrefixQuery(q);
   const empty: SearchResults = { articles: [], politicians: [] };

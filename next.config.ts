@@ -13,11 +13,14 @@ const nextConfig: NextConfig = {
   },
   cacheComponents: true,
   // Cache lifetimes (Nov 2026: the built-in "minutes" profile, read by the header on every page,
-  // re-rendered every visited page once a minute: 306 K ISR writes against Hobby's 200 K). The
-  // pipeline adds news at most every 30 minutes, so feeds refresh every 30 minutes and everything
-  // else hourly ("hours").
+  // re-rendered every visited page once a minute: 306 K ISR writes against Hobby's 200 K). A new
+  // story reaches the home and topic feeds at once through the snapshot purge after each pipeline
+  // run, so "news" only refreshes what no purge reaches (place feeds, the feed APIs, sitemaps, the
+  // date line): every 3 hours since Nov 22 2026 (was 30 min; 926 K ISR writes in 30 days). "slow"
+  // is for the ~100 source hubs, which no run purges.
   cacheLife: {
-    news: { stale: 300, revalidate: 1800, expire: 86_400 },
+    news: { stale: 300, revalidate: 10_800, expire: 86_400 },
+    slow: { stale: 300, revalidate: 21_600, expire: 172_800 },
   },
   partialPrefetching: true,
   async headers() {
