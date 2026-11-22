@@ -35,10 +35,10 @@ async function todayMn(): Promise<string> {
   return `${WEEKDAYS[ub.getUTCDay()]}, ${ub.getUTCMonth() + 1}-р сарын ${ub.getUTCDate()}`;
 }
 
-/** The digest strip's label with the hourly cached clock: an edition over 18 h old shows its date. */
+/** The digest strip's label with the feed's cached clock: an edition over 18 h old shows its date. */
 async function stripLabel(kind: string, periodEnd: string): Promise<string> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("news");
   return editionLabel({ kind, periodEnd }, new Date());
 }
 
