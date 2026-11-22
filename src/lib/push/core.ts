@@ -1,3 +1,5 @@
+import { createPublicKey } from "node:crypto";
+
 import { z } from "zod";
 
 import { tldrSentences } from "@/lib/format";
@@ -44,7 +46,16 @@ export function base64UrlBytes(value: string): Uint8Array | null {
  */
 export const isP256dh = (v: string) => {
   const b = base64UrlBytes(v);
-  return b !== null && b.length === 65 && b[0] === 0x04;
+  if (b === null || b.length !== 65 || b[0] !== 0x04) return false;
+  // On the curve too: an off-curve point passed the length check, then web-push threw a crypto
+  // error with no status on every send and the row was retried for ever (Nov 2026 audit S-6).
+  try {
+    const coord = (from: number) => Buffer.from(b.subarray(from, from + 32)).toString("base64url");
+    createPublicKey({ key: { kty: "EC", crv: "P-256", x: coord(1), y: coord(33) }, format: "jwk" });
+    return true;
+  } catch {
+    return false;
+  }
 };
 export const isAuthSecret = (v: string) => base64UrlBytes(v)?.length === 16;
 
@@ -161,7 +172,7 @@ export function classifyPushFailure(status: number | undefined, message = ""): "
   if (status === 404 || status === 410) return "gone";
   // web-push refuses a malformed stored key locally, before any request (no status): that row can
   // never succeed, so it counts towards MAX_PUSH_FAILURES instead of being retried for ever.
-  if (status === undefined && /p256dh|auth secret|subscription keys|should be \d+ bytes/i.test(message)) return "permanent";
+  if (status === undefined && /p256dh|auth secret|subscription keys|should be \d+ bytes|INVALID_PUBLIC_KEY|invalid public key|point is not on the curve/i.test(message)) return "permanent";
   if (status !== undefined && status >= 400 && status < 500 && status !== 429 && status !== 408) return "permanent";
   return "transient";
 }

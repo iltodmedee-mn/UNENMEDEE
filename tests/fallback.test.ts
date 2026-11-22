@@ -32,6 +32,8 @@ describe("parking unprocessable articles", () => {
     assert.ok(!shouldPark(["groq/x: 429 rate limit", "gemini/y: 503 Service Unavailable", "nvidia/z: ECONNRESET"]));
     assert.ok(!shouldPark(["groq/x: 429 rate limit", "gemini/y: Unexpected end of JSON input", "nvidia/z: timeout"]), "one bad reply among outages is retried");
     assert.ok(!shouldPark([]));
+    assert.ok(!shouldPark(["grok/x: 402 Payment Required", "groq/y: 429 rate limit"]), "a billing error is not a bad reply (audit B-2)");
+    assert.ok(!shouldPark(["groq/x: Unexpected end of JSON input", "groq/x: Invalid JSON: Unterminated string", "gemini/y: 503 Service Unavailable"]), "one provider and its repair are one opinion");
     // The repair was stopped by the budget: one cut-off reply is not enough to give up.
     assert.ok(!shouldPark(["groq/x: Unexpected end of JSON input", "groq/x: retry skipped (limit: daily budget)", "gemini/y: 503 Service Unavailable"]));
   });

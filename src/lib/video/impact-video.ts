@@ -89,6 +89,9 @@ export function spokenText(text: string): string {
   });
   // Thousands separators ("1,250.5 сая" was read as "1," + "250.5 сая"): only a real group of
   // 1–3 digits, never a day after a date ("…сарын 1 100 айл" was said as "1100 айл", Nov 2026 audit).
+  // After "оны" a group followed by a scale word is an amount, never a day: "2026 оны 1 250.5 тэрбум"
+  // was said as "1" + "хоёр зуун тавь гаруй тэрбум" (Nov 2026 audit B-6).
+  t = t.replace(/(?<=оны )(\d{1,3})((?:[,\u00a0 ]\d{3})+)(?=(?:[.,]\d+)?\s*(?:их наяд|тэрбум|сая))/g, (_, a: string, rest: string) => a + rest.replace(/[,\u00a0 ]/g, ""));
   t = t.replace(/(?<![\d\-.:/]|сарын |оны |өдрийн )(\d{1,3})((?:[,\u00a0 ]\d{3})+)(?!\d)/g, (_, a: string, rest: string) => a + rest.replace(/[,\u00a0 ]/g, ""));
   // A decimal before a scale word is said in words, to the same amount (amountWords).
   t = t.replace(/(?<![\d.,])(\d+[.,]\d+)\s*(их наяд|тэрбум|сая)/g, (all, v, unit) => {

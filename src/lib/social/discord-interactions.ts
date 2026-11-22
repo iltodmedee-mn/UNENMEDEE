@@ -28,15 +28,20 @@ export const COMMANDS = [
   {
     name: "aimag",
     description: "Аймаг, дүүргийн сүүлийн мэдээ",
-    options: [{ type: 3, name: "ner", description: "Аймаг эсвэл дүүрэг", required: true, autocomplete: true }],
+    options: [{ type: 3, name: "ner", description: "Аймаг эсвэл дүүрэг", required: true, autocomplete: true, max_length: 100 }],
   },
 ].map((c) => ({ ...c, type: 1, integration_types: [0, 1], contexts: [0, 1, 2] }));
 
 const SPKI_ED25519_PREFIX = Buffer.from("302a300506032b6570032100", "hex");
 
+/** A signed request older (or newer) than this is a replay (audit S-9); Discord answers within seconds. */
+export const SIGNATURE_MAX_AGE_S = 300;
+
 /** Discord signs `timestamp + raw body` with the app's Ed25519 key; anything else is refused. */
-export function validDiscordSignature(rawBody: Buffer, signatureHex: string | null, timestamp: string | null, publicKeyHex: string): boolean {
+export function validDiscordSignature(rawBody: Buffer, signatureHex: string | null, timestamp: string | null, publicKeyHex: string, now = Date.now()): boolean {
   if (!signatureHex || !timestamp || !/^[0-9a-f]{128}$/i.test(signatureHex) || !/^[0-9a-f]{64}$/i.test(publicKeyHex)) return false;
+  // A captured request replayed later would run the DB queries and the reply again each time.
+  if (!/^\d{9,11}$/.test(timestamp) || Math.abs(now / 1000 - Number(timestamp)) > SIGNATURE_MAX_AGE_S) return false;
   try {
     const key = createPublicKey({ key: Buffer.concat([SPKI_ED25519_PREFIX, Buffer.from(publicKeyHex, "hex")]), format: "der", type: "spki" });
     return verify(null, Buffer.concat([Buffer.from(timestamp, "utf8"), rawBody]), key, Buffer.from(signatureHex, "hex"));
@@ -103,7 +108,8 @@ export function haihReply(q: string, results: { title: string; slug: string; sou
 }
 
 export function aimagReply(place: Place | undefined, typed: string, stories: { title: string; slug: string }[], site = PRODUCTION_URL): string {
-  if (!place) return `"${typed}" гэсэн аймаг, дүүрэг олдсонгүй. Жишээ: \`/aimag ner: Ховд\``;
+  // The typed text is echoed: as plain text (no masked links, no markdown), clipped (audit S-9).
+  if (!place) return fit(`"${plainQuery(typed).slice(0, 100)}" гэсэн аймаг, дүүрэг олдсонгүй. Жишээ: \`/aimag ner: Ховд\``);
   const page = `${site}/place/${place.slug}`;
   if (stories.length === 0) return `📍 **${place.name}**: сүүлийн үед шинэ мэдээ алга 😴\n<${page}>`;
   const lines = stories.slice(0, 5).map((s, i) => `\`${i + 1}\` ${linkTo(s.title, `${site}/article/${s.slug}`)}`);

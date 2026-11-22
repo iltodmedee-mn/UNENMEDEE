@@ -33,6 +33,8 @@ describe("spokenText: the forms a speech model misreads become words", () => {
     assert.equal(spokenText("170.1 тэрбум ₮ зарцуулна"), "зуун дал гаруй тэрбум төгрөг зарцуулна");
     assert.equal(spokenText("100,000₮ хүртэл"), "100000 төгрөг хүртэл");
     assert.equal(spokenText("91 хувьд хүрлээ"), "91 хувьд хүрлээ");
+    assert.equal(spokenText("2026 оны 1 250.5 тэрбум"), "2026 оны нэг их наяд хоёр зуун тавин нэгэн тэрбум", "audit B-6");
+    assert.equal(spokenText("10-р сарын 1 100 айл"), "аравдугаар сарын 1 100 айл", "a day after a month stays a day");
   });
 
   it("says УИХ in full, with its case ending", () => {

@@ -20,13 +20,20 @@ describe("discord interactions", () => {
   const ts = "1761400000";
   const sig = sign(null, Buffer.concat([Buffer.from(ts), body]), privateKey).toString("hex");
 
+  const at = Number(ts) * 1000 + 2_000;
+
   it("accepts only Discord's Ed25519 signature over timestamp + body", () => {
-    assert.ok(validDiscordSignature(body, sig, ts, publicHex));
-    assert.ok(!validDiscordSignature(Buffer.from('{"type":2}'), sig, ts, publicHex), "tampered body");
-    assert.ok(!validDiscordSignature(body, sig, "1761400001", publicHex), "other timestamp");
-    assert.ok(!validDiscordSignature(body, null, ts, publicHex));
-    assert.ok(!validDiscordSignature(body, "zz", ts, publicHex));
-    assert.ok(!validDiscordSignature(body, sig, ts, "not-a-key"));
+    assert.ok(validDiscordSignature(body, sig, ts, publicHex, at));
+    assert.ok(!validDiscordSignature(Buffer.from('{"type":2}'), sig, ts, publicHex, at), "tampered body");
+    assert.ok(!validDiscordSignature(body, sig, "1761400001", publicHex, at), "other timestamp");
+    assert.ok(!validDiscordSignature(body, null, ts, publicHex, at));
+    assert.ok(!validDiscordSignature(body, "zz", ts, publicHex, at));
+    assert.ok(!validDiscordSignature(body, sig, ts, "not-a-key", at));
+  });
+
+  it("refuses a replay of a signed request (audit S-9)", () => {
+    assert.ok(!validDiscordSignature(body, sig, ts, publicHex, Number(ts) * 1000 + 10 * 60_000), "ten minutes later");
+    assert.ok(!aimagReply(undefined, "[Click](https://evil.example)", []).includes("](http"), "the echo is plain text");
   });
 
   it("registers three commands for servers, DMs and user installs", () => {
