@@ -149,7 +149,11 @@ export function impactVideoSpec(story: ImpactStory): ImpactSpec | null {
   if (!what && !(change && (who || when || action))) return null;
   if ([headline, who, change, when, action, what].some((f) => f && CHARGE.test(f))) return null;
   // A named person next to a charge, dismissal or violation never becomes a video (Audit 6 C1).
-  if ([headline, what].some((f) => f && namesPerson(f) && (CHARGE.test(f) || PERSON_CHARGE.test(f)))) return null;
+  // Over every card together: a name in the headline and "чөлөөлнө" on another card are still a
+  // named person next to a dismissal (Nov 2026 audit B-5).
+  const allText = [headline, who, change, when, action, what].filter(Boolean).join(" · ");
+  if ([headline, what].some((f) => f && namesPerson(f)) && (CHARGE.test(allText) || PERSON_CHARGE.test(allText))) return null;
+  if (namesPerson(allText) && PERSON_CHARGE.test(allText)) return null;
 
   const source = sourceLabel(story.sourceName);
   const asks: Record<ImpactSpec["cards"][number]["scene"], string> = {

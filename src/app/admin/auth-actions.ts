@@ -3,7 +3,7 @@
 import { cookies, headers } from "next/headers";
 import { redirect } from "next/navigation";
 
-import { ADMIN_COOKIE, adminConfigured, checkPassword, createToken, isValidToken, SESSION_MAX_AGE_S } from "@/lib/admin-auth";
+import { ADMIN_COOKIE, adminConfigured, checkPassword, createToken, isAdmin, SESSION_MAX_AGE_S } from "@/lib/admin-auth";
 import { clientIp, failureLimiter } from "@/lib/rate-limit";
 
 /**
@@ -46,8 +46,10 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
 /** Ends the session on the server too: a copied cookie stops working (admin-session.ts). */
 export async function logout() {
   const jar = await cookies();
-  // Only a valid session may sign everyone out; anyone can POST this action.
-  if (await isValidToken(jar.get(ADMIN_COOKIE)?.value)) {
+  // Only a live session may sign everyone out; anyone can POST this action. isAdmin also checks the
+  // server-side floor: a cookie already revoked kept logging the real admin out for the rest of its
+  // 7 days (Nov 2026 audit S-8).
+  if (await isAdmin()) {
     try {
       const { revokeSessions } = await import("@/lib/admin-session");
       await revokeSessions();

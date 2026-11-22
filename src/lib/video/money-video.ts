@@ -165,7 +165,7 @@ export const CHARGE = /(хулгай|авлиг|хахуул|завш|мөнгө
  * Words harmless on their own ("татвараас чөлөөлж", "компанийг торгов") that become a charge or a
  * dismissal once a named person stands next to them (Audit 6 C1). Checked with `namesPerson`.
  */
-export const PERSON_CHARGE = /(торгу|торгов|чөлөөл|огцр|ял(?![\p{L}])|шийтг|хариуцлага)/iu;
+export const PERSON_CHARGE = /(торг[оуөү]|торгов|чөлөөл|огцр|ял(?![\p{L}])|шийтг|хариуцлага)/iu;
 
 export function weighsOrAccuses(title: string): boolean {
   const t = ` ${title.toLowerCase().replace(/[.,!?;:«»"“”()]/g, " ")} `;

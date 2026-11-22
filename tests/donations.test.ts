@@ -39,3 +39,11 @@ describe("donations", () => {
     assert.equal(cleanLine("x".repeat(200), 140).length, 140);
   });
 });
+
+it("a bank statement's cents never multiply the amount by 100 (audit B-3)", async () => {
+  const { parseAmount } = await import("@/lib/donations");
+  assert.equal(parseAmount("50,000.00"), 50_000);
+  assert.equal(parseAmount("5000.00 төгрөг"), 5_000);
+  assert.equal(parseAmount("50.000"), 50_000, "a dot before three digits is still a thousands separator");
+  assert.equal(parseAmount("45 000₮"), 45_000);
+});

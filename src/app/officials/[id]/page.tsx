@@ -15,14 +15,16 @@ import { declarationFlags } from "@/lib/officials/flags";
 import { termLabel, termOf } from "@/lib/officials/terms";
 import { PLACES, placeMatchesConstituency } from "@/lib/places";
 import { declaredCompanies } from "@/lib/officials/companies";
-import { getAttendance, getCompanyTenders, getOfficialCompanies, getPolitician, getPoliticianIds } from "@/lib/queries";
+import { getAttendance, getCompanyTenders, getOfficialCompanies, getPolitician } from "@/lib/queries";
 import { jsonLd, parseRouteId, SITE_NAME } from "@/lib/site";
 import { breadcrumbLd, personLd } from "@/lib/structured-data";
 import { MpPhoto } from "@/components/officials/mp-photo";
 
+// One placeholder: each member's page renders on its first visit and stays cached for days.
+// Prerendering all ~126 at every deploy read every member's filings, companies and tenders and
+// fetched 126 portraits for the share cards each time (Nov 2026 audit P-2, docs/USAGE.md).
 export async function generateStaticParams() {
-  const ids = await getPoliticianIds();
-  return (ids.length ? ids : [0]).map((id) => ({ id: String(id) }));
+  return [{ id: "0" }];
 }
 
 export async function generateMetadata({ params }: PageProps<"/officials/[id]">): Promise<Metadata> {

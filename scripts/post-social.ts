@@ -39,6 +39,7 @@ import { publishThreads, publishThreadsCarousel, refreshToken, THREADS_SETTINGS_
 import { publishTelegram, telegramArticlePost, telegramDigestPost, type TelegramPost } from "@/lib/social/telegram";
 import { discordArticlePost, discordChannelId, discordDigestPost, type DiscordPost, discordQuizPost, publishDiscord } from "@/lib/social/discord";
 import { makeQuiz, type Quiz } from "@/lib/social/quiz";
+import { weighsOrAccuses } from "@/lib/video/money-video";
 import { biggestAmount, isWeeklyDue, mostNamed, previousWeek, type WeeklyTop, weeklyShortText, weeklyText } from "@/lib/social/weekly";
 import { sharedShortNames } from "@/lib/officials/flags";
 import { currentState, needsRefresh, refreshSeverity, type TokenState } from "@/lib/social/token-state";
@@ -343,6 +344,9 @@ async function postQuiz(db: Db, p: Platform) {
     .orderBy(sql`${articles.importanceScore} desc nulls last`, desc(articles.publishedAt))
     .limit(30);
   for (const r of rows) {
+    // The headline is the question: one that weighs or accuses (a named person next to a charge)
+    // is never asked, as in the weekly quiz and the videos (Nov 2026 audit B-5).
+    if (weighsOrAccuses(r.title)) continue;
     const q = makeQuiz({ id: r.id, slug: r.slug, title: r.title, amounts: r.entities?.amounts_mnt ?? [] });
     if (q) return post(db, p, "quiz", r.id, p.quiz(q));
   }

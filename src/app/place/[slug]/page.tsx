@@ -9,7 +9,7 @@ import { FollowPlaceButton } from "@/components/iltod/follow-topic";
 import { PlacePicker } from "@/components/iltod/place-picker";
 import { StoryList } from "@/components/iltod/story-list";
 import { findPlace, type Place, placeGenitive, placeLabel, placeMatchesConstituency, PLACES } from "@/lib/places";
-import { getPlaceFeed, getPoliticians } from "@/lib/queries";
+import { getPlaceFeed, getPoliticianConstituencies } from "@/lib/queries";
 import { absoluteUrl, jsonLd, SITE_NAME } from "@/lib/site";
 
 /** Every place is prerendered, so its title and description are in <head> for crawlers. */
@@ -52,7 +52,7 @@ function PlaceJsonLd({ place }: { place: Place }) {
 async function PlaceView({ params }: { params: PageProps<"/place/[slug]">["params"] }) {
   const place = findPlace((await params).slug);
   if (!place) notFound();
-  const [stories, people] = await Promise.all([getPlaceFeed(place.domains), getPoliticians()]);
+  const [stories, people] = await Promise.all([getPlaceFeed(place.domains), getPoliticianConstituencies()]);
   // By the areas the constituency lists, so a renamed or redrawn constituency after an election still matches.
   const mps = people.filter((p) => placeMatchesConstituency(place, p.constituency));
   return (

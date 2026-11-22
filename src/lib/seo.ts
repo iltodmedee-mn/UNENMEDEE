@@ -8,7 +8,9 @@
  * Feeds hide stories below this importance (0-100 from Tier 1). 15 since Nov 10 2026 (the owner: a
  * holiday's ceremonies, all 15-20, left the home page a day old); trainings and greetings score 5-10.
  */
-export const FEED_MIN_IMPORTANCE = Number(process.env.FEED_MIN_IMPORTANCE ?? 15);
+const feedFloor = Number(process.env.FEED_MIN_IMPORTANCE);
+/** An empty or unparsable FEED_MIN_IMPORTANCE falls back to 15 (Number("") was 0, Number("x") NaN). */
+export const FEED_MIN_IMPORTANCE = process.env.FEED_MIN_IMPORTANCE?.trim() && Number.isFinite(feedFloor) ? feedFloor : 15;
 /** Below this a story with nothing else going for it is a thin page (noindex). Kept at 25 for search engines. */
 export const THIN_BELOW = 25;
 

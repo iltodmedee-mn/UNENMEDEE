@@ -301,6 +301,8 @@ describe("token-free analysis", () => {
     assert.match(r.tldr_summary, /нээлттэй өгөгдлийн багц нийтэллээ/);
     assert.ok(r.facts.some((f) => f.startsWith("Эзэмшигч: ")));
     assert.equal(r.risk_score, 0);
+    const { FEED_MIN_IMPORTANCE } = await import("@/lib/seo");
+    assert.ok((r.importance_score ?? 100) < FEED_MIN_IMPORTANCE, "a dataset listing stays off the feeds (audit B-1)");
     const out = await analyzeArticle(input);
     assert.equal(out.tier1Provider, "rule-based");
     assert.equal(out.costUsd, 0);

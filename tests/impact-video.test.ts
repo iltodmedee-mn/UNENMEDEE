@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { impactHtml } from "@/lib/video/impact-html";
-import { amountWords, weighsOrAccuses } from "@/lib/video/money-video";
+import { amountWords, PERSON_CHARGE, weighsOrAccuses } from "@/lib/video/money-video";
 import { IMPACT_MAX_CHARS, impactNarration, type ImpactStory, impactVideoSpec, spokenText, verifyImpactSpec } from "@/lib/video/impact-video";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type ImpactVideoMeta } from "@/lib/video/posts";
 import { kindsFor } from "@/lib/video/schedule";
@@ -49,6 +49,12 @@ describe("spokenText: the forms a speech model misreads become words", () => {
 });
 
 describe("impactVideoSpec", () => {
+  it("a named person on one card and a dismissal on another never become a video (audit B-5)", () => {
+    const named = { ...pension, title: "Б.Батболд сайдын тушаалаар 600 мянган төгрөг олгоно", impact: { ...pension.impact!, change: "Тэргүүн дэд сайдыг албан тушаалаас нь чөлөөлнө." } };
+    assert.equal(impactVideoSpec(named), null);
+    assert.ok(PERSON_CHARGE.test("торгох"), "every form of торго- is a charge word");
+  });
+
   it("reads a decision the way the site's «Танд хамаатай юу?» block does", () => {
     const spec = impactVideoSpec(pension);
     assert.ok(spec);

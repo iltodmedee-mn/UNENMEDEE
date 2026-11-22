@@ -1291,9 +1291,29 @@ export async function getPoliticians(): Promise<PoliticianSummary[]> {
   });
 }
 
+/**
+ * Active members with only what a place page lists (name, party, constituency). The place pages
+ * read the whole getPoliticians() before, every member and every filing, for four columns: on a
+ * deploy or a cold instance, 31 pages × ~600 rows, the largest Supabase read in docs/USAGE.md
+ * (Nov 2026 audit P-4).
+ */
+export async function getPoliticianConstituencies(): Promise<{ id: number; shortName: string; party: string | null; constituency: string | null }[]> {
+  "use cache";
+  cacheLife("days");
+  cacheTag("officials");
+  return safe("getPoliticianConstituencies", [], () =>
+    getDb()
+      .select({ id: politicians.id, shortName: politicians.shortName, party: politicians.party, constituency: politicians.constituency })
+      .from(politicians)
+      .where(eq(politicians.isActive, true))
+      .orderBy(politicians.fullName),
+  );
+}
+
 export async function getPoliticianIds(): Promise<number[]> {
   "use cache";
-  cacheLife("hours");
+  // The roster changes weekly (officials:sync); used by the sitemap only.
+  cacheLife("days");
   cacheTag("officials");
   return safe("getPoliticianIds", [], async () => {
     const rows = await getDb().select({ id: politicians.id }).from(politicians).where(eq(politicians.isActive, true));
@@ -1512,7 +1532,9 @@ export type AttendanceHighlight = Extract<DatasetHighlight, { kind: "attendance"
 /** Parliament attendance from opendata.mn (one dataset, every member's counts). */
 export async function getAttendance(): Promise<{ highlight: AttendanceHighlight; pageUrl: string } | null> {
   "use cache";
-  cacheLife("hours");
+  // Synced daily (data:sync); "hours" kept all ~126 member pages re-rendering hourly while every
+  // other read on them is "days" (Nov 2026 audit P-2).
+  cacheLife("days");
   cacheTag("open-data");
   return safe("getAttendance", null, async () => {
     const [row] = await getDb()
