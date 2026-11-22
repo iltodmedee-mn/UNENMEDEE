@@ -82,3 +82,21 @@ describe("TLS verification against a self-signed server", () => {
     assert.equal(asked, 1);
   });
 });
+
+describe("private addresses and redirect hops (audit S-3, S-4)", () => {
+  it("certValid never opens a socket to a private IP literal", async () => {
+    const { certValid } = await import("@/lib/scraper/tls-exempt");
+    const started = Date.now();
+    assert.equal(await certValid("127.0.0.1", { timeoutMs: 5_000 }), null);
+    assert.equal(await certValid("169.254.169.254", { timeoutMs: 5_000 }), null);
+    assert.ok(Date.now() - started < 1_000, "answered without a connection attempt");
+  });
+
+  it("a browser page that reached a private host or an untrusted certificate is not used", async () => {
+    const { firstUnsafeRequest } = await import("@/lib/scraper/crawl");
+    const trusted = async (u: string) => !u.includes("forged");
+    assert.equal(await firstUnsafeRequest(["https://8.8.8.8/news", "data:text/plain,x"], trusted), null);
+    assert.equal(await firstUnsafeRequest(["https://8.8.8.8/news", "http://169.254.169.254/latest/meta-data"], trusted), "169.254.169.254");
+    assert.equal(await firstUnsafeRequest(["https://8.8.8.8/news", "https://8.8.4.4/forged"], trusted), "8.8.4.4");
+  });
+});

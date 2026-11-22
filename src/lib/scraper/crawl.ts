@@ -185,6 +185,8 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   tlsBroken = opts.tlsBrokenHosts ?? new Set();
   const checkCert = certChecker();
   /** Browser pass: an https host is either listed (read unverified) or has just passed a verified handshake. */
+  // Each browser page's requests, redirect hops included (audit S-3): see firstUnsafeRequest.
+  const pageRequests = new WeakMap<object, string[]>();
   const certTrusted = async (url: string): Promise<boolean> => {
     const u = new URL(url);
     if (u.protocol !== "https:" || tlsExempt(u, tlsBroken)) return true;
@@ -411,8 +413,17 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
             async ({ page, request }) => {
               // Chromium's certificate switch is browser-wide (the listed hosts need it), so every
               // other host must pass one verified handshake first; its sub-requests likewise.
+              // Public first: the certificate probe must never open a socket to a private address.
+              if (!(await isPublicHost(new URL(request.url).hostname))) throw new Error(`not a public host: ${new URL(request.url).hostname}`);
               if (!(await certTrusted(request.url))) throw new Error(`TLS certificate not valid for ${new URL(request.url).hostname} (not in tls_broken_hosts)`);
               await politeWait(request.url);
+              // page.route never sees a redirect hop, so every request the page made, hops included,
+              // is recorded and checked before its text is used (Nov 2026 audit S-3).
+              const seenUrls: string[] = [];
+              page.on("request", (r) => {
+                seenUrls.push(r.url());
+              });
+              pageRequests.set(page, seenUrls);
               // Heavy resources are skipped; a page's scripts must not reach a private address either.
               await page.route("**/*", async (route) => {
                 const req = route.request();
@@ -429,6 +440,8 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
             if (status >= 400) return onFailure(request.url, request.userData as UserData, new Error(`HTTP ${status}`), add);
             // Let client-side rendering finish (SPAs fetch their news after load).
             await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+            const unsafe = await firstUnsafeRequest(pageRequests.get(page) ?? [], certTrusted);
+            if (unsafe) return onFailure(request.url, request.userData as UserData, new Error(`the page reached ${unsafe}: its text is not used`), add);
             const html = await page.content();
             await handle(request.url, request.loadedUrl ?? request.url, request.userData as UserData, html, add);
           },
@@ -616,4 +629,25 @@ function listingRequest(state: { sourceId: number }, url: string, attempt: NonNu
 
 function articleRequest(state: { sourceId: number }, url: string, mode: Mode = "http"): CrawlRequest {
   return { url, uniqueKey: `${mode}:article:${url}`, userData: { label: "ARTICLE", sourceId: state.sourceId } };
+}
+
+/**
+ * The first host among a page's requests (redirect hops included) that is not public or whose
+ * certificate fails while it is not on the TLS list, or null when all are fine. Playwright's
+ * page.route sees only the first URL of a redirect chain, so a 302 to 169.254.169.254 or to a
+ * host with a forged certificate was followed and its text stored (Nov 2026 audit S-3).
+ */
+export async function firstUnsafeRequest(urls: string[], certTrusted: (url: string) => Promise<boolean>): Promise<string | null> {
+  for (const u of new Set(urls)) {
+    let parsed: URL;
+    try {
+      parsed = new URL(u);
+    } catch {
+      continue;
+    }
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") continue;
+    if (!(await isPublicHost(parsed.hostname))) return parsed.hostname;
+    if (parsed.protocol === "https:" && !(await certTrusted(u))) return parsed.hostname;
+  }
+  return null;
 }

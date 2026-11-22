@@ -8,8 +8,12 @@ import { clientIp, failureLimiter } from "@/lib/rate-limit";
  * one while it refreshes), so the database is read at most once a minute per story read.
  */
 export async function GET(request: Request) {
-  const id = parseArticleId(new URL(request.url).searchParams.get("id"));
+  const url = new URL(request.url);
+  const id = parseArticleId(url.searchParams.get("id"));
   if (!id) return Response.json({ error: "bad request" }, { status: 400 });
+  // Any other query (a cache-buster, "id=01") is a new CDN key that reads the database each time:
+  // sent to the one cached URL instead (Nov 2026 audit S-7).
+  if (url.search !== `?id=${id}`) return Response.redirect(new URL(`${url.pathname}?id=${id}`, url), 308);
   if (!hasDatabase()) return Response.json(emptyCounts());
   try {
     const counts = await reactionCounts(getDb(), id);

@@ -62,7 +62,11 @@ async function cardFor(params: URLSearchParams): Promise<FeedCard | null> {
 
 export async function GET(request: Request) {
   const url = new URL(request.url);
-  const canonical = canonicalImageQuery(url, ["d", "a"]);
+  // One card, one URL: with ?d= the slug is ignored, so "?d=1&a=<random>" was a new CDN key per
+  // request and a fresh Satori + JPEG render each time; "d=01" likewise (Nov 2026 audit S-7).
+  const d = url.searchParams.get("d");
+  if (d !== null && !/^[1-9]\d{0,8}$/.test(d)) return new Response("Not found", { status: 404 });
+  const canonical = canonicalImageQuery(url, d !== null ? ["d"] : ["a"]);
   if (canonical) return Response.redirect(new URL(canonical, url), 308);
   const card = await cardFor(url.searchParams);
   if (!card) return new Response("Not found", { status: 404 });
