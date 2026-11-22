@@ -57,7 +57,19 @@ jobs:
           vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
 
       - name: Build
-        run: vercel build --prod
+        # `vercel pull` cannot read values marked Sensitive on Vercel and writes "[SENSITIVE]" in their
+        # place (Nov 22 2026: DATABASE_URL among them, so every prerendered page shipped empty). Drop
+        # the placeholders and take the database URL from the repository secret the pipeline uses;
+        # without it the build would prerender empty pages, so it stops instead.
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+        run: |
+          f=.vercel/.env.production.local
+          echo "Sensitive on Vercel, not pulled: $(grep -oE '^[A-Z0-9_]+="\[SENSITIVE\]"' "$f" | cut -d= -f1 | tr '\n' ' ')"
+          sed -i '/="\[SENSITIVE\]"$/d' "$f"
+          sed -i '/^DATABASE_URL=/d' "$f"
+          if [ -z "$DATABASE_URL" ]; then echo "::error::The DATABASE_URL secret is not set: nothing deployed."; exit 1; fi
+          vercel build --prod
 
       - name: Upload to production
         env:
