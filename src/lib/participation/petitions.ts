@@ -116,7 +116,8 @@ export function openPetitions(all: Petition[], now: Date): { items: Petition[]; 
       skippedNamed++;
       continue;
     }
-    const { rawTitle: _raw, ...shown } = p;
+    const shown = { ...p };
+    delete shown.rawTitle;
     items.push(shown);
   }
   return { items: items.sort((a, b) => b.signatures - a.signatures), skippedNamed };

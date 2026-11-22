@@ -234,7 +234,12 @@ describe("router with Gemini + budget guard (mock server)", () => {
       script = (model) => (model === "mock-gemini-lite" ? { status: 429 } : { content: lowRisk });
       const out = await analyzeArticle({ ...article, text: "жижиг мэдээ" }, { log });
       assert.equal(out.tier1Provider, "requesty/mock-requesty");
-      assert.deepEqual(mock.calls.map((c) => c.model), ["mock-gemini-lite", "mock-requesty"]);
+      // The free providers take turns (spreadFree), so Requesty may be asked before or after the
+      // limited Gemini; either way it answers at once, with no wait for Gemini's limit.
+      const models = mock.calls.map((c) => c.model);
+      assert.equal(models.at(-1), "mock-requesty");
+      assert.ok(models.every((m) => m === "mock-gemini-lite" || m === "mock-requesty"), models.join(","));
+      assert.ok(models.length <= 2);
     } finally {
       delete process.env.REQUESTY_API_KEY;
     }
