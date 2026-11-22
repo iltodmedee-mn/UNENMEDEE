@@ -1,0 +1,68 @@
+# Production deploy from Actions. Vercel's Hobby plan cannot connect a project to a repository owned
+# by a GitHub organization, and this one is (iltodmedee-mn), so Vercel's own Git deploys are off
+# (vercel.json `git.deploymentEnabled: false`) and this workflow builds and uploads instead.
+# Needs the VERCEL_TOKEN secret (vercel.com → Account Settings → Tokens, scope: the team) and the
+# VERCEL_PROJECT_ID / VERCEL_TEAM_ID variables (vercel-cleanup.yml uses the same ones).
+# The paths below never change the site, the same list the old vercel.json ignoreCommand skipped.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "tests/**"
+      - "scripts/**"
+      - ".github/**"
+      - ".claude/**"
+      - "**/*.md"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One production deploy at a time; a newer push waits instead of cancelling a half-uploaded one.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    if: github.repository_owner == 'iltodmedee-mn'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      VERCEL_ORG_ID: ${{ vars.VERCEL_TEAM_ID || 'team_ogiLPIu73hMJPeisTEZBwsGB' }}
+      VERCEL_PROJECT_ID: ${{ vars.VERCEL_PROJECT_ID || 'prj_ReSbUAv8QvTtGNQBVefYt7mX5lTm' }}
+      VERCEL_TELEMETRY_DISABLED: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: node -v && npm -v
+      - run: npm install --global vercel@65.12.1
+
+      - name: Pull the production settings
+        # The token reaches only this step and the upload, never the build that runs the dependencies.
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ]; then echo "::error::VERCEL_TOKEN is not set: nothing deployed."; exit 1; fi
+          vercel pull --yes --environment=production --token "$VERCEL_TOKEN"
+
+      - name: Build
+        run: vercel build --prod
+
+      - name: Upload to production
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          url=$(vercel deploy --prebuilt --prod --token "$VERCEL_TOKEN")
+          echo "Deployed: $url"
+          echo "Deployed: $url" >> "$GITHUB_STEP_SUMMARY"
