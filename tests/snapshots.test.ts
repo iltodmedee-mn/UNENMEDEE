@@ -14,7 +14,7 @@ describe("snapshot helpers", () => {
     assert.equal(snapshotTag(feedKey("all")), "snap-feed-all");
     assert.ok(SNAPSHOT_TAG.test(snapshotTag(feedKey("health"))));
   });
-  it("the hash follows the content, not the key order of a fresh object", () => {
+  it("the hash follows the content", () => {
     assert.equal(contentHash({ a: 1 }), contentHash({ a: 1 }));
     assert.notEqual(contentHash({ a: 1 }), contentHash({ a: 2 }));
   });
@@ -47,6 +47,8 @@ describe("writeSnapshots (PGlite, demo data)", () => {
     const { writeSnapshots } = await import("@/lib/snapshot-writer");
     const { FEED_FILTERS } = await import("@/lib/queries");
     const first = await writeSnapshots();
+    assert.equal(new Set(FEED_FILTERS).size, FEED_FILTERS.length, "no list page twice (audit P-8)");
+    assert.equal(new Set(first).size, first.length);
     assert.equal(first.length, FEED_FILTERS.length, "the first run creates every snapshot");
     assert.deepEqual(await writeSnapshots(), [], "nothing changed, nothing to rebuild");
 
@@ -70,5 +72,19 @@ describe("writeSnapshots (PGlite, demo data)", () => {
     assert.deepEqual((await writeSnapshots()).sort(), ["snap-feed-all", "snap-feed-budget"]);
     assert.deepEqual(await writeSnapshots(), []);
     assert.equal(await forgetHashes([]), 0);
+  });
+
+  it("clusters are purged only after a cluster changed (audit P-1)", async () => {
+    const { clustersChangedSince, rememberClusters } = await import("@/lib/snapshot-writer");
+    const first = await clustersChangedSince();
+    assert.equal(first.changed, true, "never purged before");
+    await rememberClusters(first.state);
+    assert.equal((await clustersChangedSince()).changed, false, "nothing changed since");
+    await db.execute(sql`insert into clusters (title, updated_at) values ('new', now() + interval '1 second')`);
+    const next = await clustersChangedSince();
+    assert.equal(next.changed, true, "a new cluster");
+    await rememberClusters(next.state);
+    await db.execute(sql`delete from clusters where title = 'new'`);
+    assert.equal((await clustersChangedSince()).changed, true, "a deleted cluster");
   });
 });

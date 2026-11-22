@@ -34,7 +34,8 @@ import type { DatasetHighlight, DigestItem, ExtractedEntities, FactVsSpin, Reade
  *    so `next build` and contributors never need secrets (CLAUDE.md rule #6).
  */
 
-export const FEED_FILTERS = ["all", "risk", "budget", "ministry", "local", ...TOPICS.map((t) => t.key)] as const;
+// "local" comes from TOPICS: listed here as well, it was built, stored and purged twice every run (audit P-8).
+export const FEED_FILTERS = ["all", "risk", "budget", "ministry", ...TOPICS.map((t) => t.key)] as const;
 export type FeedFilter = (typeof FEED_FILTERS)[number];
 
 export function parseFilter(value: string | string[] | undefined): FeedFilter {

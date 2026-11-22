@@ -54,7 +54,7 @@ async function main() {
   // A missing or corrupt file (bad gzip) emits "error" on the stream, which readline does not pass
   // on: the process died on an unhandled error event instead of a clear message (audit D-1).
   let streamError: unknown = null;
-  for (const s of [input, stream]) s.on("error", (err) => { streamError ??= err; rl.close(); });
+  for (const s of [input, stream]) s.on("error", (err: Error) => { streamError ??= err; rl.close(); });
   async function* checkedLines(): AsyncGenerator<string> {
     for await (const line of rl) {
       if (streamError) throw streamError;

@@ -237,6 +237,17 @@ describe("publishing a video", () => {
     assert.ok(calls.every((c) => !c.url.includes("SECRET")));
   });
 
+  it("Facebook: a status request that fails after finish still returns the posted reel (audit B-12)", async () => {
+    let n = 0;
+    const f = (async () => {
+      n++;
+      if (n === 4) throw new Error("The operation was aborted due to timeout");
+      const bodies = [{ video_id: "78" }, { success: true }, { success: true }];
+      return new Response(JSON.stringify(bodies[n - 1]), { status: 200 });
+    }) as unknown as typeof fetch;
+    assert.equal(await publishReel({ pageId: "p1", token: "t", videoUrl: "https://iltodmedee.mn/reel?v=4", description: "d", fetchImpl: f, sleep: noSleep }), "78");
+  });
+
   it("Instagram: a REELS container with the video URL, shared to the feed", async () => {
     // The first call looks for a post with the same caption (none here).
     const { calls, f } = recorder([() => ({ data: [] }), () => ({ id: "c1" }), () => ({ status_code: "IN_PROGRESS" }), () => ({ status_code: "FINISHED" }), () => ({ id: "m1" })]);

@@ -494,7 +494,9 @@ async function thisWeeksQuiz(db: Db, now: Date): Promise<WeeklyQuiz | null> {
     },
     { keepIfYoungerThanMs: QUIZ_KEEP_MS, now },
   );
-  return built ?? parseWeeklyQuiz(value);
+  // What is stored wins: a run that lost the race built its own quiz, but the cards (/quiz-image)
+  // render the stored one, so its caption must be the stored one too (Nov 2026 audit B-11).
+  return parseWeeklyQuiz(value) ?? built;
 }
 
 /** The answers, on a platform whose quiz post went out, from 19:00 the next day (answersDue). */

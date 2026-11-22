@@ -20,7 +20,7 @@ import { and, eq, gte, isNotNull, isNull, lt, type SQL, sql } from "drizzle-orm"
 import type { DB } from "@/db";
 import { socialPosts } from "@/db/schema";
 import { errorLine } from "@/lib/log-safe";
-import { UnknownOutcomeError } from "@/lib/social/outcome";
+import { isRateLimited, UnknownOutcomeError } from "@/lib/social/outcome";
 
 export type PostKind = "digest" | "article" | "quiz" | "weekly" | "video" | "wquiz" | "wquiz_ans" | "announce";
 
@@ -110,6 +110,13 @@ export async function publishOnce(db: DB, req: PublishRequest): Promise<PublishR
       await db.update(socialPosts).set({ postId: "unknown" }).where(eq(socialPosts.id, row.id));
       console.error(`::warning::${platform} ${kind} #${refId}: no answer (${errorLine(err, 400)}); kept as posted, check the page by hand.`);
       return "unknown";
+    }
+    if (LIMITED_TRIES.has(kind) && isRateLimited(err)) {
+      // A request limit is not a refusal of this post (docs/agents/social.md): the try is given back,
+      // so three busy hours no longer drop a video or a quiz for good (Nov 2026 audit R-3).
+      if (tries > 0) await db.update(socialPosts).set({ postId: `failed:${tries}` }).where(eq(socialPosts.id, row.id));
+      else await db.delete(socialPosts).where(eq(socialPosts.id, row.id));
+      throw err;
     }
     if (LIMITED_TRIES.has(kind)) {
       // A refused reel is retried at most MAX_TRIES times, not every 30 min for 48 h

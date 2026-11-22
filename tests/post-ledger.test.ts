@@ -103,6 +103,21 @@ describe("platform post ledger (PGlite)", () => {
     assert.equal(await postId("instagram", "video", 3), `failed:${MAX_TRIES}`);
   });
 
+  it("a request limit does not use up a limited kind's tries (audit R-3)", async () => {
+    const limited = fake(new Error("Instagram 403: Application request limit reached (code 4)"));
+    for (let n = 0; n < MAX_TRIES + 2; n++) {
+      quiet();
+      await assert.rejects(go("instagram", "video", 9, limited));
+      cap.restore();
+    }
+    assert.equal(await postId("instagram", "video", 9), "NO ROW", "no ledger row: the next run tries again");
+    quiet();
+    await assert.rejects(go("instagram", "video", 9, fake(new Error("refused"))));
+    await assert.rejects(go("instagram", "video", 9, limited));
+    cap.restore();
+    assert.equal(await postId("instagram", "video", 9), "failed:1", "the real refusal is kept, the limit is not counted");
+  });
+
   it("a limited kind that succeeds after a refusal records the id", async () => {
     quiet();
     await assert.rejects(go("facebook", "wquiz", 202645, fake(new Error("x"))));

@@ -8,7 +8,7 @@ import { SNAPSHOT_TAG } from "@/lib/snapshots";
  * they write. No new secret is needed: both sides already reach the database, so the caller stores a
  * single-use nonce in `app_settings` and the route accepts it once, within `NONCE_TTL_MS`.
  *
- * A pipeline run purges only the snapshot tags (`snap-…`) whose snapshot changed, plus "clusters"
+ * A pipeline run purges only the snapshot tags (`snap-…`) whose snapshot changed, plus "clusters" when a cluster changed
  * (scripts/write-snapshots.ts, docs/adr/0001-list-pages-read-snapshots.md). Maintenance purges the
  * named tags below; "articles" re-renders every article page as crawlers visit it (each an ISR write),
  * so only a repair of stored rows asks for it.
