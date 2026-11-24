@@ -1,7 +1,7 @@
-import type { LookupFunction } from "node:net";
+import { isIP, type LookupFunction } from "node:net";
 import tls from "node:tls";
 
-import { publicLookup } from "./net-guard";
+import { isPrivateAddress, publicLookup } from "./net-guard";
 
 /**
  * Which sites are read without checking their TLS certificate (CLAUDE.md §3, scraper.md).
@@ -69,7 +69,15 @@ export function applyTlsPolicy<T extends object>(options: T, hosts: ReadonlySet<
         req.https.rejectUnauthorized = !(req.url && tlsExempt(req.url, hosts));
       },
     ],
-  };
+    // Also on each redirect hop, before it is followed: an exempt host redirecting to another host
+    // must not carry its exemption there (audit S-4; belt and braces with beforeRequest).
+    beforeRedirect: [
+      ...((o.hooks as { beforeRedirect?: unknown[] } | undefined)?.beforeRedirect ?? []),
+      (next: { url?: URL | string; https?: { rejectUnauthorized?: boolean } }) => {
+        next.https = { ...next.https, rejectUnauthorized: !(next.url && tlsExempt(next.url, hosts)) };
+      },
+    ],
+  } as GotLike["hooks"];
   return options;
 }
 
@@ -105,6 +113,10 @@ export interface CertProbe {
  * null = no answer (network, timeout, a private address), which proves nothing either way.
  */
 export function certValid(host: string, probe: CertProbe = {}): Promise<boolean | null> {
+  // Node never calls `lookup` for an IP literal, so publicLookup could not stop a link to
+  // https://169.254.169.254/ from opening a socket there (Nov 2026 audit S-4).
+  const literal = host.replace(/^\[|\]$/g, "");
+  if (isIP(literal) && isPrivateAddress(literal) && !probe.lookup) return Promise.resolve(null);
   return new Promise((resolve) => {
     let done = false;
     const finish = (v: boolean | null) => {

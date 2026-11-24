@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import { impactHtml } from "@/lib/video/impact-html";
-import { amountWords, weighsOrAccuses } from "@/lib/video/money-video";
+import { amountWords, PERSON_CHARGE, weighsOrAccuses } from "@/lib/video/money-video";
 import { IMPACT_MAX_CHARS, impactNarration, type ImpactStory, impactVideoSpec, spokenText, verifyImpactSpec } from "@/lib/video/impact-video";
 import { facebookVideoText, instagramVideoCaption, threadsVideoText, type ImpactVideoMeta } from "@/lib/video/posts";
 import { kindsFor } from "@/lib/video/schedule";
@@ -33,6 +33,8 @@ describe("spokenText: the forms a speech model misreads become words", () => {
     assert.equal(spokenText("170.1 тэрбум ₮ зарцуулна"), "зуун дал гаруй тэрбум төгрөг зарцуулна");
     assert.equal(spokenText("100,000₮ хүртэл"), "100000 төгрөг хүртэл");
     assert.equal(spokenText("91 хувьд хүрлээ"), "91 хувьд хүрлээ");
+    assert.equal(spokenText("2026 оны 1 250.5 тэрбум"), "2026 оны нэг их наяд хоёр зуун тавин нэгэн тэрбум", "audit B-6");
+    assert.equal(spokenText("10-р сарын 1 100 айл"), "аравдугаар сарын 1 100 айл", "a day after a month stays a day");
   });
 
   it("says УИХ in full, with its case ending", () => {
@@ -49,6 +51,14 @@ describe("spokenText: the forms a speech model misreads become words", () => {
 });
 
 describe("impactVideoSpec", () => {
+  it("a named person on one card and a dismissal on another never become a video (audit B-5)", () => {
+    const named = { ...pension, title: "Б.Батболд сайдын тушаалаар 600 мянган төгрөг олгоно", impact: { ...pension.impact!, change: "Тэргүүн дэд сайдыг албан тушаалаас нь чөлөөлнө." } };
+    assert.equal(impactVideoSpec(named), null);
+    assert.equal(impactVideoSpec({ ...pension, impact: { ...pension.impact!, who: "Хүрэлсүх Ухнаа", change: "Албан тушаалаас нь чөлөөлнө." } }), null, "a full name with no charge verb next to it");
+    assert.ok(impactVideoSpec(pension), "an ordinary decision still makes a video");
+    assert.ok(PERSON_CHARGE.test("торгох"), "every form of торго- is a charge word");
+  });
+
   it("reads a decision the way the site's «Танд хамаатай юу?» block does", () => {
     const spec = impactVideoSpec(pension);
     assert.ok(spec);

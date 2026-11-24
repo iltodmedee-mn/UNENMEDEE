@@ -24,6 +24,9 @@ export function extractiveSummary(text: string, maxSentences = 2, maxChars = 320
 
 /** An attempt that got a reply from the model but could not use it (bad or cut-off JSON, schema). */
 const BAD_OUTPUT = /Invalid JSON|no JSON object|Unexpected (token|end|non-whitespace)|Unterminated|in JSON at position|Expected|Required|invalid_type|too_small|too_big/i;
+/** HTTP status texts that end in "Required" ("402 Payment Required"): an account problem, not a bad reply (audit B-2). */
+const HTTP_REQUIRED = /\b\d{3}\b[^:]*\b(?:Payment|Authentication|Length|Precondition) Required\b/i;
+const isBadOutput = (a: string) => BAD_OUTPUT.test(a) && !HTTP_REQUIRED.test(a);
 const SKIPPED = /skipped \(/;
 
 /**
@@ -38,8 +41,11 @@ export function shouldPark(attempts: string[]): boolean {
   const provider = (a: string) => a.slice(0, a.indexOf(":"));
   const unrepaired = new Set(attempts.filter((a) => /retry skipped \(/.test(a)).map(provider));
   const answered = attempts.filter((a) => !SKIPPED.test(a) && !unrepaired.has(provider(a)));
-  const bad = answered.filter((a) => BAD_OUTPUT.test(a)).length;
-  return bad >= 2 || (bad >= 1 && bad === answered.length);
+  // Counted per provider: one model's reply and its repair are one opinion of the article, not two
+  // (two from the same provider parked it while every other provider was only down, audit B-2).
+  const badProviders = new Set(answered.filter(isBadOutput).map(provider));
+  const answeredProviders = new Set(answered.map(provider));
+  return badProviders.size >= 2 || (badProviders.size >= 1 && badProviders.size === answeredProviders.size);
 }
 
 /** Articles still carrying the extractive fallback are offered to the AI again, at most this many per run. */

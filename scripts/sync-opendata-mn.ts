@@ -17,6 +17,7 @@ import { openDatasets } from "@/db/schema";
 import { columnNames, datasetPageUrl, fetchMeta, fetchRows, fileApiUrl, listCategories, listDatasetIds, PORTAL } from "@/lib/opendata-mn/client";
 import { HIGHLIGHTS } from "@/lib/opendata-mn/highlights";
 import type { DatasetHighlight } from "@/lib/types";
+import { errorDetail } from "@/lib/log-safe";
 
 const { values } = parseArgs({ options: { "dry-run": { type: "boolean", default: false } } });
 
@@ -80,7 +81,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error("✗ opendata.mn sync failed:", err);
+    console.error("✗ opendata.mn sync failed:", errorDetail(err));
     process.exitCode = 1;
   })
   .finally(closeDb);

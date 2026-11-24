@@ -16,6 +16,7 @@ describe("parliament petitions", () => {
       id: "966ada00-ffa0-4ce5-bc89-ffa57afbe299",
       code: "PN-202608-79225",
       title: "Ажилтны ХХОАТ болон НД-ын шимтгэл төлөлтийг бууруулах.",
+      rawTitle: "АЖИЛТНЫ ХХОАТ БОЛОН НД-ЫН ШИМТГЭЛ ТӨЛӨЛТИЙГ БУУРУУЛАХ.",
       kind: "1. Ажлын хэсэг байгуулах",
       signatures: 8665,
       threshold: 33000,
@@ -51,5 +52,15 @@ describe("parliament petitions", () => {
     assert.equal(namesPerson("АТГ-ын тайланг нийтлэх"), false);
     assert.equal(namesPerson("НӨАТ 1% болгож бууруулах"), false);
     assert.equal(namesPerson("Ажилтны ХХОАТ болон НД-ын шимтгэл"), false);
+  });
+
+  it("a full name printed in capitals is caught too, and the raw title is never shown (audit B-5)", () => {
+    const base = { code: "PN-1", kind: null, signatures: 1, threshold: 10, endsAt: "2099-01-01T00:00:00+08:00", url: "u" };
+    const shouted = { ...base, id: "a", title: unshoutTitle("ХҮРЭЛСҮХ УХНААГ ОГЦРУУЛАХ"), rawTitle: "ХҮРЭЛСҮХ УХНААГ ОГЦРУУЛАХ" };
+    const plain = { ...base, id: "b", title: unshoutTitle("ТАТВАРЫН ХУВЬ БУУРУУЛАХ"), rawTitle: "ТАТВАРЫН ХУВЬ БУУРУУЛАХ" };
+    const { items, skippedNamed } = openPetitions([shouted, plain], new Date("2026-11-01T00:00:00Z"));
+    assert.equal(skippedNamed, 1);
+    assert.deepEqual(items.map((p) => p.id), ["b"]);
+    assert.ok(!("rawTitle" in items[0]));
   });
 });

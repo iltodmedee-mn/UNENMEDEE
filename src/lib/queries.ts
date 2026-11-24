@@ -34,7 +34,8 @@ import type { DatasetHighlight, DigestItem, ExtractedEntities, FactVsSpin, Reade
  *    so `next build` and contributors never need secrets (CLAUDE.md rule #6).
  */
 
-export const FEED_FILTERS = ["all", "risk", "budget", "ministry", "local", ...TOPICS.map((t) => t.key)] as const;
+// "local" comes from TOPICS: listed here as well, it was built, stored and purged twice every run (audit P-8).
+export const FEED_FILTERS = ["all", "risk", "budget", "ministry", ...TOPICS.map((t) => t.key)] as const;
 export type FeedFilter = (typeof FEED_FILTERS)[number];
 
 export function parseFilter(value: string | string[] | undefined): FeedFilter {
@@ -750,7 +751,8 @@ export interface SitemapArticle {
  */
 export async function getSitemapSlugs(limit = 45_000): Promise<{ slug: string; lastModified: Date }[]> {
   "use cache";
-  cacheLife("hours");
+  // Up to 45 000 rows: read every 6 h, not every hour (audit P-5).
+  cacheLife("slow");
   cacheTag("articles");
   return safe("getSitemapSlugs", [], () =>
     getDb()
@@ -1290,9 +1292,29 @@ export async function getPoliticians(): Promise<PoliticianSummary[]> {
   });
 }
 
+/**
+ * Active members with only what a place page lists (name, party, constituency). The place pages
+ * read the whole getPoliticians() before, every member and every filing, for four columns: on a
+ * deploy or a cold instance, 31 pages × ~600 rows, the largest Supabase read in docs/USAGE.md
+ * (Nov 2026 audit P-4).
+ */
+export async function getPoliticianConstituencies(): Promise<{ id: number; shortName: string; party: string | null; constituency: string | null }[]> {
+  "use cache";
+  cacheLife("days");
+  cacheTag("officials");
+  return safe("getPoliticianConstituencies", [], () =>
+    getDb()
+      .select({ id: politicians.id, shortName: politicians.shortName, party: politicians.party, constituency: politicians.constituency })
+      .from(politicians)
+      .where(eq(politicians.isActive, true))
+      .orderBy(politicians.fullName),
+  );
+}
+
 export async function getPoliticianIds(): Promise<number[]> {
   "use cache";
-  cacheLife("hours");
+  // The roster changes weekly (officials:sync); used by the sitemap only.
+  cacheLife("days");
   cacheTag("officials");
   return safe("getPoliticianIds", [], async () => {
     const rows = await getDb().select({ id: politicians.id }).from(politicians).where(eq(politicians.isActive, true));
@@ -1376,7 +1398,8 @@ export async function getPolitician(id: number): Promise<PoliticianDetail | null
 /** A stored snapshot from an official data API (see scripts/sync-*.ts), or null. */
 export async function getIndicator<T>(key: string): Promise<{ data: T; asOf: string | null; updatedAt: Date } | null> {
   "use cache";
-  cacheLife("hours");
+  // Synced every 12 h to 7 days; "hours" kept / and ~8 data pages hourly (audit P-3/P-7).
+  cacheLife("slow");
   cacheTag("indicators", `indicator-${key}`);
   return safe(`getIndicator(${key})`, null, async () => {
     const [row] = await getDb().select().from(indicatorSnapshots).where(eq(indicatorSnapshots.key, key)).limit(1);
@@ -1424,6 +1447,8 @@ export async function getDonation(): Promise<Donation> {
  */
 export async function getDonations(limit = 100): Promise<DonationsSummary> {
   "use cache";
+  // Hourly: besides admin writes (which purge "donations") its monthly total turns over at the
+  // Ulaanbaatar month boundary; one page, so the hourly renders cost little.
   cacheLife("hours");
   cacheTag("donations");
   const empty: DonationsSummary = { rows: [], count: 0, totalMnt: 0, monthMnt: 0 };
@@ -1511,7 +1536,9 @@ export type AttendanceHighlight = Extract<DatasetHighlight, { kind: "attendance"
 /** Parliament attendance from opendata.mn (one dataset, every member's counts). */
 export async function getAttendance(): Promise<{ highlight: AttendanceHighlight; pageUrl: string } | null> {
   "use cache";
-  cacheLife("hours");
+  // Synced daily (data:sync); "hours" kept all ~126 member pages re-rendering hourly while every
+  // other read on them is "days" (Nov 2026 audit P-2).
+  cacheLife("days");
   cacheTag("open-data");
   return safe("getAttendance", null, async () => {
     const [row] = await getDb()
@@ -1526,7 +1553,8 @@ export async function getAttendance(): Promise<{ highlight: AttendanceHighlight;
 /** /laws: newest legal acts registered on legalinfo.mn (laws, resolutions, orders) with their AI summaries. */
 export async function getLegalActs(limit = 40): Promise<ArticleListItem[]> {
   "use cache";
-  cacheLife("hours");
+  // legalinfo.mn acts arrive with the pipeline like any story (audit P-7).
+  cacheLife("news");
   cacheTag("articles", "feed");
   return safe("getLegalActs", [], async () => {
     const rows = await getDb()
@@ -1552,7 +1580,8 @@ export interface WeekNumbers {
 /** "📊 Энэ 7 хоногт" on /digest: plain counts over the last 7 days. */
 export async function getWeekNumbers(): Promise<WeekNumbers | null> {
   "use cache";
-  cacheLife("hours");
+  // The week's counts on /digest: the feed's lifetime is enough (audit P-7).
+  cacheLife("news");
   cacheTag("articles");
   return safe("getWeekNumbers", null, async () => {
     const since = sql`now() - interval '7 days'`;
@@ -1586,7 +1615,8 @@ export interface SourceChangeItem {
 /** Articles whose source page changed or disappeared after we stored them (/changes), newest first. */
 export async function getSourceChanges(limit = 100): Promise<SourceChangeItem[]> {
   "use cache";
-  cacheLife("hours");
+  // Written by the weekly source re-check (audit P-7).
+  cacheLife("days");
   cacheTag("articles");
   return safe("getSourceChanges", [], async () => {
     const rows = await getDb()
@@ -1814,6 +1844,9 @@ export async function getCompanyTenders(): Promise<Record<string, CompanyTenders
   cacheLife("days");
   cacheTag("tenders");
   cacheTag("officials");
+  // The tag tenders:sync purges after a rebuild: it named this tag before any cache carried it, so
+  // a member's tender links stayed a day old after each sync (Nov 2026 audit B-13).
+  cacheTag("indicator-tender_company_matches");
   return safe("getCompanyTenders", {}, async () => {
     const db = getDb();
     // One small stored row (company-matches.ts), worked out at each tenders / companies sync. There

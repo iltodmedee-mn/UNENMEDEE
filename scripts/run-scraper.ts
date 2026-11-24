@@ -26,7 +26,7 @@ import { parseTlsReport, TLS_BROKEN_KEY } from "@/lib/scraper/tls-exempt";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "@/lib/scraper/types";
 import { SOURCE_SEEDS } from "@/lib/sources";
 import { contentHash } from "@/lib/text";
-import { errorLine, oneLine } from "@/lib/log-safe";
+import { errorDetail, errorLine, oneLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -202,7 +202,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error("✗ Scraper crashed:", err);
+    console.error("✗ Scraper crashed:", errorDetail(err));
     process.exitCode = 1;
   })
   .finally(closeDb);

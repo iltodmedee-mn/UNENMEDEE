@@ -8,6 +8,7 @@
  */
 
 import type { LayoutOverflow } from "./layout-check";
+import { oneLine } from "./log-safe";
 
 /** Supabase's free 5 GB a month is ~165 MB a day; the watchdog warns a little below it (health-collect `collectEgress`). */
 export const EGRESS_MB_PER_DAY_WARN = 150;
@@ -335,7 +336,7 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
   if (daysSince(d.ratesChecked, now) > 395) info(`Татварын хувь хэмжээг ${d.ratesChecked}-нээс хойш шалгаагүй (src/lib/tax/receipt.ts RATES_CHECKED).`);
   const tax = s.taxRateNews ?? [];
   if (tax.length)
-    info(`ХХОАТ / НДШ-ийн хуульд өөрчлөлт орсон байж магадгүй: ${tax.length} мэдээ (${d.ratesChecked}-нээс хойш), жишээ нь «${tax[0].title}». /tax-ийн хувийг шалгаад RATES_CHECKED-ийг шинэчил ("tax-rates" issue).`);
+    info(`ХХОАТ / НДШ-ийн хуульд өөрчлөлт орсон байж магадгүй: ${tax.length} мэдээ (${d.ratesChecked}-нээс хойш), жишээ нь «${quotedTitle(tax[0].title)}». /tax-ийн хувийг шалгаад RATES_CHECKED-ийг шинэчил ("tax-rates" issue).`);
   if (d.tariffsVerified && daysSince(d.tariffsVerified, now) > 395) info(`Цахилгаан, усны тарифыг ${d.tariffsVerified}-нээс хойш шалгаагүй (src/lib/budget/tariffs.ts TARIFFS_VERIFIED_THROUGH; ЭХЗХ-ны шинэ шийдвэр гарсан эсэх).`);
   if (daysSince(d.projectsVerified, now) > 180) info(`Төслүүдийн хуудсын (/projects) эх сурвалжуудыг ${d.projectsVerified}-нээс хойш дахин уншаагүй (src/lib/projects/data.ts PROJECTS_VERIFIED_THROUGH).`);
   return out;
@@ -354,4 +355,13 @@ export function healthReport(problems: HealthProblem[]): { level: HealthLevel | 
   if (urgentLines.length) lines.push("🔴 ЯАРАЛТАЙ (сайт эсвэл мэдээ зогссон):", ...urgentLines);
   if (infoLines.length) lines.push(...(urgentLines.length ? [""] : []), "🟡 МЭДЭЭЛЭЛ (сайт ажиллаж байгаа, завтай үедээ):", ...infoLines);
   return { level: urgentLines.length ? "urgent" : infoLines.length ? "info" : "ok", lines };
+}
+
+/**
+ * A scraped headline quoted inside the watchdog issue's code fence: one line, no backticks (they
+ * would close the fence) and no "@" (it would mention a user or call a bot), at most 120 characters
+ * (Nov 2026 audit S-11).
+ */
+export function quotedTitle(title: string): string {
+  return oneLine(title, 120).replace(/@/g, "＠");
 }

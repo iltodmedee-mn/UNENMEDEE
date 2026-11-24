@@ -21,6 +21,11 @@ interface BackupTable {
   key: PgColumn;
   /** Whether `key` is a serial whose sequence must move past the restored ids. */
   serial: boolean;
+  /**
+   * A composite primary key: `key` is only its first column (rows are paged by it and a page never
+   * splits one key value), and these columns are the conflict target on restore.
+   */
+  target?: PgColumn[];
 }
 
 /**
@@ -28,7 +33,8 @@ interface BackupTable {
  * asset_declarations → politicians). Left out: ai_usage_logs (the ledger keeps the monthly
  * totals), open_datasets (the next `data:sync` rebuilds it) and press_items / press_links (45 days
  * of other sites' headlines; the next `press:sync` reads the feeds again) and videos (MP4 files kept
- * a few days for the platforms to fetch; a lost row only means that video can be made again).
+ * a few days for the platforms to fetch; a lost row only means that video can be made again),
+ * site_errors (a 30-day error log) and feed_snapshots (the next pipeline run writes them again).
  */
 export const BACKUP_TABLES: BackupTable[] = [
   { table: schema.appSettings, key: schema.appSettings.key, serial: false },
@@ -49,6 +55,8 @@ export const BACKUP_TABLES: BackupTable[] = [
   { table: schema.tenders, key: schema.tenders.id, serial: true },
   { table: schema.watchedPages, key: schema.watchedPages.url, serial: false },
   { table: schema.documents, key: schema.documents.id, serial: true },
+  // Readers' reactions exist nowhere else (Nov 2026 audit D-1: a restore lost them all).
+  { table: schema.articleReactions, key: schema.articleReactions.articleId, serial: false, target: [schema.articleReactions.articleId, schema.articleReactions.kind] },
 ];
 
 const PAGE = 500;
@@ -67,22 +75,37 @@ function findTable(name: string): BackupTable {
  * back-pressure). Returns the row count per table: the only thing the workflow log prints.
  */
 export async function exportTables(db: DB, write: (line: string) => void | Promise<void>, tables: BackupTable[] = BACKUP_TABLES): Promise<Record<string, number>> {
+  // One read-only snapshot for every table: a pipeline insert halfway through the export used to
+  // leave an article whose cluster was exported before it existed (audit D-1).
+  return db.transaction((tx) => exportFrom(tx as unknown as DB, write, tables), { isolationLevel: "repeatable read", accessMode: "read only" });
+}
+
+async function exportFrom(db: DB, write: (line: string) => void | Promise<void>, tables: BackupTable[]): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
   for (const t of tables) {
     const name = tableName(t);
     counts[name] = 0;
+    const field = keyField(t);
     let after: unknown = undefined;
     for (;;) {
-      const page: Record<string, unknown>[] = await db
+      let page: Record<string, unknown>[] = await db
         .select()
         .from(t.table)
         .where(after === undefined ? undefined : sql`${t.key} > ${after}`)
         .orderBy(asc(t.key))
         .limit(PAGE);
+      const full = page.length === PAGE;
+      // A composite key: the last key value may continue on the next page, so it is read there.
+      if (t.target && full) {
+        const last = page[page.length - 1][field];
+        const kept = page.filter((r) => r[field] !== last);
+        if (!kept.length) throw new Error(`${name}: more than ${PAGE} rows share one ${field}`);
+        page = kept;
+      }
       for (const row of page) await write(`${JSON.stringify({ t: name, r: row })}\n`);
       counts[name] += page.length;
-      if (page.length < PAGE) break;
-      after = page[page.length - 1][keyField(t)];
+      if (!full) break;
+      after = page[page.length - 1][field];
     }
   }
   return counts;
@@ -138,8 +161,9 @@ async function importInto(db: DB, lines: AsyncIterable<string> | Iterable<string
     if (!t || rows.length === 0) return;
     if (!opts.dryRun) {
       const columns = getTableColumns(t.table);
-      const set = Object.fromEntries(Object.entries(columns).filter(([, c]) => c !== t.key).map(([field, c]) => [field, sql.raw(`excluded."${c.name}"`)]));
-      await db.insert(t.table).values(rows).onConflictDoUpdate({ target: t.key, set });
+      const target = t.target ?? [t.key];
+      const set = Object.fromEntries(Object.entries(columns).filter(([, c]) => !target.includes(c)).map(([field, c]) => [field, sql.raw(`excluded."${c.name}"`)]));
+      await db.insert(t.table).values(rows).onConflictDoUpdate({ target, set });
     }
     pending.rows = [];
   };

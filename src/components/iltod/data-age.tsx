@@ -7,7 +7,7 @@ import { cx } from "@/utils/cx";
 /** The clock lives in a cache entry (refreshed hourly), so pages that show a data age stay static. */
 async function isStale(iso: string, days: number): Promise<boolean> {
   "use cache";
-  cacheLife("hours");
+  cacheLife("slow"); // follows getIndicator (audit P-3)
   return staleAfter(iso, days, new Date());
 }
 

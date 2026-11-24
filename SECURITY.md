@@ -29,8 +29,8 @@ Useful details: the URL or file, steps to reproduce, and what an attacker could 
   environment variables; `.env*` files are git-ignored (only `.env.example` is committed).
 - Workflows default to a read-only `GITHUB_TOKEN`. Five hold a write scope, each for one job:
   `gemini.yml` (contents, pull requests, issues, actions: it pushes a branch and opens a PR for a
-  fix an organisation member asked for in an issue, never merges, and the model itself gets no
-  token), `dependabot-automerge.yml` (contents, pull requests: Dependabot's own PRs only),
+  fix an organisation member asked for in an issue, never merges; the model and the checks on its
+  code run in a separate read-only job, and the write token lives only in a job that runs no project code), `dependabot-automerge.yml` (contents, pull requests: Dependabot's own PRs only),
   `keepalive.yml` (actions: re-enables a workflow GitHub paused), `watchdog.yml` and the last job
   of `autonomous-news-pipeline.yml` (issues: the health issue). Actions are pinned to commit
   SHAs, and Dependabot proposes updates weekly.

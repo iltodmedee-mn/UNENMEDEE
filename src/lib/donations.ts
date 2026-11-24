@@ -69,9 +69,15 @@ export function publicDonor(name: string, mode: NameMode): string | null {
   return initials(clean) || null;
 }
 
-/** "45000", "45 000", "45,000", "45.000₮" → 45000; anything else (decimals, negatives) → null. */
+/**
+ * "45000", "45 000", "45,000", "45.000₮" → 45000; a bank statement's "50,000.00" → 50000 (the
+ * two-digit tail is cents and is dropped: it read 5 000 000 before, Nov 2026 audit B-3). Negatives
+ * and other text → null.
+ */
 export function parseAmount(raw: unknown): number | null {
   const s = String(raw ?? "")
+    .trim()
+    .replace(/[.,]\d{1,2}\s*(₮|төг(рөг)?)?$/i, "$1")
     .replace(/[\s,.'₮]/g, "")
     .replace(/төг(рөг)?$/i, "");
   if (!/^\d{1,10}$/.test(s)) return null;

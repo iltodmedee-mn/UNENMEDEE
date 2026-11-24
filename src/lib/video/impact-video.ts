@@ -73,6 +73,9 @@ function clean(s: string | null | undefined): string | null {
   return t.length >= 3 ? t : null;
 }
 
+/** Two capitalised words, as a person's full name ("Хүрэлсүх Ухнаа"): namesPerson only sees one next to a charge verb. */
+const FULL_NAME = /(?<![\p{L}])[А-ЯӨҮЁ][а-яөүё]{2,}(?:-[А-ЯӨҮЁ][а-яөүё]+)?\s+[А-ЯӨҮЁ][а-яөүё]{2,}(?![\p{L}])/u;
+
 const sentence = (s: string) => (/[.!?…]$/.test(s) ? s : `${s}.`);
 
 /**
@@ -89,6 +92,9 @@ export function spokenText(text: string): string {
   });
   // Thousands separators ("1,250.5 сая" was read as "1," + "250.5 сая"): only a real group of
   // 1–3 digits, never a day after a date ("…сарын 1 100 айл" was said as "1100 айл", Nov 2026 audit).
+  // After "оны" a group followed by a scale word is an amount, never a day: "2026 оны 1 250.5 тэрбум"
+  // was said as "1" + "хоёр зуун тавь гаруй тэрбум" (Nov 2026 audit B-6).
+  t = t.replace(/(?<=оны )(\d{1,3})((?:[,\u00a0 ]\d{3})+)(?=(?:[.,]\d+)?\s*(?:их наяд|тэрбум|сая))/g, (_, a: string, rest: string) => a + rest.replace(/[,\u00a0 ]/g, ""));
   t = t.replace(/(?<![\d\-.:/]|сарын |оны |өдрийн )(\d{1,3})((?:[,\u00a0 ]\d{3})+)(?!\d)/g, (_, a: string, rest: string) => a + rest.replace(/[,\u00a0 ]/g, ""));
   // A decimal before a scale word is said in words, to the same amount (amountWords).
   t = t.replace(/(?<![\d.,])(\d+[.,]\d+)\s*(их наяд|тэрбум|сая)/g, (all, v, unit) => {
@@ -149,7 +155,11 @@ export function impactVideoSpec(story: ImpactStory): ImpactSpec | null {
   if (!what && !(change && (who || when || action))) return null;
   if ([headline, who, change, when, action, what].some((f) => f && CHARGE.test(f))) return null;
   // A named person next to a charge, dismissal or violation never becomes a video (Audit 6 C1).
-  if ([headline, what].some((f) => f && namesPerson(f) && (CHARGE.test(f) || PERSON_CHARGE.test(f)))) return null;
+  // Over every card together: a name in the headline and "чөлөөлнө" on another card are still a
+  // named person next to a dismissal (Nov 2026 audit B-5).
+  const allText = [headline, who, change, when, action, what].filter(Boolean).join(" · ");
+  if ([headline, what].some((f) => f && namesPerson(f)) && (CHARGE.test(allText) || PERSON_CHARGE.test(allText))) return null;
+  if ((namesPerson(allText) || (who ? FULL_NAME.test(who) : false)) && PERSON_CHARGE.test(allText)) return null;
 
   const source = sourceLabel(story.sourceName);
   const asks: Record<ImpactSpec["cards"][number]["scene"], string> = {

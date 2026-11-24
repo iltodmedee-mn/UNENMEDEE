@@ -63,7 +63,9 @@ export function ruleBasedAnalysis(input: ArticleForAI): Tier1Result | null {
     entities: { people: [], orgs: org ? [org] : [], amounts_mnt: [] },
     risk_score: 0,
     risk_reason: "Өгөгдлийн багцын мэдээлэл.",
-    importance_score: 15,
+    // Below the feed floor (FEED_MIN_IMPORTANCE 15, "at least"): at 15 every dataset listing
+    // reached the home page, the opposite of what story-rules says (Nov 2026 audit B-1).
+    importance_score: 10,
     topic: null,
     reader_title: null,
     impact: null,

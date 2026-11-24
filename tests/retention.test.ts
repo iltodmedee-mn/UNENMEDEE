@@ -65,9 +65,10 @@ describe("database retention (db:prune)", () => {
     await article({ url: "https://yam.gov.mn/clustered", daysOld: 100, published: false, cluster: clusterId });
     await article({ url: "https://yam.gov.mn/story", daysOld: 100 });
 
-    assert.deepEqual(await deleteUnpublished(db, 90, true), { rows: 1, analyzed: 1 }, "dry run counts");
+    // Unpublished, so the public "AI-аар шүүгдсэн" count never included it: nothing to remember (audit D-2).
+    assert.deepEqual(await deleteUnpublished(db, 90, true), { rows: 1, analyzed: 0 }, "dry run counts");
     assert.ok(await exists("https://yam.gov.mn/menu"), "dry run changes nothing");
-    assert.deepEqual(await deleteUnpublished(db, 90), { rows: 1, analyzed: 1 });
+    assert.deepEqual(await deleteUnpublished(db, 90), { rows: 1, analyzed: 0 });
     assert.ok(!(await exists("https://yam.gov.mn/menu")));
     assert.ok(await seen("https://yam.gov.mn/menu"));
     for (const kept of ["fresh-menu", "edited", "clustered", "story"]) assert.ok(await exists(`https://yam.gov.mn/${kept}`), kept);
@@ -145,6 +146,15 @@ describe("database retention (db:prune)", () => {
     assert.equal(r.n, 2);
   });
 
+  it("a digest item with a null article id does not stop every deletion (audit D-2)", async () => {
+    const { deleteOldStories } = await import("@/lib/retention");
+    await db.execute(sql`insert into digests (kind, period_start, period_end, title, intro, items, generated_by)
+      values ('12h', now(), now(), 't', 'i', ${JSON.stringify([{ articleId: null, slug: "gone" }])}::jsonb, 'rule-based')`);
+    await article({ url: "https://yam.gov.mn/old-minor-2", daysOld: 800, importance: 20 });
+    assert.equal((await deleteOldStories(db)).rows, 1);
+    assert.ok(!(await exists("https://yam.gov.mn/old-minor-2")));
+  });
+
   it("records each run and keeps the running totals for the public counters", async () => {
     const { runRetention, readPruneState } = await import("@/lib/retention");
     const { deletedTotals } = await import("@/lib/queries");
@@ -155,13 +165,14 @@ describe("database retention (db:prune)", () => {
     const first = await runRetention(db, { configuredDays: 180 });
     assert.equal(first.unpublishedDeleted, 1);
     assert.equal(first.articlesDeletedTotal, 1);
-    assert.equal(first.analyzedDeletedTotal, 1);
+    // An unpublished row was never in the public "AI-аар шүүгдсэн" count, so it adds nothing (audit D-2).
+    assert.equal(first.analyzedDeletedTotal, 0);
     await article({ url: "https://yam.gov.mn/menu-3", daysOld: 120, published: false });
     const second = await runRetention(db, { configuredDays: 180 });
     assert.equal(second.articlesDeletedTotal, 2, "totals accumulate across runs");
-    assert.equal(second.analyzedDeletedTotal, 1);
+    assert.equal(second.analyzedDeletedTotal, 0);
     const stored = await one(sql`select value from app_settings where key = 'prune_state'`);
-    assert.deepEqual(deletedTotals(String(stored.value)), { articles: 2, analyzed: 1 });
+    assert.deepEqual(deletedTotals(String(stored.value)), { articles: 2, analyzed: 0 });
     assert.deepEqual(deletedTotals(undefined), { articles: 0, analyzed: 0 });
     assert.deepEqual(deletedTotals("{broken"), { articles: 0, analyzed: 0 });
     assert.deepEqual(deletedTotals(JSON.stringify({ articlesDeletedTotal: -4, analyzedDeletedTotal: "9" })), { articles: 0, analyzed: 0 });

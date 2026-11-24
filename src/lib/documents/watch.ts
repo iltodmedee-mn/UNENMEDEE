@@ -28,7 +28,7 @@ export const WP_SITES: { domain: string; base: string; name: string }[] = [
   { domain: "darkhan.gov.mn", base: "https://darkhan.gov.mn/wp-json/", name: "Дархан-Уул аймаг" },
   { domain: "arkhangai.gov.mn", base: "https://arkhangai.gov.mn/wp-json/", name: "Архангай аймаг" },
   { domain: "govisumber.gov.mn", base: "https://govisumber.gov.mn/index.php?rest_route=/", name: "Говьсүмбэр аймаг" },
-  { domain: "bnd.ub.gov.mn", base: "https://bnd.ub.gov.mn/wp-json/", name: "Баянгол дүүрэг" },
+  { domain: "bnd.ub.gov.mn", base: "https://bnd.ub.gov.mn/wp-json/", name: "Багануур дүүрэг" },
   { domain: "ncoe.gov.mn", base: "https://ncoe.gov.mn/wp-json/", name: "Онцгой байдлын ерөнхий газар (ҮОБЦ)" },
 ];
 

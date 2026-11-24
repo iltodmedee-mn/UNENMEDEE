@@ -14,10 +14,10 @@ import { parseArgs } from "node:util";
 
 import { closeDb, getDb, hasDatabase } from "@/db";
 import { sources } from "@/db/schema";
-import { canonicalHost, classifyDomain, harvestGovernmentHosts, siteName } from "@/lib/scraper/discover";
+import { canonicalHost, classifyDomain, harvestGovernmentHosts, isGovernmentHost, siteName } from "@/lib/scraper/discover";
 import { API_MAX_BYTES, politeFetch, readTextLimited } from "@/lib/scraper/http";
 import { DISCOVERY_HUBS, SOURCE_SEEDS } from "@/lib/sources";
-import { errorLine } from "@/lib/log-safe";
+import { errorDetail, errorLine } from "@/lib/log-safe";
 
 const { values } = parseArgs({
   options: {
@@ -80,6 +80,9 @@ async function main() {
     if (!page || page.html.length < 500) return null;
     const finalHost = canonicalHost(new URL(page.finalUrl).hostname);
     if (finalHost !== host && known.has(finalHost)) return null; // redirect to a source we already track
+    // A lapsed .gov.mn name that now redirects off government hosting is not a government source
+    // (Nov 2026 audit S-5): it would be crawled, summarised and published as official news.
+    if (!isGovernmentHost(finalHost)) return null;
     return {
       name: siteName(page.html, host),
       domain: host,
@@ -106,7 +109,7 @@ async function main() {
 
 main()
   .catch((err) => {
-    console.error("✗ Discovery failed:", err);
+    console.error("✗ Discovery failed:", errorDetail(err));
     process.exitCode = 1;
   })
   .finally(closeDb);

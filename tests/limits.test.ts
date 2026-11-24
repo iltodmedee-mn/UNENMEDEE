@@ -120,6 +120,8 @@ describe("budget limits", () => {
     assert.deepEqual(spreadFree(chain, 3).slice(0, 4), ["openrouter", ...free.slice(0, 3)]);
     assert.deepEqual(spreadFree(chain, 1).slice(4), ["zai", "gemini", "deepseek", "ollama"], "Z.ai is the free overflow, not in the rotation");
     assert.deepEqual(spreadFree(["grok", "groq"], 1), ["grok", "groq"], "a paid head is not rotated");
+    const withFreeGemini = chainFor("tier1", { GEMINI_FREE_TIER: "true" });
+    assert.deepEqual(spreadFree(withFreeGemini, 1).slice(0, 5), ["nvidia", "gemini", "requesty", "openrouter", "groq"], "a free Gemini keeps its place, the others still rotate (audit B-10)");
   });
 });
 
@@ -232,7 +234,12 @@ describe("router with Gemini + budget guard (mock server)", () => {
       script = (model) => (model === "mock-gemini-lite" ? { status: 429 } : { content: lowRisk });
       const out = await analyzeArticle({ ...article, text: "жижиг мэдээ" }, { log });
       assert.equal(out.tier1Provider, "requesty/mock-requesty");
-      assert.deepEqual(mock.calls.map((c) => c.model), ["mock-gemini-lite", "mock-requesty"]);
+      // The free providers take turns (spreadFree), so Requesty may be asked before or after the
+      // limited Gemini; either way it answers at once, with no wait for Gemini's limit.
+      const models = mock.calls.map((c) => c.model);
+      assert.equal(models.at(-1), "mock-requesty");
+      assert.ok(models.every((m) => m === "mock-gemini-lite" || m === "mock-requesty"), models.join(","));
+      assert.ok(models.length <= 2);
     } finally {
       delete process.env.REQUESTY_API_KEY;
     }
@@ -301,6 +308,8 @@ describe("token-free analysis", () => {
     assert.match(r.tldr_summary, /нээлттэй өгөгдлийн багц нийтэллээ/);
     assert.ok(r.facts.some((f) => f.startsWith("Эзэмшигч: ")));
     assert.equal(r.risk_score, 0);
+    const { FEED_MIN_IMPORTANCE } = await import("@/lib/seo");
+    assert.ok((r.importance_score ?? 100) < FEED_MIN_IMPORTANCE, "a dataset listing stays off the feeds (audit B-1)");
     const out = await analyzeArticle(input);
     assert.equal(out.tier1Provider, "rule-based");
     assert.equal(out.costUsd, 0);

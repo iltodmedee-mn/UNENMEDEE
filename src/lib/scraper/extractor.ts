@@ -104,6 +104,8 @@ const STALE_TEXT_DATE_MS = 365 * 86_400_000;
 /** A date (and optional Ulaanbaatar wall-clock time, UTC+8) or null when it is not plausible. */
 function validDate(y: number, m: number, d: number, hour?: number, minute?: number): Date | null {
   if (y < 2000 || y > 2100 || m < 1 || m > 12 || d < 1 || d > 31) return null;
+  // A day the month does not have ("2-р сарын 31") rolled over into March (Nov 2026 audit B-9).
+  if (new Date(Date.UTC(y, m - 1, d)).getUTCDate() !== d) return null;
   const timed = hour !== undefined && minute !== undefined && hour < 24 && minute < 60;
   const date = new Date(timed ? Date.UTC(y, m - 1, d, hour - 8, minute) : Date.UTC(y, m - 1, d));
   // Ignore dates in the future (typos, event dates).

@@ -26,6 +26,18 @@ export interface Petition {
   /** ISO, Ulaanbaatar time; null when the card had no countdown. */
   endsAt: string | null;
   url: string;
+  /** The title as the site printed it, before `tidy` (only while filtering; never stored or shown). */
+  rawTitle?: string;
+}
+
+/**
+ * A shouted title with each all-caps word in name case ("ХҮРЭЛСҮХ УХНААГ ОГЦРУУЛАХ" → "Хүрэлсүх
+ * Ухнааг Огцруулах"), so namesPerson can see a full name the site printed in capitals:
+ * unshoutTitle lowercases every word after the first and the name went through (Nov 2026 audit B-5).
+ * It errs on the side of hiding a petition, never of showing a named person.
+ */
+export function nameCaseShouted(title: string): string {
+  return title.replace(/[А-ЯӨҮЁ]{2,}(?:-[А-ЯӨҮЁ]+)?/gu, (w) => w.charAt(0) + w.slice(1).toLowerCase().replace(/-(\p{L})/gu, (_, c: string) => `-${c.toUpperCase()}`));
 }
 
 export interface PetitionsSnapshot {
@@ -45,7 +57,8 @@ export function namesPerson(title: string): boolean {
   // A full name ("Хүрэлсүх Ухнаа огцрох"): two capitalised words next to a dismissal / blame / sentence word.
   const name = "[А-ЯӨҮЁ][а-яөүё]{2,}(?:-[А-ЯӨҮЁ][а-яөүё]+)?";
   const pair = `${name}\\s+${name}\\p{L}*`;
-  const verb = "(?:огцр|хариуцлага|шалга|ял(?![а-яөүё]))";
+  // Either case: a shouted title in name case starts the verb with a capital too.
+  const verb = "(?:[оО]гцр|[хХ]ариуцлага|[шШ]алга|[яЯ]л(?![а-яөүё]))";
   return new RegExp(`(?<![\\p{L}])${pair}(?:\\s+\\S+)?\\s+\\S*${verb}|${verb}\\S*\\s+(?:\\S+\\s+)?${pair}`, "u").test(title);
 }
 
@@ -77,6 +90,7 @@ export function parsePetitions(html: string, tidy: (title: string) => string = (
       id,
       code,
       title: tidy(title),
+      rawTitle: title,
       kind,
       signatures: counts ? num(counts[1]) : 0,
       threshold: counts ? num(counts[2]) : 0,
@@ -98,11 +112,13 @@ export function openPetitions(all: Petition[], now: Date): { items: Petition[]; 
   for (const p of all) {
     if (seen.has(p.id) || !isOpen(p, now)) continue;
     seen.add(p.id);
-    if (namesPerson(p.title)) {
+    if (namesPerson(p.title) || (p.rawTitle !== undefined && namesPerson(nameCaseShouted(p.rawTitle)))) {
       skippedNamed++;
       continue;
     }
-    items.push(p);
+    const shown = { ...p };
+    delete shown.rawTitle;
+    items.push(shown);
   }
   return { items: items.sort((a, b) => b.signatures - a.signatures), skippedNamed };
 }

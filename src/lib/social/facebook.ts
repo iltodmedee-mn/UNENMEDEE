@@ -15,6 +15,7 @@ import { hashtags } from "./hashtags";
 import { maybePublished, publishStep, UnknownOutcomeError } from "./outcome";
 import { factShareLine, impactLines, keyFacts } from "./story-lines";
 import { readJsonBody } from "@/lib/read-json";
+import { errorLine } from "@/lib/log-safe";
 
 export const GRAPH_VERSION = process.env.FB_GRAPH_VERSION || "v26.0";
 
@@ -273,10 +274,19 @@ export async function publishReel(opts: {
     ),
   );
   // Published asynchronously: report a processing error, otherwise the reel is on its way.
+  // Only Facebook's own "processing failed" answer is a failure here. A status request that times
+  // out or errors after "finish" succeeded says nothing about the reel, which is already public:
+  // throwing then recorded it as failed and the next run posted it a second time (audit B-12).
   for (let i = 0; i < 12; i++) {
     await sleep(5_000);
-    const res = await f(`https://graph.facebook.com/${version}/${encodeURIComponent(videoId)}?fields=status`, { headers: { authorization: `Bearer ${opts.token}` }, signal: AbortSignal.timeout(15_000) });
-    const json = (await readJsonBody(res)) as { status?: { video_status?: string; processing_phase?: { status?: string; error?: { message?: string } } } };
+    let json: { status?: { video_status?: string; processing_phase?: { status?: string; error?: { message?: string } } } };
+    try {
+      const res = await f(`https://graph.facebook.com/${version}/${encodeURIComponent(videoId)}?fields=status`, { headers: { authorization: `Bearer ${opts.token}` }, signal: AbortSignal.timeout(15_000) });
+      json = (await readJsonBody(res)) as typeof json;
+    } catch (err) {
+      console.log(`::warning::Facebook reel ${videoId} status unknown after finish: ${errorLine(err)}`);
+      break;
+    }
     const st = json.status;
     if (st?.video_status === "error" || st?.processing_phase?.status === "error") throw new FacebookError(`Facebook reel processing failed: ${st.processing_phase?.error?.message ?? "error"}`.slice(0, 300), 200);
     if (st?.video_status === "ready" || st?.video_status === "published") break;

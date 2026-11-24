@@ -51,7 +51,7 @@ export function taxRateIssueBody(items: TaxRateNews[], ratesChecked: string, sit
     `Татвар эсвэл нийгмийн даатгалын шимтгэлийн хуульд өөрчлөлт орсон байж магадгүй. /tax тооцоолуурын хувь хэмжээг хамгийн сүүлд **${ratesChecked}**-нд шалгасан (\`src/lib/tax/receipt.ts\` \`RATES_CHECKED\`).`,
     "",
     "**Шалгах мэдээ:**",
-    ...items.map((x) => `- ${x.day} · [${x.title.replace(/[[\]]/g, "")}](${site}/article/${x.slug}) · [эх сурвалж](${x.url})`),
+    ...items.map((x) => `- ${x.day} · [${x.title.replace(/[[\]`]/g, "").replace(/@/g, "＠").replace(/\s+/g, " ").slice(0, 160)}](${site}/article/${x.slug}) · [эх сурвалж](${x.url})`),
     "",
     "**Юу хийх вэ:**",
     "1. Мэдээ, эх хуулийг уншаад ХХОАТ-ын шатлал, хөнгөлөлт эсвэл НДШ-ийн хувь (одоо 11.5%) өөрчлөгдсөн эсэх, хэзээнээс мөрдөхийг шалга.",

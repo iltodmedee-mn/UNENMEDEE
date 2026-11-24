@@ -3,6 +3,9 @@ import { describe, it } from "node:test";
 
 import { articlePayload, classifyPushFailure, clip, digestPayload, isAllowedPushEndpoint, ipAllowed, isSystemicFailure, MAX_PUSH_FAILURES, newsPayload, parseSubscribeRequest, PUSH_PER_IP_PER_HOUR, resetIpLimit, SubscriptionSchema } from "@/lib/push/core";
 
+/** A real P-256 public point: the keys are now checked to lie on the curve (audit S-6). */
+const VALID_P256DH = "BPe38kOyL4cN8Pnaf-62lVPknyC-N67sYFzhYzlsJe95AtVhV6QyPxF3hAQNkuF09ZNwAsJ7ynGxjWxxULF6nhM";
+
 describe("push subscriptions", () => {
   it("accepts only browser push services over https", () => {
     assert.ok(isAllowedPushEndpoint("https://fcm.googleapis.com/fcm/send/abc"));
@@ -16,18 +19,18 @@ describe("push subscriptions", () => {
   });
 
   it("validates the subscription JSON a browser sends", () => {
-    const ok = SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(87), auth: "a".repeat(22) } });
+    const ok = SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: VALID_P256DH, auth: "a".repeat(22) } });
     assert.ok(ok.success);
     assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/x", keys: { p256dh: "short", auth: "x" } }).success, false);
     // Long enough but not a P-256 point / 16-byte secret: refused (web-push threw on every send).
     assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "A".repeat(87), auth: "a".repeat(22) } }).success, false);
-    assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(87), auth: "a".repeat(40) } }).success, false);
+    assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: VALID_P256DH, auth: "a".repeat(40) } }).success, false);
     assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B".repeat(86) + "!", auth: "a".repeat(22) } }).success, false);
   });
 });
 
 describe("shared subscribe validation (action and /api/push)", () => {
-  const keys = { p256dh: "B".repeat(87), auth: "a".repeat(22) };
+  const keys = { p256dh: VALID_P256DH, auth: "a".repeat(22) };
   const endpoint = "https://fcm.googleapis.com/fcm/send/abc";
 
   it("accepts a renewal with an allowed old endpoint", () => {
@@ -95,6 +98,8 @@ describe("push failure accounting", () => {
     // A malformed stored key is refused locally with no status (Nov 2026 audit): permanent.
     assert.equal(classifyPushFailure(undefined, "The subscription p256dh value should be 65 bytes long."), "permanent");
     assert.equal(classifyPushFailure(undefined, "socket hang up"), "transient");
+    assert.equal(classifyPushFailure(undefined, "error:1e08010c:DECODER routines::unsupported ERR_CRYPTO_ECDH_INVALID_PUBLIC_KEY"), "permanent");
+    assert.equal(SubscriptionSchema.safeParse({ endpoint: "https://fcm.googleapis.com/fcm/send/abc", keys: { p256dh: "B" + "A".repeat(86), auth: "a".repeat(22) } }).success, false, "an off-curve key is refused");
     assert.equal(classifyPushFailure(410), "gone");
     assert.equal(classifyPushFailure(400), "permanent");
     assert.equal(classifyPushFailure(401), "permanent"); // VAPID mismatch
