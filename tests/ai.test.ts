@@ -50,6 +50,7 @@ describe("Tier1Schema", () => {
     // One English summary line under a long Cyrillic one fails; a Latin company name in a Mongolian fact stays.
     assert.equal(Tier1Schema.safeParse({ ...base, tldr_summary: [...base.tldr_summary, "The government raised taxes again this year."] }).success, false);
     assert.equal(Tier1Schema.safeParse({ ...base, facts: [...base.facts, "Wagner Asia Equipment LLC-тэй 5 тэрбум төгрөгийн гэрээ байгуулсан"] }).success, true);
+    assert.equal(Tier1Schema.safeParse({ ...base, facts: [...base.facts, "The government awarded the contract to Бат without a tender."] }).success, false, "one Cyrillic name does not make English prose Mongolian");
   });
   it("coerces, clamps, dedupes and derives risk_flag itself", () => {
     const r = Tier1Schema.parse(JSON.parse(TIER1_OK));

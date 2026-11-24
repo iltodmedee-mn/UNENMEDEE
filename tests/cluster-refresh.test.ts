@@ -34,6 +34,23 @@ describe("refreshCluster after members are hidden (PGlite)", () => {
     assert.deepEqual([c.article_count, c.synthesis_summary], [1, null]);
   });
 
+  it("a recount whose membership changed while it ran writes nothing (overlapping admin changes)", async () => {
+    const { refreshCluster } = await import("@/lib/ai/analyze");
+    await db.execute(sql`update articles set is_published = true`);
+    await db.execute(sql`update clusters set article_count = 3, synthesis_summary = null where id = 1`);
+    // Recount A reads three members; meanwhile an admin hides one and recount B writes 2.
+    await refreshCluster(db, 1, undefined, undefined, {
+      afterRead: async () => {
+        await db.execute(sql`update articles set is_published = false where slug = 's2'`);
+        await refreshCluster(db, 1);
+      },
+    });
+    const [c] = (await db.execute(sql`select article_count from clusters where id = 1`)).rows as { article_count: number }[];
+    assert.equal(c.article_count, 2, "the older recount did not write back 3");
+    await db.execute(sql`update articles set is_published = false where slug in ('s1', 's2')`);
+    await db.execute(sql`update articles set is_published = true where slug = 's0'`);
+  });
+
   it("with every member hidden the cluster stays, so a story published again keeps its group", async () => {
     const { refreshCluster } = await import("@/lib/ai/analyze");
     await db.execute(sql`update articles set is_published = false`);

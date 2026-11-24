@@ -318,20 +318,38 @@ export function shouldResynthesize(previousCount: number, newCount: number, hasS
 }
 
 /** Recounts a cluster and, at growth milestones, asks the model for a neutral cross-source synthesis. */
-export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogger, budget?: BudgetGuard): Promise<void> {
+export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogger, budget?: BudgetGuard, hooks: { afterRead?: () => Promise<void> } = {}): Promise<void> {
   const members = await db
-    .select({ title: articles.title, tldr: articles.tldrSummary, facts: articles.factVsSpin, risk: articles.riskScore, sourceName: sources.name })
+    .select({ id: articles.id, title: articles.title, tldr: articles.tldrSummary, facts: articles.factVsSpin, risk: articles.riskScore, sourceName: sources.name })
     .from(articles)
     .innerJoin(sources, eq(articles.sourceId, sources.id))
     .where(and(eq(articles.clusterId, clusterId), ne(articles.isPublished, false)))
     .orderBy(desc(articles.riskScore));
+  await hooks.afterRead?.();
+  // Every write below happens only if the published membership is still the one read here, checked
+  // under a lock on the cluster row: two recounts of one cluster can overlap (an admin hiding a
+  // story while another recount waits on the AI), and the older one must never write back a
+  // membership that has changed since (CodeRabbit on #337).
+  const snapshot = members.map((m) => m.id).sort((a, b) => a - b).join(",");
+  const writeIfCurrent = (write: (tx: Parameters<Parameters<DB["transaction"]>[0]>[0]) => Promise<unknown>) =>
+    db.transaction(async (tx) => {
+      await tx.execute(sql`select id from ${clusters} where id = ${clusterId} for update`);
+      const now = await tx
+        .select({ id: articles.id })
+        .from(articles)
+        .where(and(eq(articles.clusterId, clusterId), ne(articles.isPublished, false)));
+      if (now.map((r) => r.id).sort((a, b) => a - b).join(",") !== snapshot) return; // a newer recount owns it
+      await write(tx);
+    });
   if (members.length === 0) {
     // Its articles moved to another cluster: it goes. Only unpublished ones left: it stays, empty
     // (the reader shows a cluster only with two published sources), so a story published again
     // finds its group (the FK's "set null" emptied every member when the row was deleted).
-    const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(articles).where(eq(articles.clusterId, clusterId));
-    if (Number(n) === 0) await db.delete(clusters).where(eq(clusters.id, clusterId));
-    else await db.update(clusters).set({ articleCount: 0, maxRiskScore: 0, synthesisSummary: null, updatedAt: sql`now()` }).where(eq(clusters.id, clusterId));
+    await writeIfCurrent(async (tx) => {
+      const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(articles).where(eq(articles.clusterId, clusterId));
+      if (Number(n) === 0) await tx.delete(clusters).where(eq(clusters.id, clusterId));
+      else await tx.update(clusters).set({ articleCount: 0, maxRiskScore: 0, synthesisSummary: null, updatedAt: sql`now()` }).where(eq(clusters.id, clusterId));
+    });
     return;
   }
   const maxRisk = Math.max(...members.map((m) => m.risk));
@@ -364,16 +382,16 @@ export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogge
       console.warn(`[ai] cluster ${clusterId} synthesis kept (AI call failed): ${errorLine(err, 200)}`);
     }
   }
-  await db
-    .update(clusters)
-    .set({
-      articleCount: members.length,
-      maxRiskScore: maxRisk,
-      updatedAt: sql`now()`,
-      ...(title ? { title } : {}),
-      ...(synthesis ? { synthesisSummary: synthesis } : shrunk ? { synthesisSummary: null } : {}),
-    })
-    // Only over the count this recount started from: two admin changes to one cluster can overlap,
-    // and the one that waited longer on the AI must not write back the older membership.
-    .where(current ? and(eq(clusters.id, clusterId), eq(clusters.articleCount, current.count)) : eq(clusters.id, clusterId));
+  await writeIfCurrent((tx) =>
+    tx
+      .update(clusters)
+      .set({
+        articleCount: members.length,
+        maxRiskScore: maxRisk,
+        updatedAt: sql`now()`,
+        ...(title ? { title } : {}),
+        ...(synthesis ? { synthesisSummary: synthesis } : shrunk ? { synthesisSummary: null } : {}),
+      })
+      .where(eq(clusters.id, clusterId)),
+  );
 }

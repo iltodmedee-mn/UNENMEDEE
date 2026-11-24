@@ -19,10 +19,16 @@ export const hasCjk = (text: string): boolean => (text.match(CJK)?.length ?? 0) 
 
 /**
  * One item of a list (a fact, a question, a summary line) that is not Mongolian: CJK, or Latin
- * with no Cyrillic at all. A company's Latin name inside a Mongolian sentence ("Wagner Asia
- * Equipment LLC-тэй гэрээ байгуулав") stays; "The government raised taxes." does not.
+ * letters (12+) more than twice the Cyrillic ones. A company's Latin name inside a Mongolian
+ * sentence ("Wagner Asia Equipment LLC-тэй … гэрээ байгуулсан") stays; English prose with one
+ * Cyrillic name in it ("… awarded the contract to Бат without a tender.") does not.
  */
-export const isForeignItem = (text: string): boolean => hasCjk(text) || (isLatinText(text) && !/\p{Script=Cyrillic}/u.test(text));
+export function isForeignItem(text: string): boolean {
+  if (hasCjk(text)) return true;
+  const latin = text.match(LATIN)?.length ?? 0;
+  const cyrillic = text.match(CYRILLIC)?.length ?? 0;
+  return latin >= LATIN_ALLOWANCE && latin > 2 * cyrillic;
+}
 
 /** True when the text is not Mongolian Cyrillic: mostly Latin letters, or any run of CJK script. */
 export function isLatinText(text: string): boolean {
