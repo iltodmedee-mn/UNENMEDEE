@@ -29,6 +29,7 @@ describe("money map places", () => {
     // Rural sums share district names: only "… дүүрэг" is Ulaanbaatar (audit B-7).
     assert.equal(aimagOf({ governor: "Боловсролын сайд", orgName: "Баянгол сумын ерөнхий боловсролын сургууль" }), null);
     assert.equal(aimagOf({ governor: "Боловсролын сайд", orgName: "Баянгол дүүргийн 23 дугаар сургууль" }), "Улаанбаатар");
+    assert.equal(aimagOf({ governor: "Эрүүл мэндийн сайд", orgName: "Налайх эрүүл мэндийн төв" }), "Улаанбаатар", "a name no sum shares stands alone");
     // Sükhbaatar the aimag, not the Ulaanbaatar district
     assert.equal(aimagOf({ governor: null, orgName: "Сүхбаатар аймгийн Засаг даргын Тамгын газар" }), "Сүхбаатар");
   });

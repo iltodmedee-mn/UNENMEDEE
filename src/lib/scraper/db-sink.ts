@@ -68,12 +68,10 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
       // Claimed for this run before the database check: two URLs of one page saved by concurrent
       // requests both passed the check and were both stored (#1379/#1380, 0.45 s apart), and the
       // AI analysed the same text twice.
-      // A duplicate's own URL is remembered: it was fetched again every run, 8 s a time (audit D-3).
+      // A duplicate of a stored article remembers its own URL: it was fetched again every run, 8 s a time (audit D-3).
       const remember = () => db.insert(seenUrls).values({ originalUrl: item.url, contentHash: hash, sourceId: source.id }).onConflictDoNothing();
-      if (claimed.has(hash)) {
-        await remember();
-        return "duplicate";
-      }
+      // An in-memory claim is not a stored article yet (its save may still fail): nothing is remembered for it.
+      if (claimed.has(hash)) return "duplicate";
       claimed.add(hash);
       const [dup, deletedDup] = await Promise.all([
         db.select({ id: articles.id }).from(articles).where(eq(articles.contentHash, hash)).limit(1),

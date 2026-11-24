@@ -18,7 +18,11 @@ const MAX_SUBSCRIPTIONS = Number(process.env.PUSH_MAX_SUBSCRIPTIONS ?? 50_000);
 export async function storeSubscription(sub: SubscriptionInput, old: OldSubscription | null): Promise<boolean> {
   const { endpoint, keys } = sub;
   const db = getDb();
-  const [existing] = await db.select({ id: pushSubscriptions.id }).from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).limit(1);
+  const [existing] = await db.select({ id: pushSubscriptions.id, auth: pushSubscriptions.auth }).from(pushSubscriptions).where(eq(pushSubscriptions.endpoint, endpoint)).limit(1);
+  // A stored endpoint keeps its keys: anyone who knows the URL could otherwise post their own keys
+  // over it, then "renew" it with those and take its follows (CodeRabbit on #337). A browser that
+  // rotates its keys gets a new endpoint, so a real retry always sends the same auth.
+  if (existing && existing.auth.replace(/=+$/, "") !== keys.auth.replace(/=+$/, "")) return false;
   if (!existing) {
     const [[total], [lastHour]] = await Promise.all([
       db.select({ n: count() }).from(pushSubscriptions),

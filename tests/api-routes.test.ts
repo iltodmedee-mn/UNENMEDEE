@@ -54,6 +54,9 @@ describe("public API routes (PGlite)", () => {
     await db.execute(sql`update push_subscriptions set follow_politicians = '{7}' where endpoint = 'https://fcm.googleapis.com/fcm/send/victim'`);
 
     await storeSubscription({ endpoint: "https://fcm.googleapis.com/fcm/send/attacker", keys: { ...keys, auth: "b3RoZXItYXV0aC1zZWNyZXQ" } }, { endpoint: "https://fcm.googleapis.com/fcm/send/victim", auth: "d3JvbmctYXV0aC1zZWNyZXQ" });
+    // Posting other keys over the stored endpoint is refused, so they cannot be used as proof next.
+    assert.equal(await storeSubscription({ endpoint: "https://fcm.googleapis.com/fcm/send/victim", keys: { ...keys, auth: "b3RoZXItYXV0aC1zZWNyZXQ" } }, null), false);
+    assert.equal(await storeSubscription({ endpoint: "https://fcm.googleapis.com/fcm/send/victim", keys }, null), true, "a retry with the same keys is fine");
     const left = (await db.execute(sql`select endpoint from push_subscriptions where endpoint like '%victim'`)).rows;
     assert.equal(left.length, 1, "a wrong auth secret deletes nothing");
 

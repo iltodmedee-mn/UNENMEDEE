@@ -65,9 +65,9 @@ function numberTokens(text: string, months: boolean): NumberToken[] {
       continue;
     }
     const scale = SCALES.find(([re]) => re.test(after))?.[1];
-    // Before a scale word one separator and three digits is a decimal: "1.250 тэрбум" is 1.25 тэрбум,
-    // not 1 250 тэрбум (audit B-8).
-    const base = scale !== undefined && /^\d{1,3}[.,]\d{3}$/.test(m[0].trim()) ? Number(m[0].trim().replace(",", ".")) : parseNumber(m[0]);
+    // Before a scale word a dot and three digits is a decimal: "1.250 тэрбум" is 1.25 тэрбум, not
+    // 1 250 тэрбум (audit B-8). A comma groups thousands there: "2,500 сая" is 2.5 тэрбум (format.ts).
+    const base = scale !== undefined && /^\d{1,3}\.\d{3}$/.test(m[0].trim()) ? Number(m[0].trim()) : parseNumber(m[0]);
     out.push({ digits: m[0].replace(/\D/g, "").replace(/^0+(?=\d)/, ""), value: base * (scale ?? 1), base, scaled: scale !== undefined });
   }
   return out;

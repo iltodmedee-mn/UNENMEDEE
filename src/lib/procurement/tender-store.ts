@@ -13,8 +13,9 @@ const BATCH = 300;
 
 const budget = sql`coalesce(excluded.budget_mnt, ${tenders.budgetMnt})`;
 const contract = sql`coalesce(excluded.contract_mnt, ${tenders.contractMnt})`;
-// A later filing that says "-" keeps the stored winner of an awarded lot.
-const winner = sql`case when ${tenders.awarded} and not excluded.awarded then ${tenders.winner} else coalesce(excluded.winner, ${tenders.winner}) end`;
+// By the values, not the flags: a later "-" (or nothing) keeps a stored named winner, a later named
+// winner replaces it (as mergeLot does inside one sync).
+const winner = sql`case when excluded.winner is null or (excluded.winner ~* ${NO_AWARD_SQL} and ${tenders.winner} is not null and ${tenders.winner} !~* ${NO_AWARD_SQL}) then ${tenders.winner} else excluded.winner end`;
 // Decided again on the merged row: the stored winner plus a new filing's amount is an award (audit B-14).
 const awarded = sql`(${tenders.awarded} or excluded.awarded or coalesce(${winner} !~* ${NO_AWARD_SQL} and ${contract} is not null, false))`;
 

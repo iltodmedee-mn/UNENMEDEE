@@ -28,6 +28,8 @@ describe("reader view grounding", () => {
     assert.equal(numbersGrounded("2026 оны 10 сарын 20-нд", "Тогтоол 2026.10.20-нд гарсан"), true);
     assert.equal(numbersGrounded("1.25 тэрбум ₮", "Төсөв 1.250 тэрбум төгрөг"), true);
     assert.equal(numbersGrounded("1 250 тэрбум ₮", "Төсөв 1.250 тэрбум төгрөг"), false, "1.250 тэрбум is not 1 250 тэрбум");
+    assert.equal(numbersGrounded("2,5 тэрбум ₮", "Төсөв 2,500 сая төгрөг"), true, "a comma groups thousands: 2,500 сая = 2.5 тэрбум");
+    assert.equal(numbersGrounded("2.5 сая ₮", "Төсөв 2,500 сая төгрөг"), false);
   });
 
   it("does not check month numbers written as words in the source", () => {

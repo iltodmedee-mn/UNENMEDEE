@@ -266,7 +266,8 @@ export function jsonBlobDate(html: string): Date | null {
   ];
   for (const blob of blobs) {
     // Keys quoted (JSON) or bare (the Nuxt 2 payload is JavaScript: {date:"2026-…"}).
-    const m = blob.match(/(?<![\w$])"?(?:date|createdDate|created_at|createdAt|publishedAt|published_at|publishDate|pubDate|datePublished|news_date|post_date)"?\s*:\s*"(20\d{2}-\d{2}-\d{2}[^"]{0,30})"/);
+    // The whole key: "event-date" is not "date".
+    const m = blob.match(/(?:"(?:date|createdDate|created_at|createdAt|publishedAt|published_at|publishDate|pubDate|datePublished|news_date|post_date)"|(?<=[{,\s])(?:date|createdDate|created_at|createdAt|publishedAt|published_at|publishDate|pubDate|datePublished|news_date|post_date))\s*:\s*"(20\d{2}-\d{2}-\d{2}[^"]{0,30})"/);
     const d = m ? parseDateValue(m[1]) : null;
     if (d) return d;
   }

@@ -160,7 +160,7 @@ export async function saveArticle(_prev: ActionResult | null, formData: FormData
 const optionalUsd = z.preprocess((v) => (v === "" || v === undefined || v === null ? null : v), z.coerce.number().min(0).max(1e7).nullable());
 
 const Ledger = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/),
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
   infraCostUsd: z.coerce.number().min(0).max(1e6),
   adRevenueUsd: optionalUsd,
   donationsUsd: optionalUsd,

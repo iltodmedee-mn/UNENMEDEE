@@ -87,7 +87,8 @@ describe("DomainThrottle", () => {
     await hit("www.gov.mn", 12_000); // a Crawl-delay above the floor
     await hit("www.gov.mn");
     const gaps = starts.slice(1).map((s, i) => s - starts[i]);
-    assert.deepEqual(gaps, [8_000, 8_000, 8_000, 8_000, 12_000]);
+    // The 12 s Crawl-delay counts from the start before it, and the one after still waits it out.
+    assert.deepEqual(gaps, [8_000, 8_000, 8_000, 12_000, 12_000]);
   });
 });
 

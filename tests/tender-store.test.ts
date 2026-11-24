@@ -65,6 +65,16 @@ describe("upsertTenders (PGlite)", () => {
     assert.ok(r[0].awarded_seen_at, "dated when it became an award");
   });
 
+  it("a later '-' keeps a stored named winner even before the lot was an award; a later name replaces it", async () => {
+    await upsertTenders(db, [lot({ winner: "Говь Билд ХХК" })], false, T0);
+    await upsertTenders(db, [lot({ winner: "-", contractMnt: 80_000_000 })], false, T0);
+    let r = (await db.execute(sql`select winner, awarded from tenders`)).rows[0] as { winner: string; awarded: boolean };
+    assert.deepEqual([r.winner, r.awarded], ["Говь Билд ХХК", true]);
+    await upsertTenders(db, [lot({ winner: "Тал Зам ХХК", contractMnt: 80_000_000, awarded: true })], false, T0);
+    r = (await db.execute(sql`select winner, awarded from tenders`)).rows[0] as { winner: string; awarded: boolean };
+    assert.equal(r.winner, "Тал Зам ХХК");
+  });
+
   it("the same merge inside one sync's rows", () => {
     const m = mergeLot(lot({ winner: "Говь Билд ХХК", budgetMnt: 90_000_000 }), lot({ contractMnt: 80_000_000, budgetMnt: 95_000_000, governor: null }));
     assert.equal(m.awarded, true);

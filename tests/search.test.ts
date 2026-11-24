@@ -31,6 +31,7 @@ describe("₮ chips", () => {
     assert.equal(amountValue("1 тэрбум 200 сая ₮"), 1_200_000_000);
     assert.equal(amountValue("2026.05.13 5 тэрбум ₮"), 5_000_000_000);
     assert.equal(amountValue("5 000 000 ₮"), 5_000_000);
+    assert.equal(amountValue("5\u00a0000\u00a0000 ₮"), 5_000_000, "no-break spaces group too");
     assert.equal(amountValue("1 250 000 ₮"), 1_250_000);
     assert.equal(largestAmount(["850 сая ₮", "1,2 тэрбум ₮", "3 000 000 ₮"]), "1,2 тэрбум ₮");
     assert.equal(largestAmount([]), undefined);

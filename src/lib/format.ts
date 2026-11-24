@@ -179,7 +179,8 @@ export function amountValue(amount: string): number | null {
 }
 
 /** One written number: "12 500 000", "1.250.000", "2,5", "15" (never "2026.05.13 5"). */
-const AMOUNT_NUMBER = String.raw`(?<![\d.,])(\d{1,3}(?:[ ,.]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?![\d])`;
+// Grouping spaces include the no-break ones (U+00A0, U+202F) sites print, never a line break.
+const AMOUNT_NUMBER = String.raw`(?<![\d.,])(\d{1,3}(?:[ \u00a0\u202f,.]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?![\d])`;
 
 /**
  * The biggest of the extracted ₮ amounts (the chip on a story row), or undefined when none reads

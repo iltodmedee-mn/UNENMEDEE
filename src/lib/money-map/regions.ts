@@ -58,9 +58,9 @@ AIMAG_BY_KEY.set(placeKey("Говь-Сүмбэр"), "Говьсүмбэр");
 
 /** The genitive stems text uses: "Өмнөговь аймгийн", "Говь-Алтай аймгийн", "Баянзүрх дүүргийн". */
 const AIMAG_IN_TEXT = new RegExp(`(${AIMAGS.map((a) => a.replace("-", "[- ]?")).join("|")}) (аймаг|аймгийн)`, "i");
-// A district name counts only as a district ("Баянгол дүүрэг"): Сэлэнгэ and Өвөрхангай have a
-// Баянгол sum, Хөвсгөл a Баянзүрх sum (audit B-7).
-const UB_IN_TEXT = /(нийслэл|улаанбаатар|(баянзүрх|сүхбаатар|чингэлтэй|баянгол|хан-уул|сонгинохайрхан|налайх|багануур|багахангай)\s+дүүр)/i;
+// A district name that is also a sum, an aimag or a company counts only with "дүүрэг" (Сэлэнгэ and
+// Өвөрхангай have a Баянгол sum, Хөвсгөл a Баянзүрх sum; audit B-7); the others stand alone.
+const UB_IN_TEXT = /(нийслэл|улаанбаатар|чингэлтэй|хан-уул|сонгинохайрхан|налайх|багахангай|(баянзүрх|сүхбаатар|баянгол|багануур)\s+дүүр)/i;
 
 /** The aimag a tender's money goes to, or null (a ministry buying for the whole country). */
 export function aimagOf(t: { governor: string | null; orgName: string | null }): Aimag | null {

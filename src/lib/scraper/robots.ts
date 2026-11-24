@@ -214,7 +214,8 @@ export const politeHost = (host: string): string => host.toLowerCase().replace(/
 
 /** Per-host politeness scheduler: guarantees >= delay between request starts to one host. */
 export class DomainThrottle {
-  private nextSlot = new Map<string, number>();
+  /** Each host's last reserved start and the pause that came with it. */
+  private last = new Map<string, { start: number; delay: number }>();
 
   constructor(
     private readonly minDelayMs: number = MIN_DOMAIN_DELAY_MS,
@@ -226,8 +227,11 @@ export class DomainThrottle {
     const key = politeHost(host);
     const delay = Math.max(this.minDelayMs, extraDelayMs);
     const now = this.now();
-    const slot = Math.max(now, this.nextSlot.get(key) ?? 0);
-    this.nextSlot.set(key, slot + delay);
+    const prev = this.last.get(key);
+    // This request's pause counts from the previous start (robots.txt then a 20 s Crawl-delay page:
+    // the page waits 20 s, not the 8 s robots.txt reserved), and so does the previous one's.
+    const slot = prev ? Math.max(now, prev.start + Math.max(delay, prev.delay)) : now;
+    this.last.set(key, { start: slot, delay });
     if (slot > now) await this.sleep(slot - now);
   }
 }

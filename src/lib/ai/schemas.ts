@@ -95,7 +95,7 @@ export const Tier1Schema = z
   .refine((v) => !LEAKED_KEYS.test(v.tldr_summary), { error: "tldr_summary holds the rest of the JSON reply" })
   // Cyrillic only (script.ts): a transliterated reply fails, so the repair retry or the next provider writes it.
   // Field by field: an English summary next to long Cyrillic facts passed as one joined text (audit B-8).
-  .refine((v) => [v.tldr_summary, v.facts.join(" "), v.spin_detected, v.risk_reason].every((f) => !isLatinText(f)), {
+  .refine((v) => [v.tldr_summary, ...v.facts, v.spin_detected, v.risk_reason].every((f) => !isLatinText(f)), {
     message: "the reply is written in Latin letters, not Mongolian Cyrillic",
   });
 
@@ -103,7 +103,7 @@ export type Tier1Result = z.output<typeof Tier1Schema>;
 
 export const Tier2Schema = z.object({
   analysis_markdown: z.string().min(80).transform((v) => clip(v, 12_000)).refine((v) => !isLatinText(v), CYRILLIC_ONLY),
-  citizen_questions: stringList(8).refine((qs) => !isLatinText(qs.join(" ")), CYRILLIC_ONLY),
+  citizen_questions: stringList(8).refine((qs) => qs.every((q) => !isLatinText(q)), CYRILLIC_ONLY),
 });
 
 export type Tier2Result = z.output<typeof Tier2Schema>;
