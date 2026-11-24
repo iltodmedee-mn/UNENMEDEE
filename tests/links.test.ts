@@ -119,7 +119,8 @@ describe("feeds and WordPress detection", () => {
     const rss = `<rss><channel><item><title>Мэдээ</title><link>https://a.gov.mn/n/1</link><pubDate>Mon, 19 Oct 2026 08:00:00 +0800</pubDate></item></channel></rss>`;
     const atom = `<feed><entry><title>B</title><link href="https://a.gov.mn/n/2"/><published>2026-10-18T00:00:00Z</published></entry></feed>`;
     assert.deepEqual(parseFeed(rss).map((i) => i.url), ["https://a.gov.mn/n/1"]);
-    assert.equal(parseFeed(rss)[0].publishedAt?.toISOString(), "2026-10-19T00:00:00.000Z");
+    // A real 08:00 in Ulaanbaatar is UTC midnight, the day-level marker: one second on keeps it a timed story (audit B-9).
+    assert.equal(parseFeed(rss)[0].publishedAt?.toISOString(), "2026-10-19T00:00:01.000Z");
     assert.deepEqual(parseFeed(atom).map((i) => i.url), ["https://a.gov.mn/n/2"]);
   });
 });

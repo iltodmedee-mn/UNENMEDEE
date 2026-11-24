@@ -9,13 +9,15 @@
  * Only facts nobody else owns (table sizes, push counts, digest authors) are read here.
  * Pure of the clock: `now` is injected (tests/health-collect.test.ts, PGlite).
  */
-import { and, desc, eq, gt, gte, isNull, sql, type SQL } from "drizzle-orm";
+import { and, desc, eq, gt, gte, inArray, isNull, sql, type SQL } from "drizzle-orm";
 
 import type { DB } from "@/db";
 import { appSettings, articles, digests, feedSnapshots, pressItems, pushSubscriptions, siteErrors, sources, videos } from "@/db/schema";
 import { dailySpendUsd } from "@/lib/ai/usage-log";
 import { type CoreSnapshot, type IntegritySnapshot, SOCIAL_PLATFORMS, type SocialPlatform, type SocialSnapshot } from "@/lib/health";
 import { OUTLETS } from "@/lib/press/outlets";
+import { FEED_FILTERS } from "@/lib/queries";
+import { feedKey } from "@/lib/snapshots";
 import { MAX_AGE_DAYS } from "@/lib/scraper/dates";
 import { sourceHealth } from "@/lib/scraper/db-sink";
 import { EXTRACTION_KEY, parseExtractionReport } from "@/lib/scraper/recheck";
@@ -153,8 +155,13 @@ export async function collectIntegrity(db: DB, now: Date): Promise<IntegritySnap
   // The weekly certificate check: hosts that joined the unverified list, named for 8 days.
   const [tlsRow] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, TLS_BROKEN_KEY));
   const tls = parseTlsReport(tlsRow?.value);
-  // List pages read snapshots (docs/adr/0001-list-pages-read-snapshots.md): the newest write time.
-  const [snap] = await db.select({ at: sql<string | null>`max(${feedSnapshots.builtAt})::text` }).from(feedSnapshots);
+  // List pages read snapshots (docs/adr/0001-list-pages-read-snapshots.md). The oldest of today's
+  // filters: every run rewrites each one, so one that failed stays old, and the newest time hid it
+  // (audit R-5). A filter that no longer exists keeps its row and is left out.
+  const [snap] = await db
+    .select({ at: sql<string | null>`min(${feedSnapshots.builtAt})::text` })
+    .from(feedSnapshots)
+    .where(inArray(feedSnapshots.key, FEED_FILTERS.map(feedKey)));
   return {
     brokenAiText: broken,
     widespreadClusters: n(wide),
@@ -217,6 +224,17 @@ export function egressMbPerDay(prev: EgressProbe | null, cur: EgressProbe): numb
   return Math.round((((cur.rows - prev.rows) * EGRESS_BYTES_PER_ROW) / 1e6) * (24 / hours));
 }
 
+/**
+ * What a watchdog run does with the counter: the estimate, and whether the new reading replaces the
+ * stored one. It is kept until it can be compared: a manual run an hour after the scheduled one
+ * overwrote the probe, so the next scheduled run had nothing 6 h old and reported nothing (audit R-5).
+ */
+export function egressStep(prev: EgressProbe | null, cur: EgressProbe): { estimate: number | null; store: boolean } {
+  const estimate = egressMbPerDay(prev, cur);
+  const store = !prev || cur.rows < prev.rows || estimate !== null || !Number.isFinite(Date.parse(prev.at));
+  return { estimate, store };
+}
+
 /** Reads the counter, stores it for the next run, and returns the estimate (null without pg_stat_statements). */
 export async function collectEgress(db: DB, now: Date): Promise<number | null> {
   const total = await db
@@ -233,7 +251,9 @@ export async function collectEgress(db: DB, now: Date): Promise<number | null> {
     prev = null;
   }
   const cur: EgressProbe = { at: now.toISOString(), rows: total };
+  const { estimate, store } = egressStep(prev, cur);
+  if (!store) return null;
   const value = JSON.stringify(cur);
   await db.insert(appSettings).values({ key: EGRESS_KEY, value }).onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: now } });
-  return egressMbPerDay(prev, cur);
+  return estimate;
 }

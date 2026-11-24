@@ -92,7 +92,9 @@ export function parseDateValue(value: string | null | undefined): Date | null {
   let d = new Date(v);
   if (Number.isNaN(d.getTime()) || d.getUTCFullYear() < 2000 || isFutureDate(d)) return null;
   // A real time of 08:00:00 in Ulaanbaatar is UTC midnight, the day-level marker: one second later
-  // keeps a timed story from being read as "time unknown" (audit B-9).
-  if (/\d{1,2}:\d{2}/.test(value) && isDayLevel(d)) d = new Date(d.getTime() + 1_000);
+  // keeps a timed story from being read as "time unknown" (audit B-9). A written midnight
+  // ("…00:00:00 GMT", "T00:00:00Z") is a day-only stamp and stays one.
+  const clock = value.match(/(\d{1,2}):(\d{2})(?::(\d{2}))?/);
+  if (clock && isDayLevel(d) && Number(clock[1]) + Number(clock[2]) + Number(clock[3] ?? 0) > 0) d = new Date(d.getTime() + 1_000);
   return d;
 }

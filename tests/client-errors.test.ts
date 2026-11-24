@@ -62,5 +62,11 @@ describe("recordClientError (PGlite)", () => {
     for (let i = 0; i < CLIENT_ROW_CAP + 5; i++) await recordClientError(db, { route: "CLIENT /x", message: `m${i}` });
     const [{ n }] = (await db.execute(sql`select count(*)::int as n from site_errors where route like 'CLIENT %'`)).rows as { n: number }[];
     assert.equal(Number(n), CLIENT_ROW_CAP);
+    // Rows unseen for 30 days make room: at the cap no new error was ever recorded (audit R-5).
+    await db.execute(sql`update site_errors set last_seen = now() - interval '40 days' where route = 'CLIENT /x'`);
+    await recordClientError(db, { route: "CLIENT /new", message: "fresh" });
+    const rows = (await db.execute(sql`select route from site_errors where route like 'CLIENT %'`)).rows as { route: string }[];
+    assert.ok(rows.some((r) => r.route === "CLIENT /new"));
+    assert.ok(!rows.some((r) => r.route === "CLIENT /x"));
   });
 });

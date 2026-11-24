@@ -90,7 +90,10 @@ async function settings() {
     if (!raw) return null;
     try {
       const v = (JSON.parse(raw) as Record<string, unknown>)[field];
-      return typeof v === "string" ? new Date(v) : null;
+      if (typeof v !== "string") return null;
+      // A malformed date is "long ago", not null: NaN compares false, so the alert never fired (audit R-5).
+      const d = new Date(v);
+      return Number.isNaN(d.getTime()) ? new Date(0) : d;
     } catch {
       return null;
     }

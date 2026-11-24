@@ -163,7 +163,13 @@ describe("timing", () => {
 describe("narration voice", () => {
   const guard = (ok: boolean) => ({ check: async () => (ok ? { ok: true as const } : { ok: false as const, reason: "daily AI budget $0.3 reached" }), record: () => {} });
 
-  it("passes the budget guard first and logs the call with its cost", async () => {
+  it("passes the budget guard first and logs the call with its cost", async (t) => {
+    // A billed key: the price is checked exactly, with no "or $0" way out (audit T-3).
+    const saved = process.env.GEMINI_FREE_TIER;
+    delete process.env.GEMINI_FREE_TIER;
+    t.after(() => {
+      if (saved !== undefined) process.env.GEMINI_FREE_TIER = saved;
+    });
     const logged: { purpose: string; estimatedCostUsd: number; success: boolean }[] = [];
     const pcm = Buffer.alloc(4800);
     const wav = await speak({
@@ -179,7 +185,7 @@ describe("narration voice", () => {
     assert.equal(logged[0].purpose, "video");
     assert.ok(logged[0].success);
     // $0.50 in + $9.00 out per 1M tokens through 2026.
-    assert.ok(Math.abs(logged[0].estimatedCostUsd - (300 * 0.5 + 500 * 9) / 1e6) < 1e-9 || logged[0].estimatedCostUsd === 0);
+    assert.ok(Math.abs(logged[0].estimatedCostUsd - (300 * 0.5 + 500 * 9) / 1e6) < 1e-9, String(logged[0].estimatedCostUsd));
   });
 
   it("never calls the API when the budget is spent", async () => {

@@ -235,7 +235,8 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
     if (g.brokenAiText > 0) info(`${g.brokenAiText} нийтлэгдсэн мэдээний AI текстэд "undefined"/"null"/"[object Object]" эсвэл кирилл биш латин үсгээр бичигдсэн байна: AI-ийн хариуны хэлбэр (schemas.ts) өөрчлөгдсөн эсэхийг шалгаад тэдгээрийг дахин боловсруулах (maintenance.yml → reanalyse).`);
     if (g.widespreadClusters > 0) info(`${g.widespreadClusters} кластерын мэдээнүүд хооронд 7 хоногоос их зайтай: өөр өөр үйл явдлыг нэгтгэсэн байж болзошгүй (clustering.ts, /clusters-ийг шалгах).`);
     if (g.duplicateHashes > 0) info(`Ижил текстийг ${g.duplicateHashes} удаа давхар хадгалсан (content_hash давхардсан): db-sink-ийн давхардлын шалгалтыг шалгах.`);
-    if (g.siteErrors?.length) info(`Сайт сүүлийн 24 цагт серверийн алдаа гаргасан: ${g.siteErrors.map((e) => `${e.route} (${e.route.startsWith("CLIENT ") ? `≈${e.count * 10} уншигч` : `${e.count}×`}): ${e.message.replace(/@/g, "＠").replace(/`/g, "'")}`).join("; ")}. «CLIENT» гэсэн нь уншигчийн утас/хөтөч дээрх JavaScript алдаа; бусдыг Vercel-ийн лог дээр «[request-error]» гэж хайж дэлгэрэнгүйг харна.`);
+    // The count is the error's total since it was first seen, not the last 24 h (audit R-5).
+    if (g.siteErrors?.length) info(`Сайт сүүлийн 24 цагт серверийн алдаа гаргасан (тоо нь анх гарснаас хойших нийт): ${g.siteErrors.map((e) => `${e.route} (${e.route.startsWith("CLIENT ") ? `нийт ≈${e.count * 10} уншигч` : `нийт ${e.count}×`}): ${e.message.replace(/@/g, "＠").replace(/`/g, "'")}`).join("; ")}. «CLIENT» гэсэн нь уншигчийн утас/хөтөч дээрх JavaScript алдаа; бусдыг Vercel-ийн лог дээр «[request-error]» гэж хайж дэлгэрэнгүйг харна.`);
     if (g.egressMbPerDay != null && g.egressMbPerDay > EGRESS_MB_PER_DAY_WARN) info(`Supabase egress өдөрт ≈${g.egressMbPerDay} MB (тооцоолол): үнэгүй 5 GB-д багтахын тулд өдөрт ${EGRESS_MB_PER_DAY_WARN} MB-аас бага байх ёстой. Хэтэрвэл Supabase төслийг хязгаарлана; extensions.pg_stat_statements-ээс хамгийн их мөр буцаасан query-г олж засна (docs/agents/stack.md, Supabase egress).`);
     if (g.hoursSinceSnapshot != null && g.hoursSinceSnapshot > 2) info(`Нүүр болон сэдвийн хуудсуудын snapshot ${Math.round(g.hoursSinceSnapshot)} цаг шинэчлэгдээгүй: хуудсууд хуучин мэдээг харуулсаар байна. Pipeline-ийн «snapshots:write» алхмын логийг шалгана.`);
     if (g.unreadableSources?.length) info(`Долоо хоногийн шалгалт: эдгээр сайтын хуудас нээгдэж байгаа ч текст уншигдахгүй байна (хоосон/уншсан): ${g.unreadableSources.join(", ")}. Сайтын бүтэц өөрчлөгдсөн байж магадгүй тул тэндээс шинэ мэдээ ирэхгүй болно; адаптерыг шалгана.`);
@@ -319,7 +320,9 @@ export function healthProblems(s: HealthSnapshot, config: HealthConfig, now = ne
     else if (daysUntil(n.securityTxtExpires, now) < 30) info(`security.txt-ийн Expires ${ymd(n.securityTxtExpires)}: сунгах.`);
   }
   for (const cert of s.bundledCerts ?? []) {
-    if (daysUntil(cert.validTo, now) < 60) info(`${cert.file} гэрчилгээ ${ymd(cert.validTo)}-нд дуусна: DigiCert-ээс шинэ intermediate татаж солих (audit.mn-ийн өгөгдөл).`);
+    // Each bundled file has its own source: the Supabase root is not a DigiCert intermediate (audit R-5).
+    const hint = /supabase/i.test(cert.file) ? "Supabase-ийн шинэ root CA-г (Database Settings → SSL) татаж src/db/supabase-ca.ts болон энэ файлд солих (docs/agents/stack.md, Database)" : "DigiCert-ээс шинэ intermediate татаж солих (audit.mn-ийн өгөгдөл)";
+    if (daysUntil(cert.validTo, now) < 60) info(`${cert.file} гэрчилгээ ${ymd(cert.validTo)}-нд дуусна: ${hint}.`);
   }
   if (s.workflows) {
     for (const wf of s.workflows.notActive) (CORE_WORKFLOW.test(wf) ? urgent : info)(`Workflow идэвхгүй: ${wf} (Actions → Enable workflow).`);
