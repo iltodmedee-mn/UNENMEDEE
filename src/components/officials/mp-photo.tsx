@@ -1,5 +1,7 @@
 import Image from "next/image";
 
+import { safeHttpUrl } from "@/lib/site";
+
 /** Hosts whose MP photos go through image optimization (next.config.ts images.remotePatterns). */
 const OPTIMIZED = new Set(["parliament.mn", "www.parliament.mn"]);
 
@@ -17,7 +19,10 @@ function optimizable(src: string): boolean {
  * Vercel's image optimization they arrive as small AVIF/WebP at the shown size (cached 30 days);
  * any other host keeps a plain <img>. `eager` (an MP's own page) loads it at once (Next 16: not `priority`).
  */
-export function MpPhoto({ src, size, alt = "", className, eager = false }: { src: string; size: number; alt?: string; className?: string; eager?: boolean }) {
+export function MpPhoto({ src: raw, size, alt = "", className, eager = false }: { src: string; size: number; alt?: string; className?: string; eager?: boolean }) {
+  // The photo URL comes from a scraped profile: only http(s) is rendered (audit S-12).
+  const src = safeHttpUrl(raw);
+  if (!src) return null;
   if (!optimizable(src)) {
     // eslint-disable-next-line @next/next/no-img-element
     return <img src={src} alt={alt} width={size} height={size} loading={eager ? "eager" : "lazy"} className={className} />;

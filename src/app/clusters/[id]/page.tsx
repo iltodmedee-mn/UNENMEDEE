@@ -21,7 +21,9 @@ export async function generateMetadata({ params }: PageProps<"/clusters/[id]">):
   const parsed = parseRouteId(id);
   const data = parsed ? await getCluster(parsed) : null;
   // The canonical is the number itself: "/clusters/007" was a second, self-canonical page.
-  return { title: data?.cluster.title ?? "Кластер", alternates: { canonical: `/clusters/${parsed ?? id}` } };
+  // A cluster left with one story (the others unpublished) is not a cross-source page any more (audit D-4).
+  const single = !!data && data.articles.length < 2;
+  return { title: data?.cluster.title ?? "Кластер", alternates: { canonical: `/clusters/${parsed ?? id}` }, ...(single ? { robots: { index: false, follow: true } } : {}) };
 }
 
 async function ClusterView({ params }: { params: PageProps<"/clusters/[id]">["params"] }) {

@@ -13,12 +13,17 @@ export async function POST(request: Request) {
   if (!hasDatabase()) return new Response(null, { status: 404 });
   const text = await request.text();
   if (text.length > 2_000) return new Response(null, { status: 413 });
-  let body: { nonce?: unknown; tags?: unknown };
+  let parsed: unknown;
   try {
-    body = JSON.parse(text) as typeof body;
+    parsed = JSON.parse(text);
   } catch {
     return new Response(null, { status: 400 });
   }
+  // `null` or a bare value is a bad request, not a 500 in the watchdog's error list; a nonce of
+  // the wrong shape is refused before the database is read (audit S-12).
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return new Response(null, { status: 400 });
+  const body = parsed as { nonce?: unknown; tags?: unknown };
+  if (typeof body.nonce !== "string" || !/^[a-f0-9]{64}$/.test(body.nonce)) return new Response(null, { status: 403 });
   const db = getDb();
   const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, NONCE_KEY)).limit(1);
   if (!nonceValid(row?.value, body.nonce, new Date())) return new Response(null, { status: 403 });

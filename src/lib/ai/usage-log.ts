@@ -56,7 +56,8 @@ export async function syncLedgerAiCost(db: DB, month: string = monthKey()): Prom
   const [row] = await db
     .select({ total: sql<string>`coalesce(sum(${aiUsageLogs.estimatedCostUsd}), 0)` })
     .from(aiUsageLogs)
-    .where(sql`to_char(${aiUsageLogs.createdAt} at time zone 'UTC', 'YYYY-MM') = ${month}`);
+    // A range on created_at, not to_char(created_at): the index can serve a range (audit P-11).
+    .where(and(gte(aiUsageLogs.createdAt, monthStart(month, 0)), lt(aiUsageLogs.createdAt, monthStart(month, 1))));
   const total = Number(row?.total ?? 0);
   await db
     .insert(transparencyLedger)
@@ -119,4 +120,10 @@ export async function dailySpendUsd(db: DB, days: number, now: Date = new Date()
 /** Budget guard backed by the real spend in ai_usage_logs. */
 export function dbBudgetGuard(db: DB): BudgetGuard {
   return createBudgetGuard(() => loadUsageSnapshot(db));
+}
+
+/** The first instant (UTC) of "YYYY-MM" plus `add` months. */
+export function monthStart(month: string, add: number): Date {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1 + add, 1));
 }

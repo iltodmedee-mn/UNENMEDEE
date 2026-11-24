@@ -35,7 +35,9 @@ const DATA_TAG = /<\s*\/?\s*(article_text|news_list|prior_analysis)\b(?:[^>]*>|)
 
 export function wrap(tag: "article_text" | "news_list" | "prior_analysis", text: string): string {
   // Until nothing changes: one pass turned "<article_<article_text>text>" into a real tag.
-  let clean = text;
+  // Invisible format characters (zero-width, bidi overrides, word joiner) could split a tag name
+  // so the pattern below misses it; NFKC folds look-alike forms first (audit S-12).
+  let clean = text.normalize("NFKC").replace(/\p{Cf}/gu, "");
   for (let prev = ""; prev !== clean; ) {
     prev = clean;
     clean = clean.replace(DATA_TAG, "");

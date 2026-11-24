@@ -239,6 +239,20 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
     at: r.publishedAt,
   });
   const byId = new Map(pool.map((r) => [r.id, r]));
+  // Each cluster's first story: joining is transitive, so without this a chain of week-apart
+  // matches grew one cluster over a month (audit D-4). A cluster spans the window at most.
+  const poolClusters = [...new Set(pool.map((r) => r.clusterId).filter((c): c is number => c !== null))];
+  const firstAt = new Map<number, number>();
+  if (poolClusters.length) {
+    const rows = await db
+      .select({ id: articles.clusterId, first: sql<string>`min(${articles.publishedAt})` })
+      .from(articles)
+      .where(inArray(articles.clusterId, poolClusters))
+      .groupBy(articles.clusterId);
+    for (const r of rows) if (r.id !== null) firstAt.set(r.id, new Date(r.first).getTime());
+  }
+  const windowMs = CLUSTER_WINDOW_DAYS * 86_400_000;
+  const fits = (clusterId: number | null, at: Date | null) => clusterId === null || !at || at.getTime() - (firstAt.get(clusterId) ?? at.getTime()) <= windowMs;
   const touched = new Set<number>();
   for (const id of ids) {
     const me = byId.get(id);
@@ -247,12 +261,16 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
       continue;
     }
     // The same source re-posting is not corroboration; cluster across sources only.
-    const match = findBestMatch(toDoc(me), pool.filter((r) => r.sourceId !== me.sourceId).map(toDoc));
+    const match = findBestMatch(
+      toDoc(me),
+      pool.filter((r) => r.sourceId !== me.sourceId && fits(r.clusterId, me.publishedAt)).map(toDoc),
+    );
     if (!match) {
       result.set(id, me.clusterId);
       continue;
     }
     let clusterId = match.doc.clusterId ?? me.clusterId;
+    if (clusterId && !fits(clusterId, me.publishedAt)) clusterId = null; // my own old cluster is too old to join
     if (!clusterId) {
       const [created] = await db.insert(clusters).values({ title: me.title, articleCount: 0 }).returning({ id: clusters.id });
       clusterId = created.id;
@@ -260,6 +278,7 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
     await db.update(articles).set({ clusterId }).where(inArray(articles.id, [id, match.doc.id]));
     if (me.clusterId && me.clusterId !== clusterId) touched.add(me.clusterId);
     touched.add(clusterId);
+    if (!firstAt.has(clusterId) && me.publishedAt) firstAt.set(clusterId, Math.min(me.publishedAt.getTime(), match.doc.at?.getTime() ?? Infinity));
     // Later articles in this batch see the new membership.
     me.clusterId = clusterId;
     const other = byId.get(match.doc.id);

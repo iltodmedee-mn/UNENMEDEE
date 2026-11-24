@@ -95,7 +95,12 @@ async function renewPush(event) {
     }
     const sub = event.newSubscription || (await self.registration.pushManager.subscribe(options));
     const body = JSON.parse(JSON.stringify(sub));
-    body.oldEndpoint = event.oldSubscription ? event.oldSubscription.endpoint : undefined;
+    if (event.oldSubscription) {
+      body.oldEndpoint = event.oldSubscription.endpoint;
+      // The old auth secret proves the old row is ours; the server moves it only then.
+      const auth = event.oldSubscription.getKey && event.oldSubscription.getKey("auth");
+      if (auth) body.oldAuth = btoa(String.fromCharCode(...new Uint8Array(auth))).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+    }
     await fetch("/api/push", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
   } catch {
     // The page-side renewal (use-pwa.ts) retries on the next visit.

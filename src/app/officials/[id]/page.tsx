@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 
-import { SeriesLineChart } from "@/components/iltod/charts";
+import { YearLine } from "@/components/iltod/price-line";
 import { ShareButton } from "@/components/iltod/share-button";
 import { DeclaredCompanies } from "@/components/officials/declared-companies";
 import { FollowToggle } from "@/components/officials/follow";
@@ -239,7 +239,7 @@ async function Profile({ params }: { params: PageProps<"/officials/[id]">["param
           {rows.length > 1 && (
             <section className="rounded-2xl bg-primary p-4 ring-1 ring-line ring-inset">
               <h2 className="mb-2 text-sm font-semibold text-primary">Нийт хөрөнгө жилээр (сая ₮)</h2>
-              <SeriesLineChart data={rows.map((r) => ({ label: String(r.year), value: Math.round((r.totalAssets ?? 0) / 1e5) / 10 }))} name="Нийт хөрөнгө" unit="сая ₮" ariaLabel="Нийт хөрөнгө жилээр" />
+              <YearLine years={rows.map((r) => String(r.year))} values={rows.map((r) => (r.totalAssets == null ? null : Math.round(r.totalAssets / 1e5) / 10))} unit="сая ₮" label="Нийт хөрөнгө жилээр" />
             </section>
           )}
 
