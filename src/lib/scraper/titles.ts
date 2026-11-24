@@ -203,9 +203,12 @@ export function unshoutTitle(title: string): string {
     if (ACRONYMS.has(w) || /\d/.test(w) || /^[A-Z]+$/.test(w)) return w;
     if (w.length === 1 && s[at + 1] === ".") return w; // an initial: "Б."
     const lower = w.toLowerCase();
-    if (s[at - 1] === "." && /\p{Lu}/u.test(s[at - 2] ?? "")) return cap(lower); // the name after "Б." ("С.К.Шойгу-тай")
+    // The name after "Б." ("С.К.Шойгу-тай"), also with a space ("Л. ОЮУН-ЭРДЭНЭ", audit B-16).
+    if (/(?<!\p{L})\p{Lu}\.\s?$/u.test(s.slice(Math.max(0, at - 3), at))) return cap(lower);
     // The second half of a hyphenated given name after an initial: "Л.Оюун-Эрдэнэ", "Б.Бат-Эрдэнэ".
-    if (s[at - 1] === "-" && !CASE_SUFFIX.test(s.slice(at - 1)) && /\p{Lu}\.\p{L}+-$/u.test(s.slice(Math.max(0, at - 40), at))) return cap(lower);
+    if (s[at - 1] === "-" && !CASE_SUFFIX.test(s.slice(at - 1)) && /\p{Lu}\.\s?\p{L}+-$/u.test(s.slice(Math.max(0, at - 40), at))) return cap(lower);
+    // A proper noun before a case ending is not an abbreviation: "МОНГОЛ-ЫН" → "Монгол-ын".
+    if (PROPER.includes(w)) return cap(lower);
     if (w.length <= 6 && CASE_SUFFIX.test(s.slice(at + w.length))) return w;
     return PROPER.some((p) => w.startsWith(p)) ? cap(lower) : lower;
   });

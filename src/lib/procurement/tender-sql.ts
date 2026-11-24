@@ -12,8 +12,15 @@ import { NO_AWARD_SQL } from "@/lib/procurement/tenders";
  * ("…/2026…"), not to the day we first saw it: the 12-month first sync counted 119 lots with 2025
  * codes as this year's (Nov 2026 audit). The backslash is doubled: in a template literal "\d" is
  * just "d", so the database got '/(d{4})' and the code's year was never read (Nov 6 2026).
+ * Only 19xx/20xx is read from the code: "/0000" made make_date raise 22008 and failed the whole
+ * query (audit B-7).
  */
-export const tenderThisYear = sql`coalesce(${tenders.resultDate}, make_date(nullif(substring(${tenders.code} from '/(\\d{4})'), '')::int, 1, 1)) >= date_trunc('year', now() at time zone 'Asia/Ulaanbaatar')::date`;
+const tenderDate = sql`coalesce(${tenders.resultDate}, make_date(substring(${tenders.code} from '/((?:19|20)\\d{2})')::int, 1, 1))`;
+
+export const tenderThisYear = sql`${tenderDate} >= date_trunc('year', now() at time zone 'Asia/Ulaanbaatar')::date`;
+
+/** The same rule for a given year (the money map's own clock, so /money and /tenders count the same lots). */
+export const tenderFromYear = (year: number) => sql`${tenderDate} >= make_date(${year}::int, 1, 1)`;
 
 /**
  * Stored rows keep the awarded flag of the sync that wrote them, so a winner cell later known to be a

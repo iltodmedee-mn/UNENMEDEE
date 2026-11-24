@@ -127,7 +127,7 @@ export function attributable<T extends { shortName: string; isActive?: boolean }
 }
 
 /** "Д. Ганмаа" = "Д.Ганмаа": compared without the space after the initial's dot. */
-const normShort = (name: string): string => name.replace(/\.\s+/g, ".");
+export const normShort = (name: string): string => name.trim().replace(/\.\s+/g, ".");
 
 /** Short names ("Д.Цогтбаатар") that more than one of these people share: nothing can be matched by name alone. */
 export function sharedShortNames(people: { shortName: string }[]): Set<string> {

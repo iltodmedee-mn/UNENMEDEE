@@ -19,7 +19,8 @@ const NOT_A_SUPPLIER = /(?<!\p{L})банк|bank|ббсб|хадгаламж|зэ
 const LEGAL_FORM = /(^|\s)(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|LLC|LTD|INC|JSC)(?=\s|$)/gi;
 
 /** A person's short name inside an item ("Б.Батболд (Хаан банк)"): an initial, a dot, a capitalised name. */
-const PERSON_NAME = /(?<!\p{L})[А-ЯӨҮЁ]\.\s?[А-ЯӨҮЁ][а-яөүё]+/u;
+// Also in capitals ("Б.БАТБОЛД (ХААН БАНК)"): "банк" in it made a private lender an organisation, shown by name (audit B-15).
+const PERSON_NAME = /(?<!\p{L})[А-ЯӨҮЁ]\.\s?[А-ЯӨҮЁ](?:[а-яөүё]+|[А-ЯӨҮЁ]{2,})/u;
 /** The item ends with a legal form: "Б.Бат ХХК" is a company named after its owner. */
 const ENDS_WITH_FORM = /(^|[\s"«»“”])(ХХК|ХК|ТӨХК|ТӨҮГ|ХЗХ|ББСБ|ААН|ҮЦК|ТББ|LLC|LTD|INC|JSC)[\s"«»“”).]*$/iu;
 
@@ -68,7 +69,9 @@ function orgs(list: string | undefined, hidden: { n: number }): DeclaredOrg[] {
   const out = new Map<string, DeclaredOrg>();
   for (const name of split(list)) {
     if (!isOrgName(name)) {
-      hidden.n++;
+      // Counted as a hidden person only when it reads as one: a company declared without its legal
+      // form ("Монгол шуудан") is left out, not reported as a private person (audit B-15).
+      if (PERSON_NAME.test(name) || /^[А-ЯӨҮЁ][а-яөүё]+\s+[А-ЯӨҮЁ][а-яөүё]+$/u.test(name)) hidden.n++;
       continue;
     }
     const key = orgKey(name);

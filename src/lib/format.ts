@@ -152,16 +152,34 @@ export function amountValue(amount: string): number | null {
   if (FOREIGN.test(amount)) return null;
   // Only a ₮ / төгрөг / төг amount: "3 сая хүн", "2 тэрбум кВт.ц" and "2026 он" are not money.
   if (!HAS_MNT_MARKER.test(amount)) return null;
-  // The number that carries the unit or the mark, not a leading year ("2026 онд 5 тэрбум ₮").
-  const m =
-    amount.match(/(\d[\d\s,.]*?)\s*(их наяд|тэрбум|сая|мянга)/i) ??
-    amount.match(/(\d[\d\s,.]*?)\s*(?:₮|төгрөг|төг|MNT)/i) ??
-    amount.match(/(\d[\d\s,.]*)\s*(их наяд|тэрбум|сая|мянга)?/i);
+  // The number that carries the unit or the mark, not a leading year ("2026 онд 5 тэрбум ₮") or
+  // date ("2026.05.13 5 тэрбум ₮" read "2026.05.13 5" as one number, audit B-16): a space or dot
+  // inside a number only groups thousands.
+  const scaled = [...amount.matchAll(new RegExp(`${AMOUNT_NUMBER}\\s*(их наяд|тэрбум|сая|мянга)`, "gi"))];
+  if (scaled.length) {
+    // "1 тэрбум 200 сая ₮": each next number with a smaller scale right after adds to it.
+    let total = 0;
+    let end = -1;
+    let lastScale = Infinity;
+    for (const m of scaled) {
+      const scale = AMOUNT_UNITS[m[2].toLowerCase()];
+      if (end >= 0 && (!/^\s*$/.test(amount.slice(end, m.index)) || scale >= lastScale)) break;
+      const n = parseAmountNumber(m[1], true);
+      if (!Number.isFinite(n)) return total || null;
+      total += n * scale;
+      end = m.index + m[0].length;
+      lastScale = scale;
+    }
+    return total;
+  }
+  const m = amount.match(new RegExp(`${AMOUNT_NUMBER}\\s*(?:₮|төгрөг|төг|MNT)`, "i")) ?? amount.match(new RegExp(AMOUNT_NUMBER));
   if (!m) return null;
-  const unitWord = m[2]?.toLowerCase();
-  const n = parseAmountNumber(m[1], Boolean(unitWord));
-  return Number.isFinite(n) ? n * (AMOUNT_UNITS[unitWord ?? ""] ?? 1) : null;
+  const n = parseAmountNumber(m[1], false);
+  return Number.isFinite(n) ? n : null;
 }
+
+/** One written number: "12 500 000", "1.250.000", "2,5", "15" (never "2026.05.13 5"). */
+const AMOUNT_NUMBER = String.raw`(?<![\d.,])(\d{1,3}(?:[ ,.]\d{3})+(?:[.,]\d+)?|\d+(?:[.,]\d+)?)(?![\d])`;
 
 /**
  * The biggest of the extracted ₮ amounts (the chip on a story row), or undefined when none reads

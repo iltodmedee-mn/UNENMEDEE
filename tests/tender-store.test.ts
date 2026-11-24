@@ -6,7 +6,7 @@ import { sql } from "drizzle-orm";
 import type { DB } from "@/db";
 import { COMPANY_MATCHES_KEY, readCompanyMatches, storeCompanyMatches } from "@/lib/procurement/company-matches";
 import { upsertTenders } from "@/lib/procurement/tender-store";
-import { type Tender, unitSuspect } from "@/lib/procurement/tenders";
+import { mergeLot, type Tender, unitSuspect } from "@/lib/procurement/tenders";
 
 process.env.DATABASE_URL = "pglite:memory";
 
@@ -53,6 +53,24 @@ describe("upsertTenders (PGlite)", () => {
   });
   beforeEach(async () => {
     await db.execute(sql`delete from tenders`);
+  });
+
+  it("a winner in one filing and the amount in the next is an award, and a missing governor keeps the stored one (audit B-14)", async () => {
+    await upsertTenders(db, [lot({ winner: "Говь Билд ХХК" })], false, T0);
+    await upsertTenders(db, [lot({ contractMnt: 80_000_000, governor: null })], false, T0);
+    const r = (await db.execute(sql`select awarded, governor, winner, awarded_seen_at from tenders`)).rows as { awarded: boolean; governor: string | null; winner: string; awarded_seen_at: Date | null }[];
+    assert.equal(r[0].awarded, true);
+    assert.equal(r[0].governor, "Орхон");
+    assert.equal(r[0].winner, "Говь Билд ХХК");
+    assert.ok(r[0].awarded_seen_at, "dated when it became an award");
+  });
+
+  it("the same merge inside one sync's rows", () => {
+    const m = mergeLot(lot({ winner: "Говь Билд ХХК", budgetMnt: 90_000_000 }), lot({ contractMnt: 80_000_000, budgetMnt: 95_000_000, governor: null }));
+    assert.equal(m.awarded, true);
+    assert.equal(m.budgetMnt, 95_000_000, "the newer filing's budget");
+    assert.equal(m.governor, "Орхон");
+    assert.equal(mergeLot(lot({ winner: "-" }), lot({ contractMnt: 80_000_000 })).awarded, false, "a dash is not a winner");
   });
 
   // Nov 7-9 2026: every sync failed with 23502 on unit_suspect, so no tender was stored.

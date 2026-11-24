@@ -7,12 +7,16 @@ import { sql } from "drizzle-orm";
 
 import type { DB } from "@/db";
 import { tenders } from "@/db/schema";
-import { MIN_PLAIN_MNT, type Tender, UNIT_RATIO } from "@/lib/procurement/tenders";
+import { MIN_PLAIN_MNT, NO_AWARD_SQL, type Tender, UNIT_RATIO } from "@/lib/procurement/tenders";
 
 const BATCH = 300;
 
 const budget = sql`coalesce(excluded.budget_mnt, ${tenders.budgetMnt})`;
 const contract = sql`coalesce(excluded.contract_mnt, ${tenders.contractMnt})`;
+// A later filing that says "-" keeps the stored winner of an awarded lot.
+const winner = sql`case when ${tenders.awarded} and not excluded.awarded then ${tenders.winner} else coalesce(excluded.winner, ${tenders.winner}) end`;
+// Decided again on the merged row: the stored winner plus a new filing's amount is an award (audit B-14).
+const awarded = sql`(${tenders.awarded} or excluded.awarded or coalesce(${winner} !~* ${NO_AWARD_SQL} and ${contract} is not null, false))`;
 
 /**
  * unitSuspect() (tenders.ts) on the MERGED budget and contract: the incoming flag was computed
@@ -60,17 +64,16 @@ export async function upsertTenders(db: DB, rows: Tender[], firstSync: boolean, 
         set: {
           title: sql`excluded.title`,
           orgName: sql`excluded.org_name`,
-          governor: sql`excluded.governor`,
+          governor: sql`coalesce(excluded.governor, ${tenders.governor})`,
           budgetMnt: budget,
           contractMnt: contract,
           method: sql`coalesce(excluded.method, ${tenders.method})`,
-          // A later filing that says "-" keeps the stored winner of an awarded lot.
-          winner: sql`case when ${tenders.awarded} and not excluded.awarded then ${tenders.winner} else coalesce(excluded.winner, ${tenders.winner}) end`,
-          awarded: sql`${tenders.awarded} or excluded.awarded`,
+          winner,
+          awarded,
           unitSuspect: mergedUnitSuspect,
           resultDate: sql`coalesce(excluded.result_date, ${tenders.resultDate})`,
           // Set once, when a stored lot first turns awarded; later syncs never move it.
-          awardedSeenAt: sql`case when excluded.awarded and not ${tenders.awarded} then now() else ${tenders.awardedSeenAt} end`,
+          awardedSeenAt: sql`case when ${awarded} and not ${tenders.awarded} then now() else ${tenders.awardedSeenAt} end`,
           updatedAt: sql`now()`,
         },
       });

@@ -50,6 +50,7 @@ describe("Миний гишүүн", () => {
       { id: 111, shortName: "Д.Цогтбаатар" },
       { id: 1, shortName: "Б.Бейсен" },
     ];
+    assert.equal(mentionAlerts([{ slug: "d", title: "x", people: ["Д. Ганмаа"] }], [{ id: 7, shortName: "Д.Ганмаа" }], [{ endpoint: "e", follows: [7] }]).length, 1, "audit B-15");
     assert.deepEqual(mentionAlerts(articles, pols, [{ endpoint: "e1", follows: [110] }, { endpoint: "e2", follows: [111, 1] }]), []);
   });
 });

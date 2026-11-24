@@ -26,6 +26,9 @@ describe("money map places", () => {
     assert.equal(aimagOf({ governor: "Хууль зүй, дотоод хэргийн сайд", orgName: "Завхан аймгийн цагдаагийн газар" }), "Завхан");
     assert.equal(aimagOf({ governor: "Эрүүл мэндийн сайд", orgName: "Сонгинохайрхан дүүргийн эрүүл мэндийн төв" }), "Улаанбаатар");
     assert.equal(aimagOf({ governor: "Эрүүл мэндийн сайд", orgName: "Цэргийн төв эмнэлэг" }), null);
+    // Rural sums share district names: only "… дүүрэг" is Ulaanbaatar (audit B-7).
+    assert.equal(aimagOf({ governor: "Боловсролын сайд", orgName: "Баянгол сумын ерөнхий боловсролын сургууль" }), null);
+    assert.equal(aimagOf({ governor: "Боловсролын сайд", orgName: "Баянгол дүүргийн 23 дугаар сургууль" }), "Улаанбаатар");
     // Sükhbaatar the aimag, not the Ulaanbaatar district
     assert.equal(aimagOf({ governor: null, orgName: "Сүхбаатар аймгийн Засаг даргын Тамгын газар" }), "Сүхбаатар");
   });
@@ -33,6 +36,12 @@ describe("money map places", () => {
   it("a sum, town or district the text names, inside that aimag only", () => {
     assert.equal(placeIn("Өмнөговь аймгийн Даланзадгад хотын захирагчийн ажлын алба", "Өмнөговь")?.name, "Даланзадгад");
     assert.equal(placeIn("Сонгинохайрхан дүүргийн засаг даргын тамгын газар", "Улаанбаатар")?.kind, "district");
+    // Sums that moved to Дархан-Уул (1994) and Говьсүмбэр, and Увс sums once spelled with γ / ɵ.
+    assert.equal(placeIn("Шарынгол сумын ЗДТГ", "Дархан-Уул")?.name, "Шарынгол");
+    assert.equal(placeIn("Шивээговь сумын ЗДТГ", "Говьсүмбэр")?.name, "Шивээговь");
+    assert.equal(placeIn("Түргэн сумын ЗДТГ", "Увс")?.name, "Түргэн");
+    assert.equal(placeKey("Бɵхмɵрɵн"), placeKey("Бөхмөрөн"));
+    assert.ok(!ALL_PLACES.some((p) => p.name === "Багануур" && p.aimag !== "Улаанбаатар"), "Багануур is a district");
     assert.equal(placeIn("Сонгинохайрхан дүүргийн засаг даргын тамгын газар", "Өмнөговь"), null);
     assert.equal(placeIn("Боловсролын газар", "Өмнөговь"), null);
   });
