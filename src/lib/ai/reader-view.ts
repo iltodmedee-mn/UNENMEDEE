@@ -21,7 +21,10 @@ const LIMITS: Record<keyof ReaderImpact, number> = { who: 70, change: 220, when:
 /** Placeholders models write instead of null. */
 const EMPTY = /^(null|none|n\/a|үгүй|байхгүй|тодорхойгүй|мэдээлэлгүй|дурдаагүй|текстэд\s+(байхгүй|дурдаагүй|тодорхойгүй)|-|—|–)\.?$/i;
 
-const NUMBER = /\d(?:[\d\s,.'\u00a0\u202f]*\d)?/g;
+// Spaces inside a number, never a line break: "2026\n11" is two numbers, not 202611 (audit B-8).
+const NUMBER = /\d(?:[\d ,.'\u00a0\u202f]*\d)?/g;
+/** A written date ("2026.10.20", "2026-10-20"): three numbers, not one. */
+const DATE = /^(\d{4})[.\-/](\d{1,2})[.\-/](\d{1,2})$/;
 const SCALES: [RegExp, number][] = [
   [/^\s*их\s+наяд/i, 1e12],
   [/^\s*наяд/i, 1e12],
@@ -56,8 +59,15 @@ function numberTokens(text: string, months: boolean): NumberToken[] {
   for (const m of text.matchAll(NUMBER)) {
     const after = text.slice(m.index + m[0].length, m.index + m[0].length + 14);
     if (!months && /^\s*-?\s*(р|дүгээр|дугаар|дүгээр)?\s*сар/i.test(after) && Number(m[0]) <= 12) continue;
+    const date = DATE.exec(m[0]);
+    if (date) {
+      for (const part of date.slice(1)) out.push({ digits: part.replace(/^0+(?=\d)/, ""), value: Number(part), base: Number(part), scaled: false });
+      continue;
+    }
     const scale = SCALES.find(([re]) => re.test(after))?.[1];
-    const base = parseNumber(m[0]);
+    // Before a scale word a dot and three digits is a decimal: "1.250 тэрбум" is 1.25 тэрбум, not
+    // 1 250 тэрбум (audit B-8). A comma groups thousands there: "2,500 сая" is 2.5 тэрбум (format.ts).
+    const base = scale !== undefined && /^\d{1,3}\.\d{3}$/.test(m[0].trim()) ? Number(m[0].trim()) : parseNumber(m[0]);
     out.push({ digits: m[0].replace(/\D/g, "").replace(/^0+(?=\d)/, ""), value: base * (scale ?? 1), base, scaled: scale !== undefined });
   }
   return out;
@@ -65,7 +75,7 @@ function numberTokens(text: string, months: boolean): NumberToken[] {
 
 /** The source's digits with thousand separators removed, so "600,000" and "600000" match. */
 export function sourceDigits(source: string): string {
-  return source.replace(/(?<=\d)[\s,.'\u00a0\u202f]{1,2}(?=\d)/g, "");
+  return source.replace(/(?<=\d)[ ,.'\u00a0\u202f]{1,2}(?=\d)/g, "");
 }
 
 /**
@@ -79,7 +89,8 @@ export function numbersGrounded(text: string, source: string | null): boolean {
   const own = numberTokens(source, true);
   // Compared by value, not by digits: "1.5" and "15" share the digits "15" (Nov 2026 audit: a
   // "15 хувь" headline passed for a source saying "1.5 хувь").
-  const bases = new Set(own.map((t) => t.base));
+  // Only the source's plain numbers: "15 хувь" is not grounded by a source that says "15 сая" (audit B-8).
+  const bases = new Set(own.filter((t) => !t.scaled).map((t) => t.base));
   // A number with its own scale word is compared by value only: "15 тэрбум" is not grounded by a
   // source that says "15 сая" (the bare-number match let a 1000× amount through, Nov 2026).
   return numberTokens(text, false).every(

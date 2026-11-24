@@ -7,11 +7,11 @@
  *   MONEY_ITEMS_KEY      each point's biggest lots: fetched once by the map from a CDN-cached route
  * Amounts flagged as a likely unit error are left out of the sums.
  */
-import { and, desc, eq, gte } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 
 import type { DB } from "@/db";
 import { indicatorSnapshots, tenders } from "@/db/schema";
-import { tenderAwarded, tenderFirstOfSame } from "@/lib/procurement/tender-sql";
+import { tenderAwarded, tenderFirstOfSame, tenderFromYear } from "@/lib/procurement/tender-sql";
 
 import { type Category, categoryOf } from "./categories";
 import { type Aimag, aimagOf, centreOf, placeIn } from "./regions";
@@ -135,7 +135,7 @@ export async function storeMoneyMap(db: DB, now = new Date()): Promise<number> {
   const lots = await db
     .select({ title: tenders.title, orgName: tenders.orgName, governor: tenders.governor, winner: tenders.winner, contractMnt: tenders.contractMnt, resultDate: tenders.resultDate })
     .from(tenders)
-    .where(and(tenderAwarded, tenderFirstOfSame, eq(tenders.unitSuspect, false), gte(tenders.resultDate, `${year}-01-01`)))
+    .where(and(tenderAwarded, tenderFirstOfSame, eq(tenders.unitSuspect, false), tenderFromYear(year)))
     .orderBy(desc(tenders.contractMnt));
   const { map, items } = buildMoneyMap(lots as Lot[], year, now);
   const asOf = now.toISOString().slice(0, 10);

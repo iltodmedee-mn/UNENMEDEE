@@ -168,9 +168,9 @@ describe("watchdog rules", () => {
     assert.deepEqual(only((s) => (s.videos = { ...fresh, hoursSincePost: { facebook: 5, threads: 5, instagram: null } }), config), []);
     assert.deepEqual(only((s) => (s.videos = { hoursSinceVideo: null, hoursSincePost: {} }), { ...CONFIG, videoPosting: false }), []);
     // "false" does not stop the videos (only "off" does): say so instead of letting the owner believe it did.
-    const spelled = healthProblems(healthy(), { ...CONFIG, videoPosting: true, videoPostingValue: "false" });
+    const spelled = healthProblems(healthy(), { ...CONFIG, videoPosting: true, videoPostingValue: "false" }, NOW);
     assert.ok(spelled.some((p) => p.level === "info" && /VIDEO_POSTING = «false»/.test(p.text)), spelled.map((p) => p.text).join("\n"));
-    assert.ok(!healthProblems(healthy(), { ...CONFIG, videoPosting: false, videoPostingValue: "OFF" }).some((p) => /VIDEO_POSTING/.test(p.text)));
+    assert.ok(!healthProblems(healthy(), { ...CONFIG, videoPosting: false, videoPostingValue: "OFF" }, NOW).some((p) => /VIDEO_POSTING/.test(p.text)));
   });
 
   it("press feeds and the pipeline-fallback token", () => {
@@ -222,7 +222,7 @@ describe("data integrity and phone layout rules", () => {
     );
     assert.equal(out.length, 4);
     assert.ok(out.some((l) => /TLS сертификат.*new\.gov\.mn/.test(l)));
-    assert.ok(out.some((l) => /GET \/tax \(4×\): TypeError: bad/.test(l)));
+    assert.ok(out.some((l) => /GET \/tax \(нийт 4×\): TypeError: bad/.test(l)));
     assert.ok(out.some((l) => /403.*PIPELINE-FALLBACK/.test(l)));
     assert.ok(out.some((l) => /mof\.gov\.mn \(5\/5\)/.test(l)));
     const ok = evaluateHealth({ integrity: { ...clean, siteErrors: [], fallbackDispatchStatus: 204, unreadableSources: [] } }, CONFIG, NOW);

@@ -6,6 +6,10 @@ import { extractMntAmounts, extractTenderMeta, amountToNumber, hasTenderSignals 
 import { cleanTitle, extractArticle, htmlFragmentToText, plainTitle } from "@/lib/scraper/extractor";
 import { safeDecode } from "@/lib/scraper/links";
 import { contentHash, normalizeText, slugify, truncate } from "@/lib/text";
+import { pinClock } from "./helpers/fixed-clock";
+
+// Real 2026 pages: their dates go through the future/stale-date rules, so the clock is pinned (audit T-3).
+pinClock();
 
 const fixture = (name: string) => readFileSync(new URL(`./fixtures/${name}`, import.meta.url), "utf8");
 

@@ -68,6 +68,28 @@ describe("DomainThrottle", () => {
     const elapsed = Date.now() - start;
     assert.ok(elapsed >= 55 && elapsed < 200, `elapsed ${elapsed}ms`);
   });
+
+  it("one clock for robots.txt, the API, both passes and the www. twin: every gap is at least 8 s (audit R-2)", async () => {
+    let t = 0;
+    const starts: number[] = [];
+    const throttle = new DomainThrottle(8_000, () => t, async (ms) => {
+      t += ms;
+    });
+    const hit = async (host: string, extra = 0) => {
+      await throttle.wait(host, extra);
+      starts.push(t);
+    };
+    await hit("www.gov.mn"); // robots.txt
+    await hit("www.gov.mn"); // the API listing (politeFetch)
+    await hit("gov.mn"); // pass 1 page, bare host
+    t += 1_000; // pass 2 starts a new Crawlee instance a second later
+    await hit("www.gov.mn");
+    await hit("www.gov.mn", 12_000); // a Crawl-delay above the floor
+    await hit("www.gov.mn");
+    const gaps = starts.slice(1).map((s, i) => s - starts[i]);
+    // The 12 s Crawl-delay counts from the start before it, and the one after still waits it out.
+    assert.deepEqual(gaps, [8_000, 8_000, 8_000, 12_000, 12_000]);
+  });
 });
 
 describe("getRobots", () => {

@@ -116,6 +116,10 @@ describe("watchdog collectors (PGlite)", () => {
     const { recordSiteError } = await import("@/lib/site-errors");
     for (let i = 0; i < 3; i++) await recordSiteError(db, { method: "GET", path: "/article/x?utm=1", routePath: "/article/[slug]", err: new Error("boom") });
     await recordSiteError(db, { method: "GET", path: "/tax?a=b", err: new TypeError("bad") });
+    await recordSiteError(db, { method: "GET", path: "/old", err: new Error("gone") });
+    // Pinned to the test's clock, not the real one: the 24 h cutoff is what is tested (audit T-3).
+    await db.execute(sql`update site_errors set last_seen = ${ago(2).toISOString()}::timestamptz`);
+    await db.execute(sql`update site_errors set last_seen = ${ago(30).toISOString()}::timestamptz where route = 'GET /old'`);
     await db.execute(sql`insert into app_settings (key, value) values ('extraction_check', ${JSON.stringify({ at: ago(24).toISOString(), broken: [{ domain: "mof.gov.mn", read: 5, empty: 5 }] })})`);
     await db.execute(sql`insert into app_settings (key, value) values ('tls_broken_hosts', ${JSON.stringify({ at: ago(24).toISOString(), hosts: ["old.gov.mn", "new.gov.mn"], added: ["new.gov.mn"] })})`);
     const i = await collectIntegrity(db, NOW);
@@ -133,6 +137,16 @@ describe("watchdog collectors (PGlite)", () => {
     await db.execute(sql`delete from app_settings where key = 'tls_broken_hosts'`);
     await db.execute(sql`delete from site_errors`);
     await db.execute(sql`delete from app_settings where key = 'extraction_check'`);
+  });
+
+  it("integrity: the oldest of today's snapshots counts, a retired filter does not (audit R-5)", async () => {
+    await db.execute(sql`insert into feed_snapshots (key, data, hash, built_at) values
+      ('feed:all', '{}', 'a', ${ago(1).toISOString()}::timestamptz),
+      ('feed:risk', '{}', 'b', ${ago(5).toISOString()}::timestamptz),
+      ('feed:retired-filter', '{}', 'c', ${ago(500).toISOString()}::timestamptz)`);
+    const i = await collectIntegrity(db, NOW);
+    assert.equal(Math.round(i.hoursSinceSnapshot ?? -1), 5);
+    await db.execute(sql`delete from feed_snapshots`);
   });
 
   it("social: only a real post id counts, unknown is counted for 7 days", async () => {
@@ -163,5 +177,15 @@ describe("egressMbPerDay", () => {
     assert.equal(egressMbPerDay(null, { at: at(24), rows: 1 }), null);
     assert.equal(egressMbPerDay({ at: at(0), rows: 500 }, { at: at(24), rows: 10 }), null, "stats reset");
     assert.equal(egressMbPerDay({ at: at(0), rows: 0 }, { at: at(2), rows: 10 }), null, "too short to say");
+  });
+
+  it("a run an hour after the last one leaves the stored probe in place (audit R-5)", async () => {
+    const { egressStep } = await import("@/lib/health-collect");
+    const at = (h: number) => new Date(Date.UTC(2026, 10, 8) + h * 3_600_000).toISOString();
+    const first = { at: at(0), rows: 1_000 };
+    assert.deepEqual(egressStep(first, { at: at(1), rows: 2_000 }), { estimate: null, store: false });
+    assert.equal(egressStep(first, { at: at(6), rows: 9_000 }).store, true);
+    assert.equal(egressStep(null, { at: at(1), rows: 5 }).store, true, "the first reading is stored");
+    assert.equal(egressStep(first, { at: at(1), rows: 5 }).store, true, "a stats reset starts over");
   });
 });

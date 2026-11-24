@@ -1,7 +1,7 @@
 import { z } from "zod";
 
 import { LEAKED_KEYS, stripBullet } from "@/lib/format";
-import { isLatinText } from "@/lib/script";
+import { isForeignItem, isLatinText } from "@/lib/script";
 import { isAiTopic } from "@/lib/topics";
 import { RISK_FLAG_THRESHOLD } from "@/lib/types";
 
@@ -94,7 +94,10 @@ export const Tier1Schema = z
   .refine((v) => v.tldr_summary.length >= 20, { error: "tldr_summary is empty" })
   .refine((v) => !LEAKED_KEYS.test(v.tldr_summary), { error: "tldr_summary holds the rest of the JSON reply" })
   // Cyrillic only (script.ts): a transliterated reply fails, so the repair retry or the next provider writes it.
-  .refine((v) => !isLatinText([v.tldr_summary, ...v.facts, v.spin_detected, v.risk_reason].join(" ")), {
+  // Field by field, and line by line in the summary and the facts: one English sentence next to long
+  // Cyrillic ones passed as one joined text (audit B-8). A Latin company name inside a Mongolian
+  // fact stays (isForeignItem).
+  .refine((v) => [v.spin_detected, v.risk_reason].every((f) => !isLatinText(f)) && [...v.tldr_summary.split("\n"), ...v.facts].every((f) => !isForeignItem(f)), {
     message: "the reply is written in Latin letters, not Mongolian Cyrillic",
   });
 
@@ -102,20 +105,20 @@ export type Tier1Result = z.output<typeof Tier1Schema>;
 
 export const Tier2Schema = z.object({
   analysis_markdown: z.string().min(80).transform((v) => clip(v, 12_000)).refine((v) => !isLatinText(v), CYRILLIC_ONLY),
-  citizen_questions: stringList(8),
+  citizen_questions: stringList(8).refine((qs) => qs.every((q) => !isForeignItem(q)), CYRILLIC_ONLY),
 });
 
 export type Tier2Result = z.output<typeof Tier2Schema>;
 
 export const ClusterSchema = z.object({
-  title: z.string().min(5).max(200),
+  title: z.string().min(5).max(200).refine((v) => !isLatinText(v), CYRILLIC_ONLY),
   synthesis: z.string().min(40).transform((v) => clip(v, 1_500)).refine((v) => !isLatinText(v), CYRILLIC_ONLY),
 });
 
 export type ClusterResult = z.output<typeof ClusterSchema>;
 
 /** A model's text field: strings and numbers as written, anything else (null, objects) empty. */
-const plain = (v: unknown) => (typeof v === "string" ? v.trim() : typeof v === "number" && Number.isFinite(v) ? String(v) : "");
+const plain = (v: unknown) => (typeof v === "string" ? cleanModelText(v) : typeof v === "number" && Number.isFinite(v) ? String(v) : "");
 
 /**
  * One editor item. Checked one by one: with `z.coerce.string()` a null "why" was printed as
@@ -129,7 +132,7 @@ const DigestItemSchema = z.object({
 });
 
 export const DigestSchema = z.object({
-  title: z.unknown().transform((v) => plain(v).slice(0, 200)).refine((s) => s.length >= 5, "title is empty"),
+  title: z.unknown().transform((v) => plain(v).slice(0, 200)).refine((s) => s.length >= 5, "title is empty").refine((v) => !isLatinText(v), CYRILLIC_ONLY),
   intro: z.unknown().transform((v) => clip(plain(v), 600)).refine((s) => s.length >= 30, "intro is empty").refine((v) => !isLatinText(v), CYRILLIC_ONLY),
   items: z
     .array(z.unknown())

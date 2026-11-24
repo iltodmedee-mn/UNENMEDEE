@@ -38,7 +38,8 @@ const CYR: Record<string, string> = {
 
 /** One spelling for "Ханбогд" and GeoNames' "Hanbogd" / "Khanbogd", "Завхан" and "Dzavhan". */
 export function placeKey(name: string): string {
-  let s = name.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  // Greek γ and IPA ɵ stand in for ү/ө in some source data ("Тγргэн", "Бɵхмɵрɵн"): read them as such.
+  let s = name.toLowerCase().replace(/γ/g, "ү").replace(/ɵ/g, "ө").normalize("NFD").replace(/[̀-ͯ]/g, "");
   s = [...s].map((ch) => CYR[ch] ?? ch).join("");
   return s
     .replace(/[öő]/g, "o")
@@ -57,7 +58,9 @@ AIMAG_BY_KEY.set(placeKey("Говь-Сүмбэр"), "Говьсүмбэр");
 
 /** The genitive stems text uses: "Өмнөговь аймгийн", "Говь-Алтай аймгийн", "Баянзүрх дүүргийн". */
 const AIMAG_IN_TEXT = new RegExp(`(${AIMAGS.map((a) => a.replace("-", "[- ]?")).join("|")}) (аймаг|аймгийн)`, "i");
-const UB_IN_TEXT = /(нийслэл|улаанбаатар|баянзүрх|сүхбаатар дүүрг|чингэлтэй|баянгол|хан-уул|сонгинохайрхан|налайх|багануур|багахангай)/i;
+// A district name that is also a sum, an aimag or a company counts only with "дүүрэг" (Сэлэнгэ and
+// Өвөрхангай have a Баянгол sum, Хөвсгөл a Баянзүрх sum; audit B-7); the others stand alone.
+const UB_IN_TEXT = /(нийслэл|улаанбаатар|чингэлтэй|хан-уул|сонгинохайрхан|налайх|багахангай|(баянзүрх|сүхбаатар|баянгол|багануур)\s+дүүр)/i;
 
 /** The aimag a tender's money goes to, or null (a ministry buying for the whole country). */
 export function aimagOf(t: { governor: string | null; orgName: string | null }): Aimag | null {

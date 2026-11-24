@@ -74,12 +74,23 @@ export type SubscriptionInput = z.infer<typeof SubscriptionSchema>;
  * the subscription plus, for a renewal, the endpoint it replaces (whose follows move across).
  * One function, so the route can never be laxer than the action.
  */
-export function parseSubscribeRequest(input: unknown): { sub: SubscriptionInput; oldEndpoint: string | null } | null {
+export function parseSubscribeRequest(input: unknown): { sub: SubscriptionInput; old: OldSubscription | null } | null {
   const parsed = SubscriptionSchema.safeParse(input);
   if (!parsed.success) return null;
-  const old = typeof input === "object" && input !== null ? (input as { oldEndpoint?: unknown }).oldEndpoint : undefined;
-  const oldEndpoint = typeof old === "string" && old !== parsed.data.endpoint && isAllowedPushEndpoint(old) ? old : null;
-  return { sub: parsed.data, oldEndpoint };
+  const { oldEndpoint, oldAuth } = typeof input === "object" && input !== null ? (input as { oldEndpoint?: unknown; oldAuth?: unknown }) : {};
+  // The old row moves only with its auth secret: an endpoint URL alone must not let anyone
+  // delete another reader's subscription (audit S-6).
+  const old =
+    typeof oldEndpoint === "string" && oldEndpoint !== parsed.data.endpoint && isAllowedPushEndpoint(oldEndpoint) && typeof oldAuth === "string" && /^[A-Za-z0-9_-]{16,64}={0,2}$/.test(oldAuth)
+      ? { endpoint: oldEndpoint, auth: oldAuth.replace(/=+$/, "") }
+      : null;
+  return { sub: parsed.data, old };
+}
+
+/** The subscription a browser renewal replaces: its endpoint and the auth secret that proves it. */
+export interface OldSubscription {
+  endpoint: string;
+  auth: string;
 }
 
 export const PUSH_PER_IP_PER_HOUR = 60;

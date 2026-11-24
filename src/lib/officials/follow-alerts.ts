@@ -1,6 +1,6 @@
 import { clip, type PushPayload } from "@/lib/push/core";
 
-import { attributable } from "./flags";
+import { attributable, normShort } from "./flags";
 
 /** Server-side half of "Миний гишүүн" (see ./follow.ts). */
 export interface MentionArticle {
@@ -23,9 +23,11 @@ export function mentionAlerts(
   for (const sub of subs) {
     const followed = named.filter((p) => sub.follows.includes(p.id));
     if (!followed.length) continue;
-    const hits = articles.filter((a) => followed.some((p) => a.people.includes(p.shortName)));
+    // "Д. Ганмаа" in an article is "Д.Ганмаа" (audit B-15).
+    const peopleIn = (a: { people: string[] }) => a.people.map(normShort);
+    const hits = articles.filter((a) => followed.some((p) => peopleIn(a).includes(normShort(p.shortName))));
     if (!hits.length) continue;
-    const names = followed.filter((p) => hits.some((a) => a.people.includes(p.shortName))).map((p) => p.shortName);
+    const names = followed.filter((p) => hits.some((a) => peopleIn(a).includes(normShort(p.shortName)))).map((p) => p.shortName);
     out.push({
       endpoint: sub.endpoint,
       payload: {

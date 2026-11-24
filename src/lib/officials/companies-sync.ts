@@ -29,8 +29,9 @@ export async function allPages(path: (page: number) => string, maxPages: number,
     const json = (await get(path(page))) as { content?: unknown; last?: unknown; totalPages?: unknown };
     const content = Array.isArray(json?.content) ? json.content : [];
     out.push(...content);
-    const total = Number(json?.totalPages);
-    if (json?.last === true || content.length === 0 || (Number.isFinite(total) && page + 1 >= total)) return out;
+    // A missing totalPages is "unknown", not 0: Number(null) === 0 ended the walk after page 0 (audit B-15).
+    const total = json?.totalPages == null ? NaN : Number(json.totalPages);
+    if (json?.last === true || content.length === 0 || (Number.isFinite(total) && total > 0 && page + 1 >= total)) return out;
   }
   throw new Error(`more than ${maxPages} pages of results: not checked`);
 }

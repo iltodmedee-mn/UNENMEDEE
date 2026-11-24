@@ -6,7 +6,7 @@ import { z } from "zod";
 
 import { getDb } from "@/db";
 import { appSettings, articles, donations, sources, transparencyLedger } from "@/db/schema";
-import { analyzeArticle, formatDeepAnalysis, processArticle } from "@/lib/ai/analyze";
+import { analyzeArticle, formatDeepAnalysis, processArticle, refreshCluster } from "@/lib/ai/analyze";
 import type { ArticleForAI } from "@/lib/ai/prompts";
 import { AIUnavailableError } from "@/lib/ai/router";
 import { dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-log";
@@ -26,21 +26,35 @@ import { contentHash, normalizeText, slugify, truncate } from "@/lib/text";
 
 const MAX_STORED_CHARS = 15_000;
 
-async function refreshPublic(slug?: string) {
-  // The list pages read snapshots (docs/adr/0001-list-pages-read-snapshots.md): rebuild them now,
-  // or a story taken down here stays on the home page until the next pipeline run.
+/**
+ * After an admin change to one article. The list pages read snapshots
+ * (docs/adr/0001-list-pages-read-snapshots.md): rebuild them now, or a story taken down here stays
+ * on the home page until the next pipeline run. Then only what shows this article (audit P-6):
+ * its page and its clusters. Only a change of visibility (`shown`) also expires every list that
+ * may name it (archives, source pages, MP mentions, digests, search): a story taken down must go
+ * everywhere at once, while a typo fix re-rendering ~3 000 pages was most of an admin edit's cost.
+ */
+async function refreshPublic(slug: string | undefined, { shown = false, clusterIds = [] }: { shown?: boolean; clusterIds?: (number | null | undefined)[] } = {}) {
   try {
     for (const tag of await writeSnapshots()) updateTag(tag);
   } catch (err) {
-    console.error("[admin] snapshots not rebuilt:", err instanceof Error ? err.message : err);
+    console.error(`[admin] snapshots not rebuilt: ${errorLine(err)}`);
   }
-  updateTag("articles");
-  updateTag("clusters");
-  updateTag("ai");
-  // An unpublished or edited article also appears in MP profiles (mentions) and digest editions.
-  updateTag("officials");
-  updateTag("digests");
   if (slug) updateTag(`article-${slug}`);
+  for (const id of new Set(clusterIds)) if (id) updateTag(`cluster-${id}`);
+  if (shown) {
+    updateTag("articles");
+    updateTag("clusters");
+    updateTag("officials");
+    updateTag("digests");
+  }
+}
+
+/** Recounts the article's cluster after a visibility change, so its size and risk follow (audit D-4). */
+async function recountCluster(clusterId: number | null | undefined): Promise<void> {
+  if (!clusterId) return;
+  const db = getDb();
+  await refreshCluster(db, clusterId, dbUsageLogger(db), dbBudgetGuard(db)).catch((err: unknown) => console.error(`[admin] cluster ${clusterId} not recounted: ${errorLine(err)}`));
 }
 
 /* ------------------------------------------------------------------ articles */
@@ -49,10 +63,11 @@ export async function togglePublish(formData: FormData) {
   await requireAdmin();
   const id = z.coerce.number().int().positive().parse(formData.get("id"));
   const db = getDb();
-  const [row] = await db.select({ isPublished: articles.isPublished, slug: articles.slug }).from(articles).where(eq(articles.id, id));
+  const [row] = await db.select({ isPublished: articles.isPublished, slug: articles.slug, clusterId: articles.clusterId }).from(articles).where(eq(articles.id, id));
   if (!row) return;
   await db.update(articles).set({ isPublished: !row.isPublished }).where(eq(articles.id, id));
-  await refreshPublic(row.slug);
+  await recountCluster(row.clusterId);
+  await refreshPublic(row.slug, { shown: true, clusterIds: [row.clusterId] });
 }
 
 export interface ActionResult {
@@ -81,10 +96,12 @@ export async function reanalyze(_prev: ActionResult | null, formData: FormData):
   const deep = formData.get("deep") === "1";
   const db = getDb();
   try {
+    const [before] = await db.select({ clusterId: articles.clusterId }).from(articles).where(eq(articles.id, id));
     const res = await processArticle(db, id, { log: dbUsageLogger(db), budget: dbBudgetGuard(db), forceDeep: deep, purpose: "admin" });
     await syncLedgerAiCost(db);
-    const [row] = await db.select({ slug: articles.slug }).from(articles).where(eq(articles.id, id));
-    await refreshPublic(row?.slug);
+    updateTag("ledger");
+    const [row] = await db.select({ slug: articles.slug, clusterId: articles.clusterId }).from(articles).where(eq(articles.id, id));
+    await refreshPublic(row?.slug, { clusterIds: [before?.clusterId, row?.clusterId] });
     const deepNote = res.tier2 ? ` · Гүнзгий: ${res.tier2Provider}` : res.tier2Error ? ` · Гүнзгий шинжилгээ хийгдсэнгүй (${res.tier2Error.slice(0, 120)})` : "";
     return { ok: true, message: `Эрсдэл ${res.tier1.risk_score}/100 · ${res.tier1Provider}${deepNote} · $${res.costUsd.toFixed(5)}` };
   } catch (err) {
@@ -110,7 +127,7 @@ export async function saveArticle(_prev: ActionResult | null, formData: FormData
   const { id, title, tldr, content, published, clearReader } = parsed.data;
   const db = getDb();
   const [current] = await db
-    .select({ title: articles.title, cleanContent: articles.cleanContent, slug: articles.slug, readerTitle: articles.readerTitle })
+    .select({ title: articles.title, cleanContent: articles.cleanContent, slug: articles.slug, readerTitle: articles.readerTitle, isPublished: articles.isPublished, clusterId: articles.clusterId })
     .from(articles)
     .where(eq(articles.id, id));
   if (!current) return { ok: false, message: "Нийтлэл олдсонгүй." };
@@ -131,7 +148,9 @@ export async function saveArticle(_prev: ActionResult | null, formData: FormData
       ...(newContent !== current.cleanContent ? { editedAt: new Date() } : {}),
     })
     .where(eq(articles.id, id));
-  await refreshPublic(current.slug);
+  const shown = (published === "on") !== current.isPublished;
+  if (shown) await recountCluster(current.clusterId);
+  await refreshPublic(current.slug, { shown, clusterIds: [current.clusterId] });
   return { ok: true, message: dropReaderTitle ? "Хадгаллаа. AI-ийн энгийн гарчгийг хасав: уншигчид таны гарчгийг харна." : "Хадгаллаа." };
 }
 
@@ -141,7 +160,7 @@ export async function saveArticle(_prev: ActionResult | null, formData: FormData
 const optionalUsd = z.preprocess((v) => (v === "" || v === undefined || v === null ? null : v), z.coerce.number().min(0).max(1e7).nullable());
 
 const Ledger = z.object({
-  month: z.string().regex(/^\d{4}-\d{2}$/),
+  month: z.string().regex(/^\d{4}-(0[1-9]|1[0-2])$/),
   infraCostUsd: z.coerce.number().min(0).max(1e6),
   adRevenueUsd: optionalUsd,
   donationsUsd: optionalUsd,
@@ -187,7 +206,7 @@ export async function saveDonation(_prev: ActionResult | null, formData: FormDat
       .insert(appSettings)
       .values({ key: DONATION_KEY, value })
       .onConflictDoUpdate({ target: appSettings.key, set: { value, updatedAt: new Date() } });
-    updateTag("settings");
+    updateTag("donation");
     return { ok: true, message: `Хадгаллаа: ${parsed.data.bank} ${parsed.data.account}` };
   });
 }
@@ -231,7 +250,7 @@ export async function saveAbout(_prev: ActionResult | null, formData: FormData):
       .insert(appSettings)
       .values({ key: ABOUT_KEY, value: JSON.stringify(value) })
       .onConflictDoUpdate({ target: appSettings.key, set: { value: JSON.stringify(value), updatedAt: new Date() } });
-    updateTag("settings");
+    updateTag("about");
     return { ok: true, message: "Хадгаллаа: /about шууд шинэчлэгдэнэ. Хоосон үлдээсэн хэсэгт анхдагч текст харагдана." };
   });
 }
@@ -374,6 +393,9 @@ export async function publishFiltered(payload: z.input<typeof PublishPayload>): 
       .values({ name: v.url ? domain : "Редакцийн оруулга", domain, urlPattern: v.url ? `${new URL(v.url).origin}/` : "https://manual.iltod/", category: "agency", isActive: false, discoveredFrom: "admin" })
       .returning({ id: sources.id });
   }
+  // The same text under another URL is the same story (CLAUDE.md §4.2; audit D-3).
+  const [dup] = await db.select({ id: articles.id }).from(articles).where(eq(articles.contentHash, contentHash(v.text))).limit(1);
+  if (dup) return { ok: false, message: "Энэ текст аль хэдийн нийтлэгдсэн байна." };
   const originalUrl = v.url ?? `https://manual.iltod/${contentHash(v.text).slice(0, 16)}`;
   const slug = slugify(v.title, originalUrl);
   const inserted = await db
@@ -396,6 +418,7 @@ export async function publishFiltered(payload: z.input<typeof PublishPayload>): 
     .onConflictDoNothing()
     .returning({ id: articles.id });
   if (!inserted.length) return { ok: false, message: "Энэ URL/текст аль хэдийн нийтлэгдсэн байна." };
+  // A new story: it joins archives and its source page within their own lifetimes.
   await refreshPublic(slug);
   return { ok: true, message: "Нийтэллээ.", slug };
 }

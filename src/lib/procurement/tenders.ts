@@ -179,18 +179,26 @@ export function parseTenders(answers: unknown[], year: number, today: string): T
   return [...byKey.values()];
 }
 
-/** A later row of the same lot fills what an earlier one left empty. */
-function mergeLot(prev: Tender, t: Tender): Tender {
+/**
+ * A later row of the same lot: its values win where it has them (as the database upsert does), and
+ * it fills what the earlier one left empty. `awarded` is decided again on the merged row: a winner
+ * in one filing and the amount in the next is an award, though neither row was one alone (audit B-14).
+ */
+export function mergeLot(prev: Tender, t: Tender): Tender {
+  // A later "-" never replaces a named winner (43 lots read "Шалгарсан: -", Nov 2026 audit).
+  const winner = t.winner && !(namesNoWinner(t.winner) && prev.winner && !namesNoWinner(prev.winner)) ? t.winner : (prev.winner ?? t.winner);
+  const budgetMnt = t.budgetMnt ?? prev.budgetMnt;
+  const contractMnt = t.contractMnt ?? prev.contractMnt;
   return {
     ...prev,
-    budgetMnt: prev.budgetMnt ?? t.budgetMnt,
-    contractMnt: t.contractMnt ?? prev.contractMnt,
-    method: prev.method ?? t.method,
-    // A later "-" never replaces a named winner (43 lots read "Шалгарсан: -", Nov 2026 audit).
-    winner: t.winner && !(namesNoWinner(t.winner) && prev.winner && !namesNoWinner(prev.winner)) ? t.winner : (prev.winner ?? t.winner),
-    awarded: t.awarded || prev.awarded,
+    governor: t.governor ?? prev.governor,
+    budgetMnt,
+    contractMnt,
+    method: t.method ?? prev.method,
+    winner,
+    awarded: t.awarded || prev.awarded || (!!winner && !NO_AWARD.test(winner) && contractMnt !== null),
     resultDate: t.resultDate ?? prev.resultDate,
-    unitSuspect: unitSuspect(prev.budgetMnt ?? t.budgetMnt, t.contractMnt ?? prev.contractMnt),
+    unitSuspect: unitSuspect(budgetMnt, contractMnt),
   };
 }
 

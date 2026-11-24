@@ -107,6 +107,15 @@ describe("organisation names", () => {
     assert.equal(isOrgName("Хаан банк"), true);
     assert.equal(isOrgName("Төрийн банк ХХК"), true);
   });
+  it("a private lender written in capitals stays hidden (audit B-15)", () => {
+    assert.equal(isOrgName("Б.БАТБОЛД (ХААН БАНК)"), false);
+    assert.equal(isOrgName("Б.БАТ ХХК"), true, "a company named after its owner");
+    assert.equal(declaredCompanies({ stocks: "Монгол шуудан, Б.Бат" }).hiddenPeople, 1, "a company without its legal form is not a hidden person");
+  });
+  it("a page with no totalPages is not the last page (audit B-15)", async () => {
+    const pages = [{ content: [1], totalPages: null }, { content: [2], totalPages: null }, { content: [] }];
+    assert.deepEqual(await allPages((p) => String(p), 5, async (p) => pages[Number(p)]), [1, 2]);
+  });
 });
 
 describe("declared companies in tender winner cells", () => {

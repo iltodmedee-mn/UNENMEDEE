@@ -1434,7 +1434,7 @@ export async function getOfficialCompanies(keys: string[]): Promise<OfficialComp
 export async function getDonation(): Promise<Donation> {
   "use cache";
   cacheLife("days");
-  cacheTag("settings");
+  cacheTag("donation"); // its own tag: "settings" also held /about, and the layout shows this on every page (audit P-6)
   return safe("getDonation", DEFAULT_DONATION, async () => {
     const [row] = await getDb().select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, DONATION_KEY)).limit(1);
     return row ? parseDonation(row.value) : DEFAULT_DONATION;
@@ -1477,7 +1477,7 @@ export async function getDonations(limit = 100): Promise<DonationsSummary> {
 export async function getAbout(): Promise<About> {
   "use cache";
   cacheLife("days");
-  cacheTag("settings");
+  cacheTag("about");
   return safe("getAbout", DEFAULT_ABOUT, async () => {
     const [row] = await getDb().select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, ABOUT_KEY)).limit(1);
     return row ? parseAbout(row.value) : DEFAULT_ABOUT;

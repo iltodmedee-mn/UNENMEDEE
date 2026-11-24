@@ -516,7 +516,8 @@ export async function callAIWithFallback<S extends z.ZodTypeAny>(opts: CallOptio
           messages = [
             ...opts.messages,
             { role: "assistant", content: err instanceof SchemaError || err instanceof TruncatedError ? err.reply.slice(0, 4_000) : "" },
-            { role: "user", content: `Хариулт буруу байна (${message.slice(0, 200)}). Зөвхөн заасан бүтэцтэй, хүчинтэй JSON буцаа.` },
+            // A JSON parse error quotes the reply (and so the source text): only a schema error's own words go back (audit S-12).
+            { role: "user", content: `Хариулт буруу байна (${err instanceof SchemaError ? message.slice(0, 200) : "JSON задлагдсангүй"}). Зөвхөн заасан бүтэцтэй, хүчинтэй JSON буцаа.` },
           ];
           continue;
         }

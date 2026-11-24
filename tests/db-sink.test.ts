@@ -46,6 +46,33 @@ describe("db-sink storage rules (PGlite)", () => {
     assert.equal(await sink.save(district(), { ...base, url: "https://judcouncil.mn/n/2" }), "duplicate");
     // A new sink (a new run) finds it in the database, not only in its in-memory claim.
     assert.equal(await createDbSink(db).save(district(), { ...base, url: "https://judcouncil.mn/n/3" }), "duplicate");
+    // A duplicate of a stored article remembers its URL, so the next run does not fetch it again
+    // (audit D-3). One caught only by this run's in-memory claim does not: that save may still fail.
+    const seen = (await db.execute(sql`select original_url from seen_urls where original_url like 'https://judcouncil.mn/n/%' order by 1`)).rows.map((r) => (r as { original_url: string }).original_url);
+    assert.deepEqual(seen, ["https://judcouncil.mn/n/3"]);
+  });
+
+  it("a save that fails gives its claim back, so the same text can be saved again in the run", async () => {
+    const { createDbSink } = await import("@/lib/scraper/db-sink");
+    const { articles } = await import("@/db/schema");
+    let failOnce = true;
+    const flaky = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop === "insert")
+          return (table: unknown) => {
+            if (table === articles && failOnce) {
+              failOnce = false;
+              throw new Error("connection reset");
+            }
+            return target.insert(table as typeof articles);
+          };
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const sink = createDbSink(flaky);
+    const item = { title: "Шинэ тогтоол гарлаа", text: "Засгийн газрын ээлжит хуралдаанаар шинэ тогтоол баталлаа. ".repeat(10), publishedAt: new Date(), url: "https://judcouncil.mn/retry/1" };
+    await assert.rejects(sink.save(district(), item));
+    assert.equal(await sink.save(district(), item), "inserted");
   });
 
   it("a legalinfo.mn act keeps its own title when another act used it this month (the real list)", async () => {

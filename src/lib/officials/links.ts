@@ -1,4 +1,4 @@
-import { attributable } from "./flags";
+import { attributable, normShort } from "./flags";
 
 export interface PersonLink {
   name: string;
@@ -13,6 +13,7 @@ export interface PersonLink {
  * Pass every politician, inactive ones included (`attributable`).
  */
 export function linkPeople(names: string[], politicians: { id: number; shortName: string; isActive?: boolean }[]): PersonLink[] {
-  const byName = new Map(attributable(politicians).map((p) => [p.shortName, p.id]));
-  return names.map((name) => ({ name, id: byName.get(name.trim()) ?? null }));
+  // "Д. Ганмаа" (a space after the dot) is the same name (audit B-15).
+  const byName = new Map(attributable(politicians).map((p) => [normShort(p.shortName), p.id]));
+  return names.map((name) => ({ name, id: byName.get(normShort(name)) ?? null }));
 }

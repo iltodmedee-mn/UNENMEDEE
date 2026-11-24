@@ -79,6 +79,8 @@ export async function recordClientError(db: DB, e: { route: string; message: str
     .where(sql`${siteErrors.key} = ${key}`)
     .returning({ key: siteErrors.key });
   if (bumped.length) return;
+  // Rows unseen for 30 days go first: once the cap filled, no new error was ever recorded (audit R-5).
+  await db.delete(siteErrors).where(sql`${siteErrors.route} like ${CLIENT_PREFIX + "%"} and ${siteErrors.lastSeen} < now() - interval '30 days'`);
   const [{ n }] = await db.select({ n: sql<number>`count(*)::int` }).from(siteErrors).where(sql`${siteErrors.route} like ${CLIENT_PREFIX + "%"}`);
   if (n >= CLIENT_ROW_CAP) return;
   await db.insert(siteErrors).values({ key, route: e.route, message: e.message, count: add }).onConflictDoNothing();

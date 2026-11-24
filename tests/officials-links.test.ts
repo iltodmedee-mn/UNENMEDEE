@@ -15,6 +15,9 @@ describe("linkPeople", () => {
       { name: " Ж.Алдаржавхлан ", id: 1 },
     ]);
   });
+  it("a space after the initial is the same name (audit B-15)", () => {
+    assert.deepEqual(linkPeople(["Ж. Алдаржавхлан"], mps), [{ name: "Ж. Алдаржавхлан", id: 1 }]);
+  });
   it("never links a shared short name or someone who is not an MP", () => {
     assert.deepEqual(linkPeople(["Д.Цогтбаатар", "Б.Бат"], mps), [
       { name: "Д.Цогтбаатар", id: null },

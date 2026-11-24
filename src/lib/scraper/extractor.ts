@@ -258,11 +258,20 @@ function jsonLdDate(doc: Document): Date | null {
  * first one in the main data object wins (related items come later in the blob).
  */
 export function jsonBlobDate(html: string): Date | null {
-  const blobs = [...html.matchAll(/<script[^>]*(?:id="__NEXT_DATA__"|type="application\/json"|>\s*window\.__NUXT__)[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]);
+  const blobs = [
+    ...[...html.matchAll(/<script[^>]*(?:id="__NEXT_DATA__"|type="application\/json")[^>]*>([\s\S]*?)<\/script>/gi)].map((m) => m[1]),
+    // Nuxt 2 prints `<script>window.__NUXT__=(function(a,b){…})</script>`: the old pattern wanted
+    // a second ">" after "__NUXT__" and never matched a normal payload (audit B-9).
+    ...[...html.matchAll(/<script[^>]*>\s*(window\.__NUXT__[\s\S]*?)<\/script>/gi)].map((m) => m[1]),
+  ];
   for (const blob of blobs) {
-    const m = blob.match(/"(?:date|createdDate|created_at|createdAt|publishedAt|published_at|publishDate|pubDate|datePublished|news_date|post_date)"\s*:\s*"(20\d{2}-\d{2}-\d{2}[^"]{0,30})"/);
-    const d = m ? parseDateValue(m[1]) : null;
-    if (d) return d;
+    // Keys quoted (JSON) or bare (the Nuxt 2 payload is JavaScript: {date:"2026-…"}).
+    // The whole key: "event-date" is not "date".
+    // Every match in order: a future or broken date first ("2099-01-01") must not hide a good one after it.
+    for (const m of blob.matchAll(/(?:"(?:date|createdDate|created_at|createdAt|publishedAt|published_at|publishDate|pubDate|datePublished|news_date|post_date)"|(?<=[{,\s])(?:date|createdDate|created_at|createdAt|publishedAt|published_at|publishDate|pubDate|datePublished|news_date|post_date))\s*:\s*"(20\d{2}-\d{2}-\d{2}[^"]{0,30})"/g)) {
+      const d = parseDateValue(m[1]);
+      if (d) return d;
+    }
   }
   return null;
 }

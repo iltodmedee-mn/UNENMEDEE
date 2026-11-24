@@ -34,15 +34,16 @@ describe("shared subscribe validation (action and /api/push)", () => {
   const endpoint = "https://fcm.googleapis.com/fcm/send/abc";
 
   it("accepts a renewal with an allowed old endpoint", () => {
-    const r = parseSubscribeRequest({ endpoint, keys, oldEndpoint: "https://fcm.googleapis.com/fcm/send/old" });
-    assert.equal(r?.oldEndpoint, "https://fcm.googleapis.com/fcm/send/old");
+    const r = parseSubscribeRequest({ endpoint, keys, oldEndpoint: "https://fcm.googleapis.com/fcm/send/old", oldAuth: "c2VjcmV0LWF1dGgta2V5IQ==" });
+    assert.deepEqual(r?.old, { endpoint: "https://fcm.googleapis.com/fcm/send/old", auth: "c2VjcmV0LWF1dGgta2V5IQ" });
+    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: "https://fcm.googleapis.com/fcm/send/old" })?.old, null, "no auth secret, no migration (S-6)");
   });
 
   it("drops an old endpoint that is foreign, identical or not a string, but keeps the subscription", () => {
-    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: "https://evil.example.com/x" })?.oldEndpoint, null);
-    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: endpoint })?.oldEndpoint, null);
-    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: 5 })?.oldEndpoint, null);
-    assert.equal(parseSubscribeRequest({ endpoint, keys })?.oldEndpoint, null);
+    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: "https://evil.example.com/x" })?.old, null);
+    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: endpoint })?.old, null);
+    assert.equal(parseSubscribeRequest({ endpoint, keys, oldEndpoint: 5 })?.old, null);
+    assert.equal(parseSubscribeRequest({ endpoint, keys })?.old, null);
   });
 
   it("refuses what the schema refuses", () => {

@@ -28,8 +28,9 @@ export function parseNhrcmList(json: unknown): ScrapedItem[] {
       url: `https://nhrcm.gov.mn/#/page/${menu}/post/view/${id}`,
       title,
       text,
-      // A day only (the API prints midnight): Ulaanbaatar midnight, like police.gov.mn's list days.
-      publishedAt: day ? new Date(`${day}T00:00:00+08:00`) : null,
+      // A day only (the API prints midnight): the day-level marker, UTC midnight of that day
+      // (dates.ts isDayLevel), so it reads as "time unknown" like every other dated-only story (audit B-9).
+      publishedAt: day ? new Date(`${day}T00:00:00Z`) : null,
     });
   }
   return out;

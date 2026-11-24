@@ -1,8 +1,7 @@
 import "./net-setup";
 import { publicFetch } from "./net-guard";
-import { DomainThrottle, getRobots, MAX_CRAWL_DELAY_MS, USER_AGENT } from "./robots";
+import { getRobots, MAX_CRAWL_DELAY_MS, politeThrottle, USER_AGENT } from "./robots";
 
-const throttle = new DomainThrottle();
 
 export class RobotsDisallowedError extends Error {
   /** `unavailable`: robots.txt could not be read (RFC 9309: crawl nothing), not a rule. */
@@ -37,7 +36,7 @@ export async function politeFetch(url: string, opts: PoliteFetchOptions = {}): P
     if (!robots.isAllowed(u.pathname + u.search)) throw new RobotsDisallowedError(url, robots.unavailable);
     crawlDelayMs = Math.min(robots.crawlDelayMs ?? 0, MAX_CRAWL_DELAY_MS);
   }
-  await throttle.wait(u.host, crawlDelayMs);
+  await politeThrottle.wait(u.host, crawlDelayMs);
   return publicFetch(url, {
     ...init,
     redirect,

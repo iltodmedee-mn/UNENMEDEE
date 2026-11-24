@@ -239,6 +239,26 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
     at: r.publishedAt,
   });
   const byId = new Map(pool.map((r) => [r.id, r]));
+  // Each cluster's first and last story: joining is transitive, so without this a chain of
+  // week-apart matches grew one cluster over a month (audit D-4). A cluster spans the window at most,
+  // the joining article and an unclustered match that comes along with it included.
+  const poolClusters = [...new Set(pool.map((r) => r.clusterId).filter((c): c is number => c !== null))];
+  const span = new Map<number, { first: number; last: number }>();
+  if (poolClusters.length) {
+    const rows = await db
+      .select({ id: articles.clusterId, first: sql<string>`min(${articles.publishedAt})`, last: sql<string>`max(${articles.publishedAt})` })
+      .from(articles)
+      .where(inArray(articles.clusterId, poolClusters))
+      .groupBy(articles.clusterId);
+    for (const r of rows) if (r.id !== null) span.set(r.id, { first: new Date(r.first).getTime(), last: new Date(r.last).getTime() });
+  }
+  const windowMs = CLUSTER_WINDOW_DAYS * 86_400_000;
+  const fits = (clusterId: number | null, ...dates: (Date | null | undefined)[]) => {
+    const times = dates.flatMap((d) => (d ? [d.getTime()] : []));
+    const s = clusterId === null ? undefined : span.get(clusterId);
+    if (s) times.push(s.first, s.last);
+    return times.length < 2 || Math.max(...times) - Math.min(...times) <= windowMs;
+  };
   const touched = new Set<number>();
   for (const id of ids) {
     const me = byId.get(id);
@@ -247,12 +267,17 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
       continue;
     }
     // The same source re-posting is not corroboration; cluster across sources only.
-    const match = findBestMatch(toDoc(me), pool.filter((r) => r.sourceId !== me.sourceId).map(toDoc));
+    const match = findBestMatch(
+      toDoc(me),
+      pool.filter((r) => r.sourceId !== me.sourceId && fits(r.clusterId, me.publishedAt)).map(toDoc),
+    );
     if (!match) {
       result.set(id, me.clusterId);
       continue;
     }
     let clusterId = match.doc.clusterId ?? me.clusterId;
+    // My own cluster, or one the match would join with me, too wide to take us both: a new one.
+    if (clusterId && !fits(clusterId, me.publishedAt, match.doc.at)) clusterId = null;
     if (!clusterId) {
       const [created] = await db.insert(clusters).values({ title: me.title, articleCount: 0 }).returning({ id: clusters.id });
       clusterId = created.id;
@@ -260,6 +285,8 @@ export async function assignClusters(db: DB, ids: number[], log?: UsageLogger, b
     await db.update(articles).set({ clusterId }).where(inArray(articles.id, [id, match.doc.id]));
     if (me.clusterId && me.clusterId !== clusterId) touched.add(me.clusterId);
     touched.add(clusterId);
+    const joined = [span.get(clusterId)?.first, span.get(clusterId)?.last, me.publishedAt?.getTime(), match.doc.at?.getTime()].filter((t): t is number => t !== undefined);
+    if (joined.length) span.set(clusterId, { first: Math.min(...joined), last: Math.max(...joined) });
     // Later articles in this batch see the new membership.
     me.clusterId = clusterId;
     const other = byId.get(match.doc.id);
@@ -291,24 +318,49 @@ export function shouldResynthesize(previousCount: number, newCount: number, hasS
 }
 
 /** Recounts a cluster and, at growth milestones, asks the model for a neutral cross-source synthesis. */
-export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogger, budget?: BudgetGuard): Promise<void> {
+export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogger, budget?: BudgetGuard, hooks: { afterRead?: () => Promise<void> } = {}): Promise<void> {
   const members = await db
-    .select({ title: articles.title, tldr: articles.tldrSummary, facts: articles.factVsSpin, risk: articles.riskScore, sourceName: sources.name })
+    .select({ id: articles.id, title: articles.title, tldr: articles.tldrSummary, facts: articles.factVsSpin, risk: articles.riskScore, sourceName: sources.name })
     .from(articles)
     .innerJoin(sources, eq(articles.sourceId, sources.id))
     .where(and(eq(articles.clusterId, clusterId), ne(articles.isPublished, false)))
     .orderBy(desc(articles.riskScore));
+  await hooks.afterRead?.();
+  // Every write below happens only if the published membership is still the one read here, checked
+  // under a lock on the cluster row: two recounts of one cluster can overlap (an admin hiding a
+  // story while another recount waits on the AI), and the older one must never write back a
+  // membership that has changed since (CodeRabbit on #337).
+  const snapshot = members.map((m) => m.id).sort((a, b) => a - b).join(",");
+  const writeIfCurrent = (write: (tx: Parameters<Parameters<DB["transaction"]>[0]>[0]) => Promise<unknown>) =>
+    db.transaction(async (tx) => {
+      await tx.execute(sql`select id from ${clusters} where id = ${clusterId} for update`);
+      const now = await tx
+        .select({ id: articles.id })
+        .from(articles)
+        .where(and(eq(articles.clusterId, clusterId), ne(articles.isPublished, false)));
+      if (now.map((r) => r.id).sort((a, b) => a - b).join(",") !== snapshot) return; // a newer recount owns it
+      await write(tx);
+    });
   if (members.length === 0) {
-    // Its articles moved to another cluster (or were unpublished).
-    await db.delete(clusters).where(eq(clusters.id, clusterId));
+    // Its articles moved to another cluster: it goes. Only unpublished ones left: it stays, empty
+    // (the reader shows a cluster only with two published sources), so a story published again
+    // finds its group (the FK's "set null" emptied every member when the row was deleted).
+    await writeIfCurrent(async (tx) => {
+      const [{ n }] = await tx.select({ n: sql<number>`count(*)::int` }).from(articles).where(eq(articles.clusterId, clusterId));
+      if (Number(n) === 0) await tx.delete(clusters).where(eq(clusters.id, clusterId));
+      else await tx.update(clusters).set({ articleCount: 0, maxRiskScore: 0, synthesisSummary: null, updatedAt: sql`now()` }).where(eq(clusters.id, clusterId));
+    });
     return;
   }
   const maxRisk = Math.max(...members.map((m) => m.risk));
   const [current] = await db.select({ count: clusters.articleCount, synthesis: clusters.synthesisSummary }).from(clusters).where(eq(clusters.id, clusterId));
+  // Fewer published members than the synthesis was written from: it may still tell a hidden
+  // story, so it is written again or dropped, never kept.
+  const shrunk = !!current && members.length < current.count;
 
   let title: string | undefined;
   let synthesis: string | undefined;
-  if (shouldResynthesize(current?.count ?? 0, members.length, !!current?.synthesis)) {
+  if (shouldResynthesize(current?.count ?? 0, members.length, !!current?.synthesis && !shrunk)) {
     try {
       const res = await callAIWithFallback({
         // Synthesis is a summary of summaries: the cheap/free bulk tier is enough.
@@ -330,14 +382,16 @@ export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogge
       console.warn(`[ai] cluster ${clusterId} synthesis kept (AI call failed): ${errorLine(err, 200)}`);
     }
   }
-  await db
-    .update(clusters)
-    .set({
-      articleCount: members.length,
-      maxRiskScore: maxRisk,
-      updatedAt: sql`now()`,
-      ...(title ? { title } : {}),
-      ...(synthesis ? { synthesisSummary: synthesis } : {}),
-    })
-    .where(eq(clusters.id, clusterId));
+  await writeIfCurrent((tx) =>
+    tx
+      .update(clusters)
+      .set({
+        articleCount: members.length,
+        maxRiskScore: maxRisk,
+        updatedAt: sql`now()`,
+        ...(title ? { title } : {}),
+        ...(synthesis ? { synthesisSummary: synthesis } : shrunk ? { synthesisSummary: null } : {}),
+      })
+      .where(eq(clusters.id, clusterId)),
+  );
 }

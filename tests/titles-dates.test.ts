@@ -114,6 +114,8 @@ describe("shouting headlines", () => {
     assert.equal(unshoutTitle("“1072 ХУВЬЦАА” НЭЭЛТТЭЙ ӨДӨРЛӨГ ЗОХИОН БАЙГУУЛАГДАЖ БАЙНА"), "“1072 хувьцаа” нээлттэй өдөрлөг зохион байгуулагдаж байна");
   });
   it("keeps abbreviations, initials and proper nouns", () => {
+    assert.equal(unshoutTitle("Л. ОЮУН-ЭРДЭНЭ ИРГЭДТЭЙ УУЛЗЛАА"), "Л. Оюун-Эрдэнэ иргэдтэй уулзлаа", "audit B-16");
+    assert.equal(unshoutTitle("МОНГОЛ-ЫН ЗАСГИЙН ГАЗАР ХУРАЛДЛАА"), "Монгол-ын засгийн газар хуралдлаа", "audit B-16");
     assert.equal(unshoutTitle("УИХ-ЫН ГИШҮҮН Х.БАТТУЛГА МОНГОЛЫН ТӨМӨР ЗАМЫН ТАЛААР МЭДЭГДЭЛ ХИЙЛЭЭ"), "УИХ-ын гишүүн Х.Баттулга Монголын төмөр замын талаар мэдэгдэл хийлээ");
     assert.equal(unshoutTitle("ОЮУ ТОЛГОЙ ТӨСЛИЙН ТАЛААР НӨАТ-ЫН БУЦААЛТ 2026 ОНД"), "Оюу Толгой төслийн талаар НӨАТ-ын буцаалт 2026 онд");
   });
@@ -248,6 +250,12 @@ describe("dates in page data blobs", () => {
     const html = `<html><body><div>text</div><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"data":{"id":"6ad","createdDate":"${y}-10-23T11:38:26.907","modifiedDate":"${y}-10-23T14:37:57.885","related":[{"date":"${y}-01-01T00:00:00"}]}}}}</script></body></html>`;
     assert.equal(jsonBlobDate(html)?.toISOString(), `${y}-10-23T03:38:26.907Z`);
     assert.equal(jsonBlobDate("<html><script>var x = 1;</script></html>"), null);
+    // Nuxt 2: a JavaScript payload with bare keys (audit B-9).
+    const nuxt = '<html><script>window.__NUXT__=(function(a,b){return {data:[{news:{id:5,date:"2025-09-14T10:15:00",title:a}}]}}("Мэдээ",1))</script></html>';
+    assert.equal(jsonBlobDate(nuxt)?.toISOString().slice(0, 10), "2025-09-14");
+    assert.equal(jsonBlobDate('<script>window.__NUXT__={updated:"2025-09-14T10:15:00"}</script>'), null, "only a publication key counts");
+    assert.equal(jsonBlobDate('<script type="application/json">{"event-date":"2025-09-14","publishedAt":"2025-09-15T10:00:00"}</script>')?.toISOString().slice(0, 10), "2025-09-15", "the whole key");
+    assert.equal(jsonBlobDate('<script>window.__NUXT__={date:"2099-01-01",publishedAt:"2025-09-15T10:00:00"}</script>')?.toISOString().slice(0, 10), "2025-09-15", "a future date does not hide the next one");
     assert.equal(jsonBlobDate(`<script type="application/json">{"viewCount":184,"key":"abc"}</script>`), null);
   });
 });
