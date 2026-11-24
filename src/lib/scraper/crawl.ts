@@ -185,7 +185,7 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   tlsBroken = opts.tlsBrokenHosts ?? new Set();
   const checkCert = certChecker();
   /** Browser pass: an https host is either listed (read unverified) or has just passed a verified handshake. */
-  // Each browser page's requests, redirect hops included (audit S-3): see firstUnsafeRequest.
+  // Each browser page's answered requests, redirect hops included (audit S-3): see firstUnsafeRequest.
   const pageRequests = new WeakMap<object, string[]>();
   const certTrusted = async (url: string): Promise<boolean> => {
     const u = new URL(url);
@@ -419,8 +419,10 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
               await politeWait(request.url);
               // page.route never sees a redirect hop, so every request the page made, hops included,
               // is recorded and checked before its text is used (Nov 2026 audit S-3).
+              // Responses, not requests: a request the route handler aborted (an image on a private
+              // address) never loaded and must not void the page; every redirect hop does answer.
               const seenUrls: string[] = [];
-              page.on("request", (r) => {
+              page.on("response", (r) => {
                 seenUrls.push(r.url());
               });
               pageRequests.set(page, seenUrls);
@@ -440,9 +442,11 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
             if (status >= 400) return onFailure(request.url, request.userData as UserData, new Error(`HTTP ${status}`), add);
             // Let client-side rendering finish (SPAs fetch their news after load).
             await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
+            // Read first, check after: every hop of the document that was read is in the log by then,
+            // so a navigation finishing during the checks cannot slip in unchecked (TOCTOU).
+            const html = await page.content();
             const unsafe = await firstUnsafeRequest(pageRequests.get(page) ?? [], certTrusted);
             if (unsafe) return onFailure(request.url, request.userData as UserData, new Error(`the page reached ${unsafe}: its text is not used`), add);
-            const html = await page.content();
             await handle(request.url, request.loadedUrl ?? request.url, request.userData as UserData, html, add);
           },
           failedRequestHandler: async ({ request }, error) => {

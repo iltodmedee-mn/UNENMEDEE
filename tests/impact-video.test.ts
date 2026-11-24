@@ -54,6 +54,8 @@ describe("impactVideoSpec", () => {
   it("a named person on one card and a dismissal on another never become a video (audit B-5)", () => {
     const named = { ...pension, title: "Б.Батболд сайдын тушаалаар 600 мянган төгрөг олгоно", impact: { ...pension.impact!, change: "Тэргүүн дэд сайдыг албан тушаалаас нь чөлөөлнө." } };
     assert.equal(impactVideoSpec(named), null);
+    assert.equal(impactVideoSpec({ ...pension, impact: { ...pension.impact!, who: "Хүрэлсүх Ухнаа", change: "Албан тушаалаас нь чөлөөлнө." } }), null, "a full name with no charge verb next to it");
+    assert.ok(impactVideoSpec(pension), "an ordinary decision still makes a video");
     assert.ok(PERSON_CHARGE.test("торгох"), "every form of торго- is a charge word");
   });
 

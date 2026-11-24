@@ -73,6 +73,9 @@ function clean(s: string | null | undefined): string | null {
   return t.length >= 3 ? t : null;
 }
 
+/** Two capitalised words, as a person's full name ("Хүрэлсүх Ухнаа"): namesPerson only sees one next to a charge verb. */
+const FULL_NAME = /(?<![\p{L}])[А-ЯӨҮЁ][а-яөүё]{2,}(?:-[А-ЯӨҮЁ][а-яөүё]+)?\s+[А-ЯӨҮЁ][а-яөүё]{2,}(?![\p{L}])/u;
+
 const sentence = (s: string) => (/[.!?…]$/.test(s) ? s : `${s}.`);
 
 /**
@@ -156,7 +159,7 @@ export function impactVideoSpec(story: ImpactStory): ImpactSpec | null {
   // named person next to a dismissal (Nov 2026 audit B-5).
   const allText = [headline, who, change, when, action, what].filter(Boolean).join(" · ");
   if ([headline, what].some((f) => f && namesPerson(f)) && (CHARGE.test(allText) || PERSON_CHARGE.test(allText))) return null;
-  if (namesPerson(allText) && PERSON_CHARGE.test(allText)) return null;
+  if ((namesPerson(allText) || (who ? FULL_NAME.test(who) : false)) && PERSON_CHARGE.test(allText)) return null;
 
   const source = sourceLabel(story.sourceName);
   const asks: Record<ImpactSpec["cards"][number]["scene"], string> = {

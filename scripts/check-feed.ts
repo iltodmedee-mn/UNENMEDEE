@@ -10,7 +10,7 @@ import "dotenv/config";
 import "@/lib/runtime-banner";
 
 import { execFileSync } from "node:child_process";
-import { writeFileSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 
 import { and, desc, eq } from "drizzle-orm";
 
@@ -42,12 +42,27 @@ async function liveCommit(): Promise<string | null> {
  */
 const DEPLOY_EXCLUDES = ["docs", "tests", "scripts", ".github", ".claude", "*.md"];
 
+/** The commits at the edge of a shallow clone (empty when the history is complete). */
+function shallowRoots(): Set<string> {
+  try {
+    const file = execFileSync("git", ["rev-parse", "--git-path", "shallow"], { encoding: "utf8" }).trim();
+    return new Set(readFileSync(file, "utf8").split("\n").map((l) => l.trim()).filter(Boolean));
+  } catch {
+    return new Set();
+  }
+}
+
 function deployableHead(): { sha: string; at: Date } | null {
   try {
-    const out = execFileSync("git", ["log", "-1", "--format=%H %ct", "--", ".", ...DEPLOY_EXCLUDES.map((p) => `:(exclude)${p}`)], { encoding: "utf8" }).trim();
+    // --first-parent: main's own history, as Vercel compares HEAD^ with HEAD.
+    const out = execFileSync("git", ["log", "-1", "--first-parent", "--format=%H %ct", "--", ".", ...DEPLOY_EXCLUDES.map((p) => `:(exclude)${p}`)], { encoding: "utf8" }).trim();
     const [sha, ct] = out.split(" ");
     const s = Number(ct);
-    return /^[0-9a-f]{40}$/.test(sha ?? "") && Number.isFinite(s) && s > 0 ? { sha, at: new Date(s * 1000) } : null;
+    if (!/^[0-9a-f]{40}$/.test(sha ?? "") || !Number.isFinite(s) || s <= 0) return null;
+    // In a shallow checkout the oldest fetched commit looks as if it added every file: when the
+    // search reaches it, the real answer is older than the history we have, so say nothing.
+    if (shallowRoots().has(sha)) return null;
+    return { sha, at: new Date(s * 1000) };
   } catch {
     return null;
   }

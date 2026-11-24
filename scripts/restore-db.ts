@@ -56,6 +56,9 @@ async function main() {
   let streamError: unknown = null;
   for (const s of [input, stream]) s.on("error", (err: Error) => { streamError ??= err; rl.close(); });
   async function* checkedLines(): AsyncGenerator<string> {
+    // An error before the first read (a missing file while the transaction opened) closed rl
+    // already, and a closed readline never ends its loop.
+    if (streamError) throw streamError;
     for await (const line of rl) {
       if (streamError) throw streamError;
       yield line;

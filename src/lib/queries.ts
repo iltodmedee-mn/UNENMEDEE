@@ -1447,8 +1447,9 @@ export async function getDonation(): Promise<Donation> {
  */
 export async function getDonations(limit = 100): Promise<DonationsSummary> {
   "use cache";
-  // Changed only by admin actions, which purge "donations" at once (audit P-7).
-  cacheLife("days");
+  // Hourly: besides admin writes (which purge "donations") its monthly total turns over at the
+  // Ulaanbaatar month boundary; one page, so the hourly renders cost little.
+  cacheLife("hours");
   cacheTag("donations");
   const empty: DonationsSummary = { rows: [], count: 0, totalMnt: 0, monthMnt: 0 };
   return safe("getDonations", empty, async () => {

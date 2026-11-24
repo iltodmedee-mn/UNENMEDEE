@@ -26,14 +26,19 @@ async function main() {
   // run: without this the changed pages kept their old list for up to a day.
   // "clusters" only when a cluster changed: purged every run, it expired every clustered article
   // and cluster page 48 times a day (Nov 2026 audit P-1).
-  const clusters = await clustersChangedSince();
+  // A failed lookup purges "clusters" anyway (and remembers nothing): the snapshot hashes are
+  // already stored, so leaving before the purge would keep the old lists for a day.
+  const clusters = await clustersChangedSince().catch((err: unknown) => {
+    console.log(`::warning::cluster state not read, purging clusters anyway: ${errorLine(err)}`);
+    return { changed: true, state: null as string | null };
+  });
   const tags = [...changed, ...(clusters.changed ? ["clusters"] : []), ...also];
   if (!tags.length) return console.log("🗂 nothing to purge.");
   const purged = await requestPurge(tags).catch((err: unknown) => {
     console.log(`::warning::cache purge failed: ${errorLine(err)}`);
     return false;
   });
-  if (purged && clusters.changed) await rememberClusters(clusters.state);
+  if (purged && clusters.changed && clusters.state !== null) await rememberClusters(clusters.state);
   if (!purged && changed.length) console.log(`↻ ${await forgetHashes(changed)} list page(s) will be purged again by the next run.`);
 }
 

@@ -292,15 +292,18 @@ jobs:
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$(printf '🤖 Gemini дууслаа: %s\n%s\n\n%s' "$link" "$status" "$summary")"
 
       - name: Report when nothing changed or the run failed
-        if: always() && (needs.fix.outputs.changed != 'true' || steps.push.outcome == 'failure')
+        # Also when the patch never arrived (the push step is then skipped, not failed).
+        if: always() && (needs.fix.outputs.changed != 'true' || steps.push.outcome != 'success')
         env:
           GH_TOKEN: ${{ github.token }}
           SUMMARY: ${{ needs.fix.outputs.summary }}
           ERROR: ${{ needs.fix.outputs.error }}
           OUTCOME: ${{ needs.fix.outputs.ran || 'failure' }}
           PUSH: ${{ steps.push.outcome }}
+          CHANGED: ${{ needs.fix.outputs.changed }}
         run: |
           text="$(printf '%s\n%s' "$SUMMARY" "$ERROR" | head -c 3000)"
-          if [ "$PUSH" = "failure" ]; then head="🤖 Gemini засвар бэлдсэн ч салбарыг push хийж чадсангүй (токен .github/workflows-д бичих эрхгүй эсвэл хамгаалалттай). Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          if [ "$CHANGED" = "true" ] && [ "$PUSH" != "failure" ]; then head="🤖 Gemini засвар бэлдсэн ч засварын файлыг дамжуулж чадсангүй. Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+          elif [ "$PUSH" = "failure" ]; then head="🤖 Gemini засвар бэлдсэн ч салбарыг push хийж чадсангүй (токен .github/workflows-д бичих эрхгүй эсвэл хамгаалалттай). Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
           elif [ "$OUTCOME" = "success" ]; then head="🤖 Gemini код өөрчлөөгүй."; else head="🤖 Gemini ажиллаж чадсангүй (үнэгүй хязгаар дууссан эсвэл алдаа). Лог: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"; fi
           gh issue comment "$NUMBER" --repo "$GITHUB_REPOSITORY" --body "$(printf '%s\n\n%s' "$head" "$text")"
