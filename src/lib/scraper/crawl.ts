@@ -8,7 +8,7 @@ import { oneLine } from "@/lib/log-safe";
 
 import { assertPublicHostLiteral, guardGotOptions, isPublicHost } from "./net-guard";
 import { applyTlsPolicy, certChecker, certValid, tlsExempt } from "./tls-exempt";
-import { getRobots, MAX_CRAWL_DELAY_MS, MIN_DOMAIN_DELAY_MS, type RobotsPolicy, USER_AGENT } from "./robots";
+import { getRobots, MAX_CRAWL_DELAY_MS, MIN_DOMAIN_DELAY_MS, politeHost, politeThrottle, type RobotsPolicy, USER_AGENT } from "./robots";
 import { isGenericTitle, looksLikeNavigation } from "./titles";
 import { SourceRun } from "./source-run";
 import type { ScrapedItem, SourceRef, SourceRunResult } from "./types";
@@ -81,6 +81,8 @@ let tlsBroken: ReadonlySet<string> = new Set();
  */
 const robotsFetch = (async (url: string) => {
   assertPublicHostLiteral(url);
+  // robots.txt takes a slot like any request: the first page waited no pause after it (audit R-2).
+  await politeThrottle.wait(new URL(url).host);
   const res = await gotScraping(
     applyTlsPolicy(
       guardGotOptions({
@@ -136,7 +138,6 @@ export function httpBudgetMs(budgetMs: number, browser: boolean): number {
   return browser ? Math.round(budgetMs * (1 - BROWSER_BUDGET_SHARE)) : budgetMs;
 }
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 function homepage(source: SourceRef): string {
   return `${new URL(source.urlPattern).origin}/`;
@@ -216,18 +217,14 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
   // Crawlee's sameDomainDelaySecs is one number for every domain, so it stays at the 8 s floor
   // and a domain whose robots.txt asks for more waits the rest here, before each of its requests
   // (one site's 20 s used to slow all 122 domains to 20 s).
-  const delayByHost = new Map(sources.map((s, i) => [new URL(s.urlPattern).hostname, domainDelayMs(policies[i])]));
-  const lastRequestAt = new Map<string, number>();
-  // The slot is reserved before sleeping (like DomainThrottle): two concurrent requests to one
-  // host both read the same "last request" time, slept the same amount and fired together.
+  const delayByHost = new Map(sources.map((s, i) => [politeHost(new URL(s.urlPattern).hostname), domainDelayMs(policies[i])]));
+  // Every request takes a slot in the process-wide politeThrottle (robots.ts), the 8 s floor
+  // included: Crawlee's sameDomainDelaySecs forgets between passes and never saw robots.txt, the
+  // API calls or the www./bare-host twin of a domain (audit R-2). The slot is reserved before
+  // sleeping, so two concurrent requests to one host never fire together.
   const politeWait = async (url: string) => {
     const host = new URL(url).hostname;
-    const want = delayByHost.get(host) ?? MIN_DOMAIN_DELAY_MS;
-    if (want <= MIN_DOMAIN_DELAY_MS) return; // Crawlee's sameDomainDelaySecs covers the 8 s floor
-    const now = Date.now();
-    const slot = Math.max(now, (lastRequestAt.get(host) ?? 0) + want);
-    lastRequestAt.set(host, slot);
-    if (slot > now) await sleep(slot - now);
+    await politeThrottle.wait(host, delayByHost.get(politeHost(host)) ?? MIN_DOMAIN_DELAY_MS);
   };
 
   // ---------------------------------------------------------------- shared logic
@@ -519,8 +516,11 @@ export async function crawlSources(sources: SourceRef[], sink: ArticleSink, opts
       return;
     }
     if (state.run.found > 0 || state.run.inserted > 0) return; // another listing of this source found the news
+    // No links in the HTML is the browser pass's job, not yet a failure: recording it here made
+    // browserUnavailable() a no-op, so a JavaScript-only site backed off whenever Chromium could not
+    // run (audit R-2). The browser pass records the failure if it finds nothing either.
     if (mode === "http") state.run.needsBrowser();
-    state.run.failed(mode === "http" ? "no article links in HTML" : "no article links found even after JavaScript rendering");
+    else state.run.failed("no article links found even after JavaScript rendering");
   }
 
   async function handleWpApi(state: SourceState, data: UserData, body: string, add: Adder) {

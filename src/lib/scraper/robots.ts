@@ -168,7 +168,7 @@ async function readHead(res: Response, maxBytes: number): Promise<string> {
 export const ROBOTS_RETRY_MS = 3_000;
 
 /** Fetches (once per origin per process) and parses robots.txt. */
-export function getRobots(origin: string, fetchImpl: typeof fetch = publicFetch, retryMs = ROBOTS_RETRY_MS): Promise<RobotsPolicy> {
+export function getRobots(origin: string, fetchImpl: typeof fetch = throttledPublicFetch, retryMs = ROBOTS_RETRY_MS): Promise<RobotsPolicy> {
   const cached = cache.get(origin);
   if (cached) return cached;
   const promise = (async () => {
@@ -209,17 +209,38 @@ export async function isAllowedByRobots(url: string, fetchImpl: typeof fetch = f
   return policy.isAllowed(u.pathname + u.search);
 }
 
+/** "www.mofa.gov.mn" and "mofa.gov.mn" are one site and share one pause (audit R-2). */
+export const politeHost = (host: string): string => host.toLowerCase().replace(/^www\./, "");
+
 /** Per-host politeness scheduler: guarantees >= delay between request starts to one host. */
 export class DomainThrottle {
   private nextSlot = new Map<string, number>();
 
-  constructor(private readonly minDelayMs: number = MIN_DOMAIN_DELAY_MS) {}
+  constructor(
+    private readonly minDelayMs: number = MIN_DOMAIN_DELAY_MS,
+    private readonly now: () => number = Date.now,
+    private readonly sleep: (ms: number) => Promise<void> = (ms) => new Promise((r) => setTimeout(r, ms)),
+  ) {}
 
   async wait(host: string, extraDelayMs = 0): Promise<void> {
+    const key = politeHost(host);
     const delay = Math.max(this.minDelayMs, extraDelayMs);
-    const now = Date.now();
-    const slot = Math.max(now, this.nextSlot.get(host) ?? 0);
-    this.nextSlot.set(host, slot + delay);
-    if (slot > now) await new Promise((r) => setTimeout(r, slot - now));
+    const now = this.now();
+    const slot = Math.max(now, this.nextSlot.get(key) ?? 0);
+    this.nextSlot.set(key, slot + delay);
+    if (slot > now) await this.sleep(slot - now);
   }
 }
+
+/**
+ * The one pause per site for the whole process: robots.txt, API and feed calls (politeFetch) and
+ * every Crawlee pass (crawl.ts politeWait) take their slot here. Separate clocks let robots.txt and
+ * the first page, pass 1 and pass 2, or www.gov.mn's API and its pages go out back to back (audit R-2).
+ */
+export const politeThrottle = new DomainThrottle();
+
+/** publicFetch with a slot in politeThrottle: the default robots.txt fetch. */
+const throttledPublicFetch = (async (url: string | URL | Request, init?: RequestInit) => {
+  await politeThrottle.wait(new URL(String(url)).host);
+  return publicFetch(String(url), init);
+}) as typeof fetch;
