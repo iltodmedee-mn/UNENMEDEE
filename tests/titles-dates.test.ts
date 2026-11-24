@@ -250,6 +250,10 @@ describe("dates in page data blobs", () => {
     const html = `<html><body><div>text</div><script id="__NEXT_DATA__" type="application/json">{"props":{"pageProps":{"data":{"id":"6ad","createdDate":"${y}-10-23T11:38:26.907","modifiedDate":"${y}-10-23T14:37:57.885","related":[{"date":"${y}-01-01T00:00:00"}]}}}}</script></body></html>`;
     assert.equal(jsonBlobDate(html)?.toISOString(), `${y}-10-23T03:38:26.907Z`);
     assert.equal(jsonBlobDate("<html><script>var x = 1;</script></html>"), null);
+    // Nuxt 2: a JavaScript payload with bare keys (audit B-9).
+    const nuxt = '<html><script>window.__NUXT__=(function(a,b){return {data:[{news:{id:5,date:"2025-09-14T10:15:00",title:a}}]}}("Мэдээ",1))</script></html>';
+    assert.equal(jsonBlobDate(nuxt)?.toISOString().slice(0, 10), "2025-09-14");
+    assert.equal(jsonBlobDate('<script>window.__NUXT__={updated:"2025-09-14T10:15:00"}</script>'), null, "only a publication key counts");
     assert.equal(jsonBlobDate(`<script type="application/json">{"viewCount":184,"key":"abc"}</script>`), null);
   });
 });

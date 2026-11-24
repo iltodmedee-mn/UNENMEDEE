@@ -45,3 +45,8 @@ test("every system prompt carries the Cyrillic rule", async () => {
     assert.ok((prompts as Record<string, unknown>)[name]?.toString().includes(prompts.SCRIPT_RULE), `${name} has no Cyrillic rule`);
   }
 });
+
+test("Chinese, Japanese or Korean text is not Mongolian either (audit B-8)", () => {
+  assert.equal(isLatinText("Засгийн газар 政府决定 тогтоол гаргалаа"), true);
+  assert.equal(isLatinText("Засгийн газар тогтоол гаргалаа"), false);
+});

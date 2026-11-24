@@ -42,6 +42,12 @@ describe("pricing", () => {
 });
 
 describe("Tier1Schema", () => {
+  it("checks each field's script on its own: an English summary next to Cyrillic facts fails (audit B-8)", () => {
+    const base = JSON.parse(TIER1_OK);
+    const english = { ...base, tldr_summary: "The capital awarded 48.5 billion tugriks through a direct contract without a tender.", facts: [...base.facts, "Нийслэлийн Засаг даргын тамгын газар шууд гэрээ байгуулсан"] };
+    assert.equal(Tier1Schema.safeParse(english).success, false);
+    assert.equal(Tier1Schema.safeParse(base).success, true);
+  });
   it("coerces, clamps, dedupes and derives risk_flag itself", () => {
     const r = Tier1Schema.parse(JSON.parse(TIER1_OK));
     assert.equal(r.risk_score, 100, "clamped from 140");

@@ -49,7 +49,7 @@ describe("police.gov.mn news", () => {
     assert.deepEqual(items[0], {
       url: "https://police.gov.mn/a/8369",
       title: "Хиймэл оюунд суурилсан залилангаас урьдчилан сэргийлэх нөлөөллийн аян эхэллээ",
-      day: new Date("2026-10-21T00:00:00+08:00"),
+      day: new Date("2026-10-21T00:00:00Z"), // the day-level marker (audit B-9)
     });
   });
 

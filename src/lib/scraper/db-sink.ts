@@ -68,13 +68,21 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
       // Claimed for this run before the database check: two URLs of one page saved by concurrent
       // requests both passed the check and were both stored (#1379/#1380, 0.45 s apart), and the
       // AI analysed the same text twice.
-      if (claimed.has(hash)) return "duplicate";
+      // A duplicate's own URL is remembered: it was fetched again every run, 8 s a time (audit D-3).
+      const remember = () => db.insert(seenUrls).values({ originalUrl: item.url, contentHash: hash, sourceId: source.id }).onConflictDoNothing();
+      if (claimed.has(hash)) {
+        await remember();
+        return "duplicate";
+      }
       claimed.add(hash);
       const [dup, deletedDup] = await Promise.all([
         db.select({ id: articles.id }).from(articles).where(eq(articles.contentHash, hash)).limit(1),
         db.select({ url: seenUrls.originalUrl }).from(seenUrls).where(eq(seenUrls.contentHash, hash)).limit(1),
       ]);
-      if (dup.length || deletedDup.length) return "duplicate";
+      if (dup.length || deletedDup.length) {
+        await remember();
+        return "duplicate";
+      }
       // opendata.gov.mn lists the same registry datasets again every day under a new id, with only
       // the "last updated" line changed (6 datasets × 6 days in Oct-Nov 2026): one story a week.
       if (source.domain === RELISTING_DOMAIN) {

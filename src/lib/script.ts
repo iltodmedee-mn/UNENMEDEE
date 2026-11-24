@@ -11,7 +11,12 @@ const CYRILLIC = /\p{Script=Cyrillic}/gu;
 /** Latin letters a text may hold before it can count as written in Latin. */
 export const LATIN_ALLOWANCE = 12;
 
+/** Chinese, Japanese and Korean letters: a model drifting into one of these (audit B-8) is never Mongolian. */
+const CJK = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Hangul}]/gu;
+
+/** True when the text is not Mongolian Cyrillic: mostly Latin letters, or any run of CJK script. */
 export function isLatinText(text: string): boolean {
+  if ((text.match(CJK)?.length ?? 0) >= 2) return true;
   const latin = text.match(LATIN)?.length ?? 0;
   if (latin < LATIN_ALLOWANCE) return false;
   return latin > (text.match(CYRILLIC)?.length ?? 0);

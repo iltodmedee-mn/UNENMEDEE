@@ -86,7 +86,7 @@ describe("nhrcm.gov.mn (nhrcm.ts)", () => {
     const items = parseNhrcmList(JSON.parse(fixture("nhrcm-list.json")));
     assert.ok(items.length >= 5);
     assert.equal(items[0].url, "https://nhrcm.gov.mn/#/page/42/post/view/7149");
-    assert.equal(items[0].publishedAt?.toISOString(), "2026-10-29T16:00:00.000Z");
+    assert.equal(items[0].publishedAt?.toISOString(), "2026-10-30T00:00:00.000Z", "a day only: the day-level marker (audit B-9)");
     assert.ok(items.every((i) => i.text.length >= 200 && !/<p>/.test(i.text)));
   });
 

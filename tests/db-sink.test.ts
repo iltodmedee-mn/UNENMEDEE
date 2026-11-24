@@ -46,6 +46,9 @@ describe("db-sink storage rules (PGlite)", () => {
     assert.equal(await sink.save(district(), { ...base, url: "https://judcouncil.mn/n/2" }), "duplicate");
     // A new sink (a new run) finds it in the database, not only in its in-memory claim.
     assert.equal(await createDbSink(db).save(district(), { ...base, url: "https://judcouncil.mn/n/3" }), "duplicate");
+    // The duplicates' URLs are remembered, so the next run does not fetch them again (audit D-3).
+    const seen = (await db.execute(sql`select original_url from seen_urls where original_url like 'https://judcouncil.mn/n/%' order by 1`)).rows.map((r) => (r as { original_url: string }).original_url);
+    assert.deepEqual(seen, ["https://judcouncil.mn/n/2", "https://judcouncil.mn/n/3"]);
   });
 
   it("a legalinfo.mn act keeps its own title when another act used it this month (the real list)", async () => {

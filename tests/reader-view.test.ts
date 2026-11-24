@@ -22,6 +22,14 @@ describe("reader view grounding", () => {
     assert.ok(numbersGrounded("2026-10-20-нд", digits));
   });
 
+  it("compares a number with its unit, per line, and reads dates and scaled decimals (audit B-8)", () => {
+    assert.equal(numbersGrounded("15 хувиар өснө", "Замын засварт 15 сая төгрөг"), false, "15 % is not 15 сая");
+    assert.equal(numbersGrounded("202611 иргэн", "2026\n11 иргэн"), false, "a line break splits numbers");
+    assert.equal(numbersGrounded("2026 оны 10 сарын 20-нд", "Тогтоол 2026.10.20-нд гарсан"), true);
+    assert.equal(numbersGrounded("1.25 тэрбум ₮", "Төсөв 1.250 тэрбум төгрөг"), true);
+    assert.equal(numbersGrounded("1 250 тэрбум ₮", "Төсөв 1.250 тэрбум төгрөг"), false, "1.250 тэрбум is not 1 250 тэрбум");
+  });
+
   it("does not check month numbers written as words in the source", () => {
     assert.ok(numbersGrounded("11-р сарын 1-нээс", digits));
   });

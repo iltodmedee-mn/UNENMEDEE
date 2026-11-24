@@ -17,7 +17,7 @@ const ORIGIN = "https://police.gov.mn";
 export interface PoliceListItem {
   url: string;
   title: string;
-  /** Upload day from the image path, midnight Ulaanbaatar time. */
+  /** Upload day from the image path, as a day-level date (UTC midnight of that day). */
   day: Date | null;
 }
 
@@ -35,7 +35,8 @@ export function parsePoliceList(html: string): PoliceListItem[] {
     if (!title || seen.has(url)) return;
     seen.add(url);
     const d = ($(el).find("img").attr("src") ?? "").match(/\/image\/(\d{4})\/(\d{2})\/(\d{2})\//);
-    items.push({ url, title, day: d ? ubTime(`${d[1]}-${d[2]}-${d[3]}`) : null });
+    // A day only: the day-level marker (UTC midnight of that day, dates.ts isDayLevel; audit B-9).
+    items.push({ url, title, day: d ? new Date(`${d[1]}-${d[2]}-${d[3]}T00:00:00Z`) : null });
   });
   return items;
 }

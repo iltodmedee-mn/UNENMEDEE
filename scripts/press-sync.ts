@@ -95,14 +95,17 @@ async function main() {
     return;
   }
   // The matcher is deterministic over stored headlines: this window's links are replaced by the current answer.
+  // One transaction: a failure between the delete and the insert left the window with no links (audit D-3).
   const govIds = gov.map((g) => g.id);
-  for (let i = 0; i < govIds.length; i += 500) await db.delete(pressLinks).where(inArray(pressLinks.articleId, govIds.slice(i, i + 500)));
-  for (let i = 0; i < matches.length; i += 500) {
-    await db
-      .insert(pressLinks)
-      .values(matches.slice(i, i + 500).map((m) => ({ articleId: m.articleId, pressItemId: m.pressId, score: m.score })))
-      .onConflictDoNothing();
-  }
+  await db.transaction(async (tx) => {
+    for (let i = 0; i < govIds.length; i += 500) await tx.delete(pressLinks).where(inArray(pressLinks.articleId, govIds.slice(i, i + 500)));
+    for (let i = 0; i < matches.length; i += 500) {
+      await tx
+        .insert(pressLinks)
+        .values(matches.slice(i, i + 500).map((m) => ({ articleId: m.articleId, pressItemId: m.pressId, score: m.score })))
+        .onConflictDoNothing();
+    }
+  });
   await db
     .insert(appSettings)
     .values({ key: MATCHED_KEY, value: new Date().toISOString() })
