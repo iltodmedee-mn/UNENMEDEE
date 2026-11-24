@@ -52,6 +52,29 @@ describe("db-sink storage rules (PGlite)", () => {
     assert.deepEqual(seen, ["https://judcouncil.mn/n/3"]);
   });
 
+  it("a save that fails gives its claim back, so the same text can be saved again in the run", async () => {
+    const { createDbSink } = await import("@/lib/scraper/db-sink");
+    const { articles } = await import("@/db/schema");
+    let failOnce = true;
+    const flaky = new Proxy(db, {
+      get(target, prop, receiver) {
+        if (prop === "insert")
+          return (table: unknown) => {
+            if (table === articles && failOnce) {
+              failOnce = false;
+              throw new Error("connection reset");
+            }
+            return target.insert(table as typeof articles);
+          };
+        return Reflect.get(target, prop, receiver);
+      },
+    });
+    const sink = createDbSink(flaky);
+    const item = { title: "Шинэ тогтоол гарлаа", text: "Засгийн газрын ээлжит хуралдаанаар шинэ тогтоол баталлаа. ".repeat(10), publishedAt: new Date(), url: "https://judcouncil.mn/retry/1" };
+    await assert.rejects(sink.save(district(), item));
+    assert.equal(await sink.save(district(), item), "inserted");
+  });
+
   it("a legalinfo.mn act keeps its own title when another act used it this month (the real list)", async () => {
     const { createDbSink } = await import("@/lib/scraper/db-sink");
     const { parseLegalinfoList } = await import("@/lib/scraper/adapters/legalinfo");

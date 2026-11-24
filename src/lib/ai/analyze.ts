@@ -373,5 +373,7 @@ export async function refreshCluster(db: DB, clusterId: number, log?: UsageLogge
       ...(title ? { title } : {}),
       ...(synthesis ? { synthesisSummary: synthesis } : shrunk ? { synthesisSummary: null } : {}),
     })
-    .where(eq(clusters.id, clusterId));
+    // Only over the count this recount started from: two admin changes to one cluster can overlap,
+    // and the one that waited longer on the AI must not write back the older membership.
+    .where(current ? and(eq(clusters.id, clusterId), eq(clusters.articleCount, current.count)) : eq(clusters.id, clusterId));
 }

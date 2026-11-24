@@ -47,6 +47,18 @@ describe("public API routes (PGlite)", () => {
     assert.equal((await POST(post("/api/push", body, { "x-forwarded-for": "203.0.113.9" }))).status, 200);
   });
 
+  it("two first registrations of one endpoint with different keys: one wins, the other changes nothing", async () => {
+    const { storeSubscription } = await import("@/lib/push/store");
+    const endpoint = "https://fcm.googleapis.com/fcm/send/race";
+    const results = await Promise.all([
+      storeSubscription({ endpoint, keys: { p256dh: VALID_P256DH, auth: AUTH } }, null),
+      storeSubscription({ endpoint, keys: { p256dh: VALID_P256DH, auth: "b3RoZXItYXV0aC1zZWNyZXQ" } }, null),
+    ]);
+    assert.deepEqual(results.filter(Boolean).length, 1);
+    const [row] = (await db.execute(sql`select auth from push_subscriptions where endpoint = ${endpoint}`)).rows as { auth: string }[];
+    assert.equal(row.auth, results[0] ? AUTH : "b3RoZXItYXV0aC1zZWNyZXQ");
+  });
+
   it("a renewal moves the old row only with its auth secret", async () => {
     const { storeSubscription } = await import("@/lib/push/store");
     const keys = { p256dh: VALID_P256DH, auth: AUTH };

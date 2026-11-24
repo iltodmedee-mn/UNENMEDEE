@@ -255,6 +255,7 @@ describe("dates in page data blobs", () => {
     assert.equal(jsonBlobDate(nuxt)?.toISOString().slice(0, 10), "2025-09-14");
     assert.equal(jsonBlobDate('<script>window.__NUXT__={updated:"2025-09-14T10:15:00"}</script>'), null, "only a publication key counts");
     assert.equal(jsonBlobDate('<script type="application/json">{"event-date":"2025-09-14","publishedAt":"2025-09-15T10:00:00"}</script>')?.toISOString().slice(0, 10), "2025-09-15", "the whole key");
+    assert.equal(jsonBlobDate('<script>window.__NUXT__={date:"2099-01-01",publishedAt:"2025-09-15T10:00:00"}</script>')?.toISOString().slice(0, 10), "2025-09-15", "a future date does not hide the next one");
     assert.equal(jsonBlobDate(`<script type="application/json">{"viewCount":184,"key":"abc"}</script>`), null);
   });
 });

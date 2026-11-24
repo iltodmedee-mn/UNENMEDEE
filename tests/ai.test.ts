@@ -47,6 +47,9 @@ describe("Tier1Schema", () => {
     const english = { ...base, tldr_summary: "The capital awarded 48.5 billion tugriks through a direct contract without a tender.", facts: [...base.facts, "Нийслэлийн Засаг даргын тамгын газар шууд гэрээ байгуулсан"] };
     assert.equal(Tier1Schema.safeParse(english).success, false);
     assert.equal(Tier1Schema.safeParse(base).success, true);
+    // One English summary line under a long Cyrillic one fails; a Latin company name in a Mongolian fact stays.
+    assert.equal(Tier1Schema.safeParse({ ...base, tldr_summary: [...base.tldr_summary, "The government raised taxes again this year."] }).success, false);
+    assert.equal(Tier1Schema.safeParse({ ...base, facts: [...base.facts, "Wagner Asia Equipment LLC-тэй 5 тэрбум төгрөгийн гэрээ байгуулсан"] }).success, true);
   });
   it("coerces, clamps, dedupes and derives risk_flag itself", () => {
     const r = Tier1Schema.parse(JSON.parse(TIER1_OK));

@@ -1,4 +1,4 @@
-import { count, eq, gte } from "drizzle-orm";
+import { count, eq, gte, sql } from "drizzle-orm";
 
 import { getDb } from "@/db";
 import { pushSubscriptions } from "@/db/schema";
@@ -38,10 +38,18 @@ export async function storeSubscription(sub: SubscriptionInput, old: OldSubscrip
     follows = oldProven ? (row?.f ?? null) : null;
   }
   const moved = follows?.length ? { followPoliticians: follows } : {};
-  await db
+  // The key check is part of the write: two requests that both found no row both reach here, and
+  // the second one's conflict update must not replace the first one's keys (CodeRabbit on #337).
+  const written = await db
     .insert(pushSubscriptions)
     .values({ endpoint, p256dh: keys.p256dh, auth: keys.auth, ...moved })
-    .onConflictDoUpdate({ target: pushSubscriptions.endpoint, set: { p256dh: keys.p256dh, auth: keys.auth, failures: 0, ...moved } });
+    .onConflictDoUpdate({
+      target: pushSubscriptions.endpoint,
+      set: { p256dh: keys.p256dh, auth: keys.auth, failures: 0, ...moved },
+      setWhere: sql`rtrim(${pushSubscriptions.auth}, '=') = rtrim(${keys.auth}, '=')`,
+    })
+    .returning({ id: pushSubscriptions.id });
+  if (!written.length) return false; // another subscriber's keys are stored there: nothing moved, nothing deleted
   if (old && oldProven) await db.delete(pushSubscriptions).where(eq(pushSubscriptions.endpoint, old.endpoint));
   return true;
 }

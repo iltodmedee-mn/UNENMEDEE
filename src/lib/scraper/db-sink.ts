@@ -73,78 +73,85 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
       // An in-memory claim is not a stored article yet (its save may still fail): nothing is remembered for it.
       if (claimed.has(hash)) return "duplicate";
       claimed.add(hash);
-      const [dup, deletedDup] = await Promise.all([
-        db.select({ id: articles.id }).from(articles).where(eq(articles.contentHash, hash)).limit(1),
-        db.select({ url: seenUrls.originalUrl }).from(seenUrls).where(eq(seenUrls.contentHash, hash)).limit(1),
-      ]);
-      if (dup.length || deletedDup.length) {
-        await remember();
-        return "duplicate";
-      }
-      // opendata.gov.mn lists the same registry datasets again every day under a new id, with only
-      // the "last updated" line changed (6 datasets × 6 days in Oct-Nov 2026): one story a week.
-      if (source.domain === RELISTING_DOMAIN) {
-        const relisted = await db
-          .select({ id: articles.id })
-          .from(articles)
-          .where(and(eq(articles.sourceId, source.id), eq(articles.title, unshoutTitle(item.title).slice(0, 500)), gte(articles.createdAt, new Date(Date.now() - RELIST_DAYS * 86_400_000))))
-          .limit(1);
-        if (relisted.length) {
-          await db.insert(seenUrls).values({ originalUrl: item.url, contentHash: hash, sourceId: source.id }).onConflictDoNothing();
+      // A save that throws gives its claim back, so the same text can be tried again this run
+      // (CodeRabbit on #337): a failed claim used to read as "duplicate" until the run ended.
+      try {
+        const [dup, deletedDup] = await Promise.all([
+          db.select({ id: articles.id }).from(articles).where(eq(articles.contentHash, hash)).limit(1),
+          db.select({ url: seenUrls.originalUrl }).from(seenUrls).where(eq(seenUrls.contentHash, hash)).limit(1),
+        ]);
+        if (dup.length || deletedDup.length) {
+          await remember();
           return "duplicate";
         }
+        // opendata.gov.mn lists the same registry datasets again every day under a new id, with only
+        // the "last updated" line changed (6 datasets × 6 days in Oct-Nov 2026): one story a week.
+        if (source.domain === RELISTING_DOMAIN) {
+          const relisted = await db
+            .select({ id: articles.id })
+            .from(articles)
+            .where(and(eq(articles.sourceId, source.id), eq(articles.title, unshoutTitle(item.title).slice(0, 500)), gte(articles.createdAt, new Date(Date.now() - RELIST_DAYS * 86_400_000))))
+            .limit(1);
+          if (relisted.length) {
+            await db.insert(seenUrls).values({ originalUrl: item.url, contentHash: hash, sourceId: source.id }).onConflictDoNothing();
+            return "duplicate";
+          }
+        }
+        let title = item.title;
+        let siteTitle = isGenericTitle(title, [source.name]);
+        if (!siteTitle && !repeatsTitles(source.domain)) {
+          // The same title already used by this site this month: it is the site's title, not a headline.
+          const seen = await db
+            .select({ id: articles.id })
+            .from(articles)
+            .where(and(eq(articles.sourceId, source.id), inArray(articles.title, [title, unshoutTitle(title)]), gte(articles.createdAt, new Date(Date.now() - 30 * 86_400_000))))
+            .limit(1);
+          siteTitle = seen.length > 0;
+        }
+        // A site title over menu text is a homepage or a menu page: keep it (so it is not fetched
+        // again) but never publish it.
+        const menuPage = siteTitle && looksLikeNavigation(item.text);
+        if (siteTitle && !menuPage) title = firstSentenceTitle(item.text);
+        // A department's "about" page (district CMSs link them like news), a CMS static page or a post
+        // whose body block is empty (gov.mn image-only posts): stored, never published.
+        const notNews = menuPage || looksLikeUnitPage(title, item.text) || looksEmptyBody(item.text) || isStaticPageUrl(item.url);
+        title = unshoutTitle(title);
+        // Feeds and APIs (zasag RSS, parliament, WordPress date_gmt) are not checked by the extractor:
+        // a date in the future is an event date or a typo, never the publication time.
+        let publishedAt = item.publishedAt && !isFutureDate(item.publishedAt) ? item.publishedAt : null;
+        // A day-level date from weeks ago that this source already gave 10+ articles is a stamp in
+        // the page chrome (judcouncil.mn dated 39 stories "2019-10-22"): keep the story, drop the date.
+        if (!backfill && publishedAt && isDayLevel(publishedAt) && publishedAt.getTime() < Date.now() - SHARED_DATE_MIN_DAYS * 86_400_000) {
+          const same = await db
+            .select({ n: sql<number>`count(*)::int` })
+            .from(articles)
+            .where(and(eq(articles.sourceId, source.id), eq(articles.publishedAt, publishedAt)));
+          if ((same[0]?.n ?? 0) >= SHARED_DATE_ROWS) publishedAt = null;
+        }
+        const meta = { ...item.meta, ...(publishedAt ? {} : { date_unknown: true }) };
+        const inserted = await db
+          .insert(articles)
+          .values({
+            sourceId: source.id,
+            title: title.slice(0, 500),
+            slug: slugify(title, item.url),
+            originalUrl: item.url,
+            contentHash: hash,
+            cleanContent: truncate(item.text, MAX_STORED_CHARS),
+            scrapeMeta: Object.keys(meta).length ? meta : null,
+            // Undated: the time we found it (feeds sort by date), flagged as unknown above. An undated
+            // post whose text only mentions years before last year is an old page, not news.
+            publishedAt: publishedAt ?? new Date(),
+            isPublished: notNews ? false : (publishDecision(publishedAt, item.text, new Date(), maxAgeDays) ?? undefined),
+            // tldr_summary stays null so `npm run ai:process` picks it up.
+          })
+          .onConflictDoNothing()
+          .returning({ id: articles.id });
+        return inserted.length ? "inserted" : "duplicate";
+      } catch (err) {
+        claimed.delete(hash);
+        throw err;
       }
-      let title = item.title;
-      let siteTitle = isGenericTitle(title, [source.name]);
-      if (!siteTitle && !repeatsTitles(source.domain)) {
-        // The same title already used by this site this month: it is the site's title, not a headline.
-        const seen = await db
-          .select({ id: articles.id })
-          .from(articles)
-          .where(and(eq(articles.sourceId, source.id), inArray(articles.title, [title, unshoutTitle(title)]), gte(articles.createdAt, new Date(Date.now() - 30 * 86_400_000))))
-          .limit(1);
-        siteTitle = seen.length > 0;
-      }
-      // A site title over menu text is a homepage or a menu page: keep it (so it is not fetched
-      // again) but never publish it.
-      const menuPage = siteTitle && looksLikeNavigation(item.text);
-      if (siteTitle && !menuPage) title = firstSentenceTitle(item.text);
-      // A department's "about" page (district CMSs link them like news), a CMS static page or a post
-      // whose body block is empty (gov.mn image-only posts): stored, never published.
-      const notNews = menuPage || looksLikeUnitPage(title, item.text) || looksEmptyBody(item.text) || isStaticPageUrl(item.url);
-      title = unshoutTitle(title);
-      // Feeds and APIs (zasag RSS, parliament, WordPress date_gmt) are not checked by the extractor:
-      // a date in the future is an event date or a typo, never the publication time.
-      let publishedAt = item.publishedAt && !isFutureDate(item.publishedAt) ? item.publishedAt : null;
-      // A day-level date from weeks ago that this source already gave 10+ articles is a stamp in
-      // the page chrome (judcouncil.mn dated 39 stories "2019-10-22"): keep the story, drop the date.
-      if (!backfill && publishedAt && isDayLevel(publishedAt) && publishedAt.getTime() < Date.now() - SHARED_DATE_MIN_DAYS * 86_400_000) {
-        const same = await db
-          .select({ n: sql<number>`count(*)::int` })
-          .from(articles)
-          .where(and(eq(articles.sourceId, source.id), eq(articles.publishedAt, publishedAt)));
-        if ((same[0]?.n ?? 0) >= SHARED_DATE_ROWS) publishedAt = null;
-      }
-      const meta = { ...item.meta, ...(publishedAt ? {} : { date_unknown: true }) };
-      const inserted = await db
-        .insert(articles)
-        .values({
-          sourceId: source.id,
-          title: title.slice(0, 500),
-          slug: slugify(title, item.url),
-          originalUrl: item.url,
-          contentHash: hash,
-          cleanContent: truncate(item.text, MAX_STORED_CHARS),
-          scrapeMeta: Object.keys(meta).length ? meta : null,
-          // Undated: the time we found it (feeds sort by date), flagged as unknown above. An undated
-          // post whose text only mentions years before last year is an old page, not news.
-          publishedAt: publishedAt ?? new Date(),
-          isPublished: notNews ? false : (publishDecision(publishedAt, item.text, new Date(), maxAgeDays) ?? undefined),
-          // tldr_summary stays null so `npm run ai:process` picks it up.
-        })
-        .onConflictDoNothing()
-        .returning({ id: articles.id });
-      return inserted.length ? "inserted" : "duplicate";
     },
   };
 }
