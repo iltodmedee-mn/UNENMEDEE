@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
+import { ApprovedBudget } from "@/components/iltod/approved-budget";
 import { GroupedBarChart, SeriesLineChart, SignedBarChart } from "@/components/iltod/charts";
 import { Empty } from "@/components/iltod/empty";
 import { PageHeader } from "@/components/iltod/page-header";
@@ -13,6 +14,7 @@ import { GOVERNMENTS_SOURCE, GOVERNMENTS_VERIFIED_THROUGH, governmentsInYear, ye
 import { type BudgetNsoSnapshot, type CategorySeries, NSO_SOURCE_URL } from "@/lib/budget/nso";
 import { SHILENDANS_URL, type ShilendansSnapshot } from "@/lib/budget/shilendans";
 import type { TaxShareSnapshot } from "@/lib/budget/worldbank";
+import type { MacroSnapshot } from "@/lib/mongolbank/client";
 import { formatDateMn, formatMntShort } from "@/lib/format";
 import { getIndicator } from "@/lib/queries";
 import { jsonLd } from "@/lib/site";
@@ -21,10 +23,10 @@ import { cx } from "@/utils/cx";
 import { DataAge } from "@/components/iltod/data-age";
 
 export const metadata: Metadata = {
-  title: "Улсын төсөв 1990 оноос: орлого, зарлага, өр, аудит",
+  title: "Улсын төсөв: 2027 оны төсөв, 1990 оноос хойшхи орлого, зарлага, өр, аудит",
   alternates: { canonical: "/budget" },
   description:
-    "Монгол Улсын нэгдсэн төсвийн орлого, зарлага, алдагдал 1990 оноос хойш, тухайн үеийн Ерөнхий сайдтай нь. Татварын мөнгө юунд зарцуулагдсан, Засгийн газрын өр, Шилэн данс, Үндэсний аудитын газрын дүгнэлт. Бүгд албан ёсны эх сурвалжтай.",
+    "Монгол Улсын 2027 оны батлагдсан төсөв (41.6 их наяд ₮, хүн бүрт 12 сая ₮) ба нэгдсэн төсвийн орлого, зарлага, алдагдал 1990 оноос хойш, тухайн үеийн Ерөнхий сайдтай нь. Татварын мөнгө юунд зарцуулагдсан, Засгийн газрын өр, Шилэн данс, Үндэсний аудитын газрын дүгнэлт. Бүгд албан ёсны эх сурвалжтай.",
 };
 
 /** NSO amounts are million ₮; debt is billion ₮. */
@@ -408,17 +410,28 @@ function Audit({ a, updatedAt }: { a: AuditSnapshot; updatedAt: Date }) {
 }
 
 async function Budget() {
-  const [nso, tax, shilendans, audit] = await Promise.all([
+  const [nso, tax, shilendans, audit, macro] = await Promise.all([
     getIndicator<BudgetNsoSnapshot>("budget_nso"),
     getIndicator<TaxShareSnapshot>("worldbank_tax"),
     getIndicator<ShilendansSnapshot>("shilendans"),
     getIndicator<AuditSnapshot>("audit_opinions"),
+    // Shared cache entry with the home page's macro strip: no extra read once it is warm.
+    getIndicator<MacroSnapshot>("mongolbank"),
   ]);
+  const cpi = macro?.data.inflation;
+  const inflation = cpi && cpi.national !== null ? { value: cpi.national, month: cpi.month } : null;
+  // The approved budget is static, so it shows even with no database (CI, contributors).
   if (!nso && !shilendans && !audit) {
-    return <Empty title="Төсвийн өгөгдөл хараахан татагдаагүй" description="Сангийн яам, ҮСХ, Шилэн данс, Аудитын газрын өгөгдлийг өдөр бүр автоматаар шинэчилнэ." />;
+    return (
+      <div className="flex flex-col gap-6 pb-10">
+        <ApprovedBudget inflation={inflation} />
+        <Empty title="Төсвийн өгөгдөл хараахан татагдаагүй" description="Сангийн яам, ҮСХ, Шилэн данс, Аудитын газрын өгөгдлийг өдөр бүр автоматаар шинэчилнэ." />
+      </div>
+    );
   }
   return (
     <div className="flex flex-col gap-6 pb-10">
+      <ApprovedBudget inflation={inflation} />
       {nso && <History nso={nso.data} />}
       {nso && <Spending nso={nso.data} />}
       {nso && <Revenue nso={nso.data} tax={tax?.data ?? null} />}
@@ -454,7 +467,7 @@ export default function BudgetPage() {
       <PageHeader
         eyebrow="💰 Татварын мөнгө хаашаа явдаг вэ"
         title="Монгол Улсын төсөв"
-        description="1990 оноос хойшхи нэгдсэн төсвийн орлого, зарлага, алдагдал, юунд зарцуулсан, хэнд төлсөн, аудит юу гэж дүгнэсэн. Зөвхөн албан ёсны статистик, тоо бүр эх сурвалж руугаа холбогдоно; бид хэнийг ч буруутгахгүй."
+        description="2027 оны батлагдсан төсөв, 1990 оноос хойшхи нэгдсэн төсвийн орлого, зарлага, алдагдал, юунд зарцуулсан, хэнд төлсөн, аудит юу гэж дүгнэсэн. Зөвхөн албан ёсны статистик, тоо бүр эх сурвалж руугаа холбогдоно; бид хэнийг ч буруутгахгүй."
       >
         <div className="flex flex-wrap gap-2">
           <Link href="/tax" className="rounded-lg bg-ink px-4 py-2.5 text-sm font-semibold text-bg-primary transition hover:opacity-90">
