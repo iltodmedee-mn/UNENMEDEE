@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
 
 import type { DB } from "@/db";
 import { articles, seenUrls, sources } from "@/db/schema";
@@ -26,6 +26,56 @@ export function repeatsTitles(domain: string): boolean {
 /** A source that lists one dataset again under a new id, and how long a same-named item counts as that dataset. */
 export const RELISTING_DOMAIN = "opendata.gov.mn";
 export const RELIST_DAYS = 7;
+
+/**
+ * A source posting one notice several times (Nov 25 2026: gov.mn carried one Арвайхээр land auction
+ * as four posts that differed only in the parcel number; a teachers' contest went up four times,
+ * a theatre notice twice). A post with the same title as one this source published within
+ * `REPOST_DAYS`, whose words match it by `REPOST_SIMILARITY` with numbers ignored, is the same
+ * notice. The title must match: judcouncil.mn's candidate notices share one body and differ only by
+ * the name in the title, and each is its own story. Measured on the last 3 weeks: every such pair
+ * scored 0.98–1.0; the closest real different stories on one site scored 0.88.
+ */
+export const REPOST_DAYS = 3;
+export const REPOST_SIMILARITY = 0.9;
+
+/** Characters of the title the database compares; the rest is checked by `sameTitle`. */
+const TITLE_PREFIX = 40;
+
+/**
+ * Two titles of one post: equal, or one is the other cut short with "…" (gov.mn's listing cuts
+ * long titles: the theatre and customs notices of Nov 2026 came once whole and once cut).
+ */
+export function sameTitle(a: string, b: string): boolean {
+  const cut = (t: string) => t.trim().replace(/(…|\.\.\.)$/u, "").trim();
+  const x = cut(a);
+  const y = cut(b);
+  if (x === y) return true;
+  const [short, long] = x.length <= y.length ? [x, y] : [y, x];
+  const wasCut = /(…|\.\.\.)\s*$/u.test(x.length <= y.length ? a : b);
+  return wasCut && short.length >= TITLE_PREFIX && long.startsWith(short);
+}
+
+/** Distinct words longer than two letters, lower-cased, every number read as "#". */
+export function bodyWords(text: string): Set<string> {
+  return new Set(
+    text
+      .toLowerCase()
+      .replace(/\d+/g, "#")
+      .split(/[^\p{L}\p{N}#]+/u)
+      .filter((w) => w.length > 2),
+  );
+}
+
+/** Jaccard similarity of two bodies' word sets (0 when either is empty). */
+export function bodySimilarity(a: string, b: string): number {
+  const x = bodyWords(a);
+  const y = bodyWords(b);
+  if (x.size === 0 || y.size === 0) return 0;
+  let shared = 0;
+  for (const w of x) if (y.has(w)) shared++;
+  return shared / (x.size + y.size - shared);
+}
 
 export interface SinkOptions {
   /** Dated items older than this many days are stored unpublished (a backfill passes its window; it also marks a backfill). */
@@ -94,6 +144,30 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
             .limit(1);
           if (relisted.length) {
             await db.insert(seenUrls).values({ originalUrl: item.url, contentHash: hash, sourceId: source.id }).onConflictDoNothing();
+            return "duplicate";
+          }
+        }
+        // The same notice posted again by this source (see REPOST_DAYS): only rows with this exact
+        // title (or that title cut with "…") are read, so the check costs a few KB at most. opendata.gov.mn has its own weekly rule above.
+        if (source.domain !== RELISTING_DOMAIN) {
+          const at = (item.publishedAt ?? new Date()).getTime();
+          const span = REPOST_DAYS * 86_400_000;
+          const newTitle = unshoutTitle(item.title).slice(0, 500);
+          const candidates = await db
+            .select({ title: articles.title, text: articles.cleanContent })
+            .from(articles)
+            .where(
+              and(
+                eq(articles.sourceId, source.id),
+                sql`left(${articles.title}, ${TITLE_PREFIX}) = ${newTitle.slice(0, TITLE_PREFIX)}`,
+                eq(articles.isPublished, true),
+                gte(articles.publishedAt, new Date(at - span)),
+                lte(articles.publishedAt, new Date(at + span)),
+              ),
+            )
+            .limit(10);
+          if (candidates.some((r) => r.text && sameTitle(r.title, newTitle) && bodySimilarity(r.text, item.text) >= REPOST_SIMILARITY)) {
+            await remember();
             return "duplicate";
           }
         }
