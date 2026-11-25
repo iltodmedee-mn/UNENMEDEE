@@ -59,7 +59,11 @@ export const APPROVED_2027 = {
   gdp: { expenditure: 36.1, revenue: 34.1, balance: -2.0, debt: 50.0 },
   /** The 2026 revised budget's expenditure (тэрбум ₮), for "+22%". */
   expenditure2026: 34_000.0,
-  /** The council's shares of total spending, before and after the Khural's 2 их наяд cut (%). */
+  /**
+   * The council's shares of total spending, before and after the Khural's 2 их наяд cut (%). Its
+   * current and capital lines add up to 330.5 тэрбум more than the total (77.1 + 23.7 and
+   * 80.8 + 20.0 both make 100.8 %); the source does not say why, so the page states the gap.
+   */
   currentShare: { before: 77.1, after: 80.8 },
   capitalShare: { before: 23.7, after: 20.0 },
   assumed: { gdpGrowth: 5.8, inflation: 8.0 },

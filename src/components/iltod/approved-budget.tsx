@@ -23,6 +23,11 @@ export function perPersonMillions(billion: number): string {
   });
 }
 
+/** Current + capital minus total spending (тэрбум ₮): the council's two lines overlap the total by this much. */
+export function reconciliationGap(): number {
+  return Math.round((B.current + B.capital - B.expenditure) * 10) / 10;
+}
+
 export function growthPct(now: number, before: number): number {
   return Math.round((now / before - 1) * 100);
 }
@@ -180,7 +185,7 @@ export function ApprovedBudget({
       </div>
 
       <h3 className="text-sm font-semibold text-primary">
-        100 төгрөг тутмын хаашаа явах вэ
+        Зарлагын бүтэц: урсгал ба хөрөнгийн зардал
       </h3>
       <ol className="flex flex-col gap-3">
         <Bar
@@ -205,6 +210,12 @@ export function ApprovedBudget({
           {B.currentShare.before}%-иас {B.currentShare.after}%
         </strong>{" "}
         болсон (Төсвийн тогтвортой байдлын зөвлөлийн тооцоо).
+      </p>
+      <p className="text-xs text-tertiary">
+        Хувь нь нийт зарлагатай харьцуулсан. Зөвлөлийн тоогоор хоёулангийнх нь
+        нийлбэр {formatMntShort((B.current + B.capital) * 1e9)} нь нийт
+        зарлагаас {formatMntShort(reconciliationGap() * 1e9)}-аар их тул
+        хувиудын нийлбэр 100%-иас давна. Энэ зөрүүг эх сурвалж тайлбарлаагүй.
       </p>
 
       <h3 className="pt-2 text-sm font-semibold text-primary">Танд хамаатай</h3>

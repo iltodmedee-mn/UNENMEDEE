@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 
 import {
   ApprovedBudget,
+  reconciliationGap,
   growthPct,
   perPersonMillions,
   trillions,
@@ -35,6 +36,16 @@ describe("approved 2027 budget", () => {
     assert.equal(perPersonMillions(B.expenditure), "12.1");
     assert.equal(perPersonMillions(B.debt), "16.8");
     assert.equal(growthPct(B.expenditure, B.expenditure2026), 22);
+  });
+
+  it("states the gap between the council's two lines and the total", () => {
+    assert.equal(reconciliationGap(), 330.5);
+    assert.ok(
+      Math.abs(B.currentShare.after + B.capitalShare.after - 100.8) < 1e-9,
+    );
+    const html = renderToStaticMarkup(createElement(ApprovedBudget, {}));
+    assert.ok(!html.includes("100 төгрөг тутмын"));
+    assert.ok(html.includes("Энэ зөрүүг эх сурвалж тайлбарлаагүй."));
   });
 
   it("links every source to an official https page", () => {
