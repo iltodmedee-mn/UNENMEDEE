@@ -41,7 +41,8 @@ export function maskNote(note: string): string {
   return note
     .replace(/\b(?:https?:\/\/|www\.)\S+/giu, MASK)
     .replace(/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}/gu, MASK)
-    .replace(/\b[\p{L}\p{N}-]+\.(?:mn|com|net|org|io|me|info|biz|ru|cn)\b\S*/giu, MASK)
+    // Not `\b`: it only knows ASCII letters, so "жишээ.mn" slipped through (CodeRabbit on #343).
+    .replace(/(?<![\p{L}\p{N}-])[\p{L}\p{N}-]+\.(?:mn|com|net|org|io|me|info|biz|ru|cn)(?![\p{L}\p{N}])\S*/giu, MASK)
     .replace(/\bMN\s?\d[\d\s-]{5,}\d/giu, MASK)
     .replace(/\d(?:[\s-]?\d){6,}/gu, MASK);
 }

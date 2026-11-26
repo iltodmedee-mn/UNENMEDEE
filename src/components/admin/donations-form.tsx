@@ -39,14 +39,16 @@ export function DonationsForm({ today }: { today: string }) {
           Бүтэн нэрийг зөвхөн тухайн хүн зөвшөөрсөн бол (гүйлгээний утгад «нэрээр» гэх мэт) сонгоно. «Нууц» гэж бичсэн бол «Нэргүй». Бүтэн нэрээр биш бол банкны нэр хадгалагдахгүй. {formatNumber(ANON_MAX_MNT)} ₮-өөс их хандивыг зөвхөн бүтэн нэрээр бүртгэнэ.
         </p>
       </fieldset>
-      <label className="flex flex-col gap-1 text-xs font-medium text-tertiary sm:col-span-2">
-        Гүйлгээний утга (заавал биш; утас, данс, линк автоматаар нуугдана)
-        <input name="note" maxLength={NOTE_MAX} placeholder="Амжилт хүсье!" className={input} />
-        <span className="flex items-center gap-2 text-sm font-normal text-secondary">
+      <div className="flex flex-col gap-1 sm:col-span-2">
+        <label className="flex flex-col gap-1 text-xs font-medium text-tertiary">
+          Гүйлгээний утга (заавал биш; утас, данс, линк автоматаар нуугдана)
+          <input name="note" maxLength={NOTE_MAX} placeholder="Амжилт хүсье!" className={input} />
+        </label>
+        <label className="flex items-center gap-2 text-sm text-secondary">
           <input type="checkbox" name="notePublic" className="accent-brand-600" />
           Уншсан, сайт дээр гаргаж болно (хараал, улс төрийн уриа, сурталчилгаа биш)
-        </span>
-      </label>
+        </label>
+      </div>
       <button type="submit" disabled={pending} className="rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-solid_hover disabled:opacity-60">
         {pending ? "Нэмж байна…" : "Хандив нэмэх"}
       </button>

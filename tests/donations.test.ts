@@ -67,6 +67,8 @@ describe("donation rules (Nov 2026)", () => {
     assert.equal(maskNote("манай дэлгүүр https://shop.example.com/x үзээрэй"), `манай дэлгүүр ${MASK} үзээрэй`);
     assert.equal(maskNote("www.example.mn"), MASK);
     assert.equal(maskNote("shop.mn-ээс"), MASK);
+    assert.equal(maskNote("жишээ.mn"), MASK, "a Cyrillic host name too (CodeRabbit on #343)");
+    assert.equal(maskNote("манай жишээ.mn сайт"), `манай ${MASK} сайт`);
     assert.equal(maskNote("bat@gmail.com"), MASK);
     // Short numbers stay: amounts, years, a class.
     assert.equal(maskNote("2026 онд 10 000₮"), "2026 онд 10 000₮");
