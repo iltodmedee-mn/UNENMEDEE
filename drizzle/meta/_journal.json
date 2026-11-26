@@ -197,6 +197,13 @@
       "when": 1794230388042,
       "tag": "0027_article_reactions",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1795659324974,
+      "tag": "0028_donation_note_public",
+      "breakpoints": true
     }
   ]
 }

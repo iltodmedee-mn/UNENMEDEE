@@ -8,7 +8,8 @@ import { PageHeader } from "@/components/iltod/page-header";
 import { budgetConfig } from "@/lib/ai/limits";
 import { getPrice } from "@/lib/ai/pricing";
 import { formatNumber, formatUsd } from "@/lib/format";
-import { ANONYMOUS_LABEL, type DonationsSummary } from "@/lib/donations";
+import { Supporters, SUPPORTERS_RULES } from "@/components/iltod/supporters";
+import type { DonationsSummary } from "@/lib/donations";
 import { getDonations, getSiteStats, getTransparency } from "@/lib/queries";
 import { LOG_KEEP_MONTHS } from "@/lib/retention";
 import { REPO_URL } from "@/lib/site";
@@ -73,46 +74,11 @@ const PROVIDER_SHORT: Record<string, string> = {
   elevenlabs: "ElevenLabs",
 };
 
-/** Every donation as it reached the account: day, name as the donor allowed, amount. */
+/** "Энэ сайтыг дэмждэг хүмүүс": every donation as it reached the account (`Supporters`). */
 function Donations({ gifts }: { gifts: DonationsSummary }) {
   return (
-    <Panel
-      title="Ирсэн хандив"
-      description="Дансанд орсон хандив бүрийг өдөр, дүнгээр нь энд бүртгэдэг. Нэрийг товчилж (Б.Б.) бичнэ; гүйлгээний утгад «нэрээр» гэвэл бүтэн нэрээр, «нууц» гэвэл нэргүй гаргана."
-    >
-      <div className="grid grid-cols-2 gap-x-6 sm:max-w-md">
-        <div className="flex flex-col gap-1 border-t border-line-soft py-3">
-          <span className="label-mono text-tertiary">Энэ сард</span>
-          <span className="num-mono text-2xl text-primary">{formatNumber(gifts.monthMnt)} ₮</span>
-        </div>
-        <div className="flex flex-col gap-1 border-t border-line-soft py-3">
-          <span className="label-mono text-tertiary">Нийт · {formatNumber(gifts.count)} хандив</span>
-          <span className="num-mono text-2xl text-primary">{formatNumber(gifts.totalMnt)} ₮</span>
-        </div>
-      </div>
-      {gifts.rows.length ? (
-        <ol className="flex flex-col divide-y divide-line-soft border-y border-line">
-          {gifts.rows.map((d) => (
-            <li key={d.id} className="grid grid-cols-[5.5rem_1fr_auto] items-baseline gap-x-3 py-2.5 text-sm">
-              <span className="num-mono text-xs text-tertiary">{d.receivedOn}</span>
-              <span className="min-w-0">
-                <span className={d.donor ? "font-medium text-primary" : "text-tertiary"}>{d.donor ?? ANONYMOUS_LABEL}</span>
-                {d.note && <span className="block text-xs break-words text-tertiary">«{d.note}»</span>}
-              </span>
-              <span className="num-mono font-semibold text-primary">{formatNumber(d.amountMnt)} ₮</span>
-            </li>
-          ))}
-        </ol>
-      ) : (
-        <p className="text-sm text-tertiary">Хандив хараахан бүртгэгдээгүй байна.</p>
-      )}
-      {gifts.count > gifts.rows.length && <p className="text-xs text-tertiary">Сүүлийн {gifts.rows.length} хандивыг харуулав; нийт дүнд бүгд орсон.</p>}
-      <p className="text-sm text-secondary">
-        Баярлалаа! Дэмжих бол{" "}
-        <Link href="/support" prefetch={false} className="font-semibold text-brand-secondary hover:underline">
-          хандивын данс →
-        </Link>
-      </p>
+    <Panel title="Энэ сайтыг дэмждэг хүмүүс" description={SUPPORTERS_RULES}>
+      <Supporters gifts={gifts} />
     </Panel>
   );
 }

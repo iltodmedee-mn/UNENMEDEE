@@ -13,7 +13,7 @@ import { dbBudgetGuard, dbUsageLogger, syncLedgerAiCost } from "@/lib/ai/usage-l
 import { requireAdmin } from "@/lib/admin-auth";
 import { errorLine } from "@/lib/log-safe";
 import { ACCOUNT_PATTERN, DONATION_KEY, normalizeAccount } from "@/lib/donation";
-import { cleanLine, NAME_MODES, type NameMode, NOTE_MAX, parseAmount, publicDonor, validDay } from "@/lib/donations";
+import { ANON_MAX_MNT, cleanLine, maskNote, NAME_MODES, nameModeAllowed, type NameMode, NOTE_MAX, parseAmount, publicDonor, validDay } from "@/lib/donations";
 import { ubDateKey } from "@/lib/archive";
 import { formatNumber } from "@/lib/format";
 import { ABOUT_FIELDS, ABOUT_KEY, cleanAboutText } from "@/lib/about";
@@ -221,12 +221,27 @@ export async function addDonation(_prev: ActionResult | null, formData: FormData
     if (amount === null) return { ok: false, message: "Дүнг бүхэл төгрөгөөр бичнэ үү (жишээ нь 50000)." };
     const rawMode = String(formData.get("mode") ?? "");
     const mode: NameMode = (NAME_MODES as readonly string[]).includes(rawMode) ? (rawMode as NameMode) : "initials";
+    if (!nameModeAllowed(amount, mode)) {
+      return { ok: false, message: `${formatNumber(ANON_MAX_MNT)} ₮-өөс их хандивыг зөвхөн бүтэн нэрээр нь бүртгэнэ. Хандивлагчаас бүтэн нэрээр нийтлэх зөвшөөрөл аваарай, эс бөгөөс мөнгийг нь буцаана.` };
+    }
     const donor = publicDonor(String(formData.get("donor") ?? ""), mode);
-    const note = cleanLine(formData.get("note"), NOTE_MAX) || null;
-    await getDb().insert(donations).values({ receivedOn: day, amountMnt: amount, donor, note });
+    if (mode === "full" && !donor && amount > ANON_MAX_MNT) return { ok: false, message: "Бүтэн нэрийг бичнэ үү." };
+    const note = maskNote(cleanLine(formData.get("note"), NOTE_MAX)) || null;
+    const notePublic = note !== null && formData.get("notePublic") === "on";
+    await getDb().insert(donations).values({ receivedOn: day, amountMnt: amount, donor, note, notePublic });
     updateTag("donations");
-    return { ok: true, message: `Нэмлээ: ${day} · ${formatNumber(amount)} ₮ · ${donor ?? "нэргүй"} — ил тод тайланд гарлаа.` };
+    const noteLine = note && !notePublic ? " Утга нь нуугдсан: доорх жагсаалтаас «Утгыг нийтлэх» дарна." : "";
+    return { ok: true, message: `Нэмлээ: ${day} · ${formatNumber(amount)} ₮ · ${donor ?? "нэргүй"} — ил тод тайланд гарлаа.${noteLine}` };
   });
+}
+
+/** Shows or hides a donation's note on /transparency once the owner has read it. */
+export async function toggleDonationNote(formData: FormData) {
+  await requireAdmin();
+  const id = z.coerce.number().int().positive().parse(formData.get("id"));
+  const show = formData.get("show") === "1";
+  await getDb().update(donations).set({ notePublic: show }).where(eq(donations.id, id));
+  updateTag("donations");
 }
 
 export async function deleteDonation(formData: FormData) {
