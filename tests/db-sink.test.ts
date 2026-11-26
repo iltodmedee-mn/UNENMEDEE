@@ -160,6 +160,49 @@ describe("db-sink storage rules (PGlite)", () => {
     assert.equal(await sink.save(src, item(8530, "2026-11-04")), "inserted");
   });
 
+  it("one notice posted again by the same source is not a new story (Арвайхээр land auction, Nov 2026)", async () => {
+    const { createDbSink, REPOST_DAYS } = await import("@/lib/scraper/db-sink");
+    const id = Number((await rows(sql`insert into sources (name, domain, url_pattern, category) values ('Засгийн газар', 'repost.gov.mn', 'https://repost.gov.mn', 'ministry') returning id`))[0].id);
+    const src = { id, domain: "repost.gov.mn", name: "Засгийн газар", urlPattern: "https://repost.gov.mn" };
+    const title = "2026 оны Газар зохион байгуулалтын төлөвлөгөөний дагуу ГАЗАР ЭЗЭМШҮҮЛЭХ ДУУДЛАГА ХУДАЛДААГ";
+    // The real posts: the same text, only the parcel numbers differ (and one "танхимын" for "танхим").
+    const body = (parcel: string, plan: string, hall = "танхим") =>
+      `Аймгийн засаг даргын 2026 оны 11 дүгээр сарын 19-ний өдрийн А/676 дугаар захирамжийг үндэслэн 2026 оны 12 дугаар сарын 10-ний өдрийн 11:00-13:00 цагт танхимаар зохион байгуулагдана. Арвайхээр сумын 13-р баг, шинэ музейн зүүн талд ${parcel} нэгж талбар (${plan} төлөвлөлтийн нэгж талбар)-ын дугаар бүхий 5-8 давхар нийтийн орон сууцны зориулалттай газарт орон сууцны тохижилтийн талбайг нэмэх шаардлагаар 280м2 газарт ${hall} дуудлага худалдаа зарлаж байна. Бүртгэл: оролцогчид дэнчин, тэмдэгтийн хураамж төлж материалаа бүрдүүлнэ.`;
+    const at = new Date(Date.now() - 3_600_000);
+    const item = (n: string, text: string, extra: Partial<{ title: string; publishedAt: Date }> = {}) => ({ url: `https://repost.gov.mn/news/n/${n}`, title, text, publishedAt: at, ...extra });
+    const sink = createDbSink(db);
+    assert.equal(await sink.save(src, item("f393", body("6216000212", "5016017"))), "inserted");
+    assert.equal(await sink.save(src, item("f391", body("6216000822", "5016018", "танхимын"))), "duplicate");
+    assert.equal(await sink.save(src, item("f390", body("6216000259", "5016019"))), "duplicate");
+    assert.equal((await sink.filterNewUrls(["https://repost.gov.mn/news/n/f391"])).size, 0, "remembered, not read again");
+    // The same body under another title (judcouncil.mn: one text per candidate, the name only in the title) stays.
+    assert.equal(await sink.save(src, item("f400", body("6216000300", "5016020"), { title: "Нэр дэвшигч Б.Болормаагийн танилцуулга" })), "inserted");
+    // Same title, a different notice.
+    assert.equal(await sink.save(src, item("f401", "Өвөрхангай аймгийн Засаг даргын захирамжаар Хархорин сумын бэлчээрийн даацын судалгааг хийж, малчдад танилцуулах уулзалт зохион байгуулна. ".repeat(3))), "inserted");
+    // The listing's cut title for the same notice is the same post.
+    assert.equal(await sink.save(src, item("f392", body("6216000823", "5016021"), { title: `${title.slice(0, 60)}…` })), "duplicate");
+    // Same notice posted again outside the window: a new round, a new story.
+    assert.equal(await sink.save(src, item("f500", body("6216000999", "5016099"), { publishedAt: new Date(at.getTime() - (REPOST_DAYS + 1) * 86_400_000) })), "inserted");
+  });
+
+  it("sameTitle: equal, or cut short with an ellipsis", async () => {
+    const { sameTitle } = await import("@/lib/scraper/db-sink");
+    const whole = "ГЕГ: 2026 оны эхний 10 сард манай улс 3.71 мян.Тонн ямааны самнасан ноолуур, 88.9 сая.Тн чулуун нүүрс экспортолжээ";
+    assert.equal(sameTitle(whole, "ГЕГ: 2026 оны эхний 10 сард манай улс 3.71 мян.Тонн ямааны самнасан ноолуур, 88.9 сая.Тн чулуун нүүрс…"), true);
+    assert.equal(sameTitle(whole, whole), true);
+    // A shorter title that is not marked as cut is another headline.
+    assert.equal(sameTitle(whole, "ГЕГ: 2026 оны эхний 10 сард манай улс 3.71 мян.Тонн ямааны самнасан ноолуур"), false);
+    // Two names behind one cut prefix stay apart.
+    assert.equal(sameTitle("Иргэний хэргийг харьяалан шийдвэрлэх давж заалдах шатны шүүхийн шүүгчид нэр дэвшигч Б.Нармандах", "Иргэний хэргийг харьяалан шийдвэрлэх давж заалдах шатны шүүхийн шүүгчид нэр дэвшигч Б.Дэлгэрцэцэг"), false);
+  });
+
+  it("bodySimilarity ignores numbers and counts distinct words", async () => {
+    const { bodySimilarity } = await import("@/lib/scraper/db-sink");
+    assert.equal(bodySimilarity("Нэгж талбар 6216000212 дуудлага худалдаа", "Нэгж талбар 6216000259 дуудлага худалдаа"), 1);
+    assert.equal(bodySimilarity("", "дуудлага худалдаа"), 0);
+    assert.ok(bodySimilarity("Хархорин сумын бэлчээрийн судалгаа", "Арвайхээр сумын газрын дуудлага") < 0.3);
+  });
+
   it("which domains repeat titles by nature", async () => {
     const { repeatsTitles } = await import("@/lib/scraper/db-sink");
     for (const d of ["legalinfo.mn", "opendata.gov.mn", "parliament.mn", "zasag.mn", "police.gov.mn", "mof.gov.mn"]) assert.equal(repeatsTitles(d), true, d);
