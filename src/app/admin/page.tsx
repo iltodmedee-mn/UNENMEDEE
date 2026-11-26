@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 
-import { deleteDonation } from "@/app/admin/actions";
+import { deleteDonation, toggleDonationNote } from "@/app/admin/actions";
 import { logout } from "@/app/admin/auth-actions";
 import { AboutForm } from "@/components/admin/about-form";
 import { DonationForm } from "@/components/admin/donation-form";
@@ -185,8 +185,21 @@ async function DonationsSection() {
               <span className="num-mono text-tertiary">{d.receivedOn}</span>
               <span className="num-mono font-semibold text-primary">{formatNumber(d.amountMnt)} ₮</span>
               <span className="text-secondary">{d.donor ?? ANONYMOUS_LABEL}</span>
-              {d.note && <span className="text-tertiary">«{d.note}»</span>}
-              <form action={deleteDonation} className="ml-auto">
+              {d.note && (
+                <span className={d.notePublic ? "text-tertiary" : "text-tertiary line-through decoration-1"}>
+                  «{d.note}» <span className="text-xs">{d.notePublic ? "· нийтэлсэн" : "· нуугдсан"}</span>
+                </span>
+              )}
+              {d.note && (
+                <form action={toggleDonationNote} className="ml-auto">
+                  <input type="hidden" name="id" value={d.id} />
+                  <input type="hidden" name="show" value={d.notePublic ? "0" : "1"} />
+                  <button className="rounded-md px-2 py-1 text-xs font-semibold text-secondary ring-1 ring-primary ring-inset hover:bg-primary_hover">
+                    {d.notePublic ? "Утгыг нуух" : "Утгыг нийтлэх"}
+                  </button>
+                </form>
+              )}
+              <form action={deleteDonation} className={d.note ? "" : "ml-auto"}>
                 <input type="hidden" name="id" value={d.id} />
                 <button className="rounded-md px-2 py-1 text-xs font-semibold text-error-primary ring-1 ring-primary ring-inset hover:bg-primary_hover">Устгах</button>
               </form>

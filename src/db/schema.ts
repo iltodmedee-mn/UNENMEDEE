@@ -244,6 +244,8 @@ export const donations = pgTable(
     amountMnt: bigint("amount_mnt", { mode: "number" }).notNull(),
     donor: varchar("donor", { length: 80 }),
     note: varchar("note", { length: 140 }),
+    /** The note is shown only once the owner has read it in /admin (Nov 2026: bank memos are free text). */
+    notePublic: boolean("note_public").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("donations_received_on_idx").on(t.receivedOn)],

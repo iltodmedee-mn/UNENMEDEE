@@ -181,6 +181,12 @@ describe("db-sink storage rules (PGlite)", () => {
     assert.equal(await sink.save(src, item("f401", "Өвөрхангай аймгийн Засаг даргын захирамжаар Хархорин сумын бэлчээрийн даацын судалгааг хийж, малчдад танилцуулах уулзалт зохион байгуулна. ".repeat(3))), "inserted");
     // The listing's cut title for the same notice is the same post.
     assert.equal(await sink.save(src, item("f392", body("6216000823", "5016021"), { title: `${title.slice(0, 60)}…` })), "duplicate");
+    // A future event date is stored as "found now", and the repost is matched on that date too (CodeRabbit on #341).
+    const ahead = new Date(Date.now() + 10 * 86_400_000);
+    // An undated text needs a current year to be published (isTimelessPage).
+    const meeting = `${new Date().getFullYear()} оны ирэх сарын 10-нд болох их уулзалтын зар: бүртгэл, байршил, хөтөлбөр. `.repeat(4);
+    assert.equal(await sink.save(src, item("f700", meeting, { title: "Их уулзалтын зар", publishedAt: ahead })), "inserted");
+    assert.equal(await sink.save(src, item("f701", `${meeting}Утас 2.`, { title: "Их уулзалтын зар", publishedAt: ahead })), "duplicate");
     // Same notice posted again outside the window: a new round, a new story.
     assert.equal(await sink.save(src, item("f500", body("6216000999", "5016099"), { publishedAt: new Date(at.getTime() - (REPOST_DAYS + 1) * 86_400_000) })), "inserted");
   });

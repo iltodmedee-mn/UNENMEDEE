@@ -3,7 +3,8 @@
 import { useActionState } from "react";
 
 import { type ActionResult, addDonation } from "@/app/admin/actions";
-import { DONOR_MAX, NAME_MODE_LABEL, NAME_MODES, NOTE_MAX } from "@/lib/donations";
+import { ANON_MAX_MNT, DONOR_MAX, NAME_MODE_LABEL, NAME_MODES, NOTE_MAX } from "@/lib/donations";
+import { formatNumber } from "@/lib/format";
 
 const input = "w-full rounded-lg bg-primary px-3 py-2 text-sm text-primary shadow-xs ring-1 ring-primary ring-inset outline-none focus:ring-2 focus:ring-brand";
 
@@ -35,12 +36,16 @@ export function DonationsForm({ today }: { today: string }) {
           ))}
         </div>
         <p className="text-xs text-tertiary">
-          Бүтэн нэрийг зөвхөн тухайн хүн зөвшөөрсөн бол (гүйлгээний утгад «нэрээр» гэх мэт) сонгоно. «Нууц» гэж бичсэн бол «Нэргүй». Бүтэн нэрээр биш бол банкны нэр хадгалагдахгүй.
+          Бүтэн нэрийг зөвхөн тухайн хүн зөвшөөрсөн бол (гүйлгээний утгад «нэрээр» гэх мэт) сонгоно. «Нууц» гэж бичсэн бол «Нэргүй». Бүтэн нэрээр биш бол банкны нэр хадгалагдахгүй. {formatNumber(ANON_MAX_MNT)} ₮-өөс их хандивыг зөвхөн бүтэн нэрээр бүртгэнэ.
         </p>
       </fieldset>
       <label className="flex flex-col gap-1 text-xs font-medium text-tertiary sm:col-span-2">
-        Нийтэд харагдах тэмдэглэл (заавал биш)
+        Гүйлгээний утга (заавал биш; утас, данс, линк автоматаар нуугдана)
         <input name="note" maxLength={NOTE_MAX} placeholder="Амжилт хүсье!" className={input} />
+        <span className="flex items-center gap-2 text-sm font-normal text-secondary">
+          <input type="checkbox" name="notePublic" className="accent-brand-600" />
+          Уншсан, сайт дээр гаргаж болно (хараал, улс төрийн уриа, сурталчилгаа биш)
+        </span>
       </label>
       <button type="submit" disabled={pending} className="rounded-lg bg-brand-solid px-4 py-2 text-sm font-semibold text-white shadow-xs hover:bg-brand-solid_hover disabled:opacity-60">
         {pending ? "Нэмж байна…" : "Хандив нэмэх"}

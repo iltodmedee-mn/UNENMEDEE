@@ -16,6 +16,36 @@ export const NAME_MODE_LABEL: Record<NameMode, string> = {
 export const ANONYMOUS_LABEL = "Нэрээ нууцалсан дэмжигч";
 export const DONOR_MAX = 80;
 export const NOTE_MAX = 140;
+/**
+ * Above this a donation is accepted only under the donor's full name (Nov 2026, the owner's rule):
+ * a large anonymous gift could come from a politician, a party or a tender bidder, and the site
+ * promises no hidden ties. Smaller gifts may stay anonymous.
+ */
+export const ANON_MAX_MNT = 500_000;
+
+/** Whether this amount may be recorded under this name mode (see `ANON_MAX_MNT`). */
+export function nameModeAllowed(amountMnt: number, mode: NameMode): boolean {
+  return amountMnt <= ANON_MAX_MNT || mode === "full";
+}
+
+/** What a hidden part of a note reads as. */
+export const MASK = "•••";
+
+/**
+ * A bank memo with what must not be published taken out: links and web addresses, e-mail
+ * addresses, account numbers (MN + digits) and any run of 7+ digits (phone numbers, accounts,
+ * register numbers), spaces or dashes between the digits included. The owner still reads the note
+ * before it is shown (`note_public`); this keeps a slip from reaching the page.
+ */
+export function maskNote(note: string): string {
+  return note
+    .replace(/\b(?:https?:\/\/|www\.)\S+/giu, MASK)
+    .replace(/[\p{L}\p{N}._%+-]+@[\p{L}\p{N}.-]+\.\p{L}{2,}/gu, MASK)
+    .replace(/\b[\p{L}\p{N}-]+\.(?:mn|com|net|org|io|me|info|biz|ru|cn)\b\S*/giu, MASK)
+    .replace(/\bMN\s?\d[\d\s-]{5,}\d/giu, MASK)
+    .replace(/\d(?:[\s-]?\d){6,}/gu, MASK);
+}
+
 /** Larger than any plausible single transfer; a typo with three extra zeros is refused. */
 export const AMOUNT_MAX = 1_000_000_000;
 
@@ -27,6 +57,22 @@ export interface DonationRow {
   /** As published; null = anonymous. */
   donor: string | null;
   note: string | null;
+  /** Whether the owner has cleared the note for the public page. */
+  notePublic: boolean;
+}
+
+/** One day of the current month: donations under a name and anonymous ones. */
+export interface DonationDay {
+  day: number;
+  named: number;
+  anonymous: number;
+}
+
+/** A finished month's totals ("2026-10"). */
+export interface DonationMonth {
+  month: string;
+  count: number;
+  totalMnt: number;
 }
 
 export interface DonationsSummary {
@@ -36,6 +82,21 @@ export interface DonationsSummary {
   totalMnt: number;
   /** Ulaanbaatar calendar month of the newest data read. */
   monthMnt: number;
+  monthCount: number;
+  /** "2026-11": the month `days` belongs to. */
+  month: string;
+  /** Days of `month` that had donations. */
+  days: DonationDay[];
+  /** The two months before `month`, newest first (only months with donations). */
+  months: DonationMonth[];
+  /** The first donation ever received (the "№1" mark); null when there is none. */
+  firstId: number | null;
+}
+
+/** Days in a "YYYY-MM" month. */
+export function daysInMonth(month: string): number {
+  const [y, m] = month.split("-").map(Number);
+  return new Date(Date.UTC(y, m, 0)).getUTCDate();
 }
 
 /** One line of text: no control characters, single spaces, at most `max` characters. */

@@ -1451,13 +1451,16 @@ export async function getDonations(limit = 100): Promise<DonationsSummary> {
   // Ulaanbaatar month boundary; one page, so the hourly renders cost little.
   cacheLife("hours");
   cacheTag("donations");
-  const empty: DonationsSummary = { rows: [], count: 0, totalMnt: 0, monthMnt: 0 };
+  const thisMonth = ubDateKey(Date.now()).slice(0, 7);
+  const empty: DonationsSummary = { rows: [], count: 0, totalMnt: 0, monthMnt: 0, monthCount: 0, month: thisMonth, days: [], months: [], firstId: null };
   return safe("getDonations", empty, async () => {
     const db = getDb();
-    const month = `${ubDateKey(Date.now()).slice(0, 7)}-01`;
-    const [rows, [sums]] = await Promise.all([
+    const month = `${thisMonth}-01`;
+    // Four small reads: the rows, the totals, this month by day and the two months before (a few
+    // dozen numbers, never a row per donation beyond `limit`).
+    const [rows, [sums], days, months] = await Promise.all([
       db
-        .select({ id: donations.id, receivedOn: donations.receivedOn, amountMnt: donations.amountMnt, donor: donations.donor, note: donations.note })
+        .select({ id: donations.id, receivedOn: donations.receivedOn, amountMnt: donations.amountMnt, donor: donations.donor, note: donations.note, notePublic: donations.notePublic })
         .from(donations)
         .orderBy(desc(donations.receivedOn), desc(donations.id))
         .limit(limit),
@@ -1466,10 +1469,42 @@ export async function getDonations(limit = 100): Promise<DonationsSummary> {
           count: sql<number>`count(*)::int`,
           total: sql<string>`coalesce(sum(${donations.amountMnt}), 0)`,
           month: sql<string>`coalesce(sum(${donations.amountMnt}) filter (where ${donations.receivedOn} >= ${month}::date), 0)`,
+          monthCount: sql<number>`(count(*) filter (where ${donations.receivedOn} >= ${month}::date))::int`,
+          firstId: sql<number | null>`(array_agg(${donations.id} order by ${donations.receivedOn}, ${donations.id}))[1]`,
         })
         .from(donations),
+      db
+        .select({
+          day: sql<number>`extract(day from ${donations.receivedOn})::int`,
+          named: sql<number>`(count(*) filter (where ${donations.donor} is not null))::int`,
+          anonymous: sql<number>`(count(*) filter (where ${donations.donor} is null))::int`,
+        })
+        .from(donations)
+        .where(sql`${donations.receivedOn} >= ${month}::date`)
+        .groupBy(sql`1`)
+        .orderBy(sql`1`),
+      db
+        .select({
+          month: sql<string>`to_char(${donations.receivedOn}, 'YYYY-MM')`,
+          count: sql<number>`count(*)::int`,
+          total: sql<string>`sum(${donations.amountMnt})`,
+        })
+        .from(donations)
+        .where(sql`${donations.receivedOn} < ${month}::date and ${donations.receivedOn} >= (${month}::date - interval '2 months')`)
+        .groupBy(sql`1`)
+        .orderBy(sql`1 desc`),
     ]);
-    return { rows: rows.map((r) => ({ ...r, amountMnt: Number(r.amountMnt) })), count: sums.count, totalMnt: Number(sums.total), monthMnt: Number(sums.month) };
+    return {
+      rows: rows.map((r) => ({ ...r, amountMnt: Number(r.amountMnt) })),
+      count: sums.count,
+      totalMnt: Number(sums.total),
+      monthMnt: Number(sums.month),
+      monthCount: sums.monthCount,
+      month: thisMonth,
+      days,
+      months: months.map((m) => ({ month: m.month, count: m.count, totalMnt: Number(m.total) })),
+      firstId: sums.firstId === null ? null : Number(sums.firstId),
+    };
   });
 }
 

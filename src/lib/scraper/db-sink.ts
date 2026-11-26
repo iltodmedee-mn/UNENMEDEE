@@ -1,4 +1,4 @@
-import { and, eq, gte, inArray, lte, sql } from "drizzle-orm";
+import { and, desc, eq, gte, inArray, lte, sql } from "drizzle-orm";
 
 import type { DB } from "@/db";
 import { articles, seenUrls, sources } from "@/db/schema";
@@ -150,7 +150,8 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
         // The same notice posted again by this source (see REPOST_DAYS): only rows with this exact
         // title (or that title cut with "…") are read, so the check costs a few KB at most. opendata.gov.mn has its own weekly rule above.
         if (source.domain !== RELISTING_DOMAIN) {
-          const at = (item.publishedAt ?? new Date()).getTime();
+          // The date the row will be stored with: a future date is an event date, stored as "found now".
+          const at = (item.publishedAt && !isFutureDate(item.publishedAt) ? item.publishedAt : new Date()).getTime();
           const span = REPOST_DAYS * 86_400_000;
           const newTitle = unshoutTitle(item.title).slice(0, 500);
           const candidates = await db
@@ -165,8 +166,12 @@ export function createDbSink(db: DB, options: SinkOptions = {}): ArticleSink {
                 lte(articles.publishedAt, new Date(at + span)),
               ),
             )
+            // The exact title first: more than 10 rows sharing the 40-character prefix must not push it out.
+            .orderBy(sql`${articles.title} = ${newTitle} desc`, desc(articles.publishedAt))
             .limit(10);
-          if (candidates.some((r) => r.text && sameTitle(r.title, newTitle) && bodySimilarity(r.text, item.text) >= REPOST_SIMILARITY)) {
+          // Compared as stored: the row keeps at most MAX_STORED_CHARS of its text.
+          const body = truncate(item.text, MAX_STORED_CHARS);
+          if (candidates.some((r) => r.text && sameTitle(r.title, newTitle) && bodySimilarity(r.text, body) >= REPOST_SIMILARITY)) {
             await remember();
             return "duplicate";
           }
